@@ -197,7 +197,7 @@
           </div>
         </div>
       </div>
-      <a class="btn btn-ghost btn-small" href="https://samisdiving.com/nav" id="navBtn">nav</a>
+      <a class="btn btn-ghost btn-small" href="https://samisdiving.com/nav" id="navBtn" style="display:none">nav</a>
       <button class="btn btn-ghost btn-small" id="logoutBtn">log out</button>
     </div>
   </header>
@@ -427,6 +427,7 @@ function enterApp(){
   document.getElementById('albumLinkSection').style.display = session.role==='admin' ? 'block' : 'none';
   document.getElementById('studentAlbumSection').style.display = session.role==='student' ? 'block' : 'none';
 
+  document.getElementById('navBtn').style.display = session.role==='admin' ? 'inline-block' : 'none';
   document.getElementById('newSessionBtn').style.display = session.role==='admin' ? 'inline-block' : 'none';
   document.getElementById('addTodoBtn').style.display = session.role==='admin' ? 'inline-block' : 'none';
 
