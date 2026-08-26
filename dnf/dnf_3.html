@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dive Log — DNF Training Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #F7F4EF;
+    --bg-2: #FFFFFF;
+    --panel: #FFFFFF;
+    --panel-2: #FBF9F5;
+    --line: rgba(40,35,30,0.10);
+    --accent: #6FA0BE;
+    --accent-2: #E3A468;
+    --text: #33302B;
+    --muted: #8A8378;
+    --danger: #D9707A;
+    --radius: 14px;
+  }
+  /* Pastel swatch palette, left to right as sampled */
+  :root{
+    --pal-1: #E4E2DC;
+    --pal-2: #CFCEC8;
+    --pal-3: #DEC5AF;
+    --pal-4: #F3CFA8;
+    --pal-5: #FAE7AE;
+    --pal-6: #D2E9DD;
+    --pal-7: #CADFF1;
+    --pal-8: #DCD2F0;
+    --pal-9: #F3CCDD;
+    --pal-10: #F6C9CC;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 90% -10%, rgba(111,160,190,0.10), transparent 60%),
+      radial-gradient(900px 500px at 5% 10%, rgba(227,164,104,0.08), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter', system-ui, sans-serif;
+    min-height:100vh;
+    line-height:1.5;
+  }
+  h1,h2,h3{font-family:'Space Grotesk', sans-serif; margin:0;}
+  .mono{font-family:'IBM Plex Mono', monospace;}
+  a{color:var(--accent);}
+
+  .wrap{max-width:1180px; margin:0 auto; padding:32px 24px 80px;}
+
+  /* ---------- Hero ---------- */
+  .hero{
+    display:grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap:32px;
+    align-items:center;
+    padding:36px 0 28px;
+    border-bottom:1px solid var(--line);
+  }
+  .app-header{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    flex-wrap:wrap; padding:36px 0 28px; border-bottom:1px solid var(--line);
+  }
+  .app-header .header-actions{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .app-header .header-actions .ghost{white-space:nowrap;}
+  @media (max-width: 620px){
+    .app-header{flex-direction:column; align-items:flex-start;}
+    .app-header .header-actions{width:100%;}
+  }
+  .hero-eyebrow{
+    color:var(--accent);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    margin-bottom:10px;
+  }
+  .hero h1{font-size:clamp(28px, 4vw, 44px); font-weight:700; letter-spacing:-0.02em;}
+  .hero p{color:var(--muted); font-size:15px; max-width:46ch; margin-top:14px;}
+
+  /* ---------- Upload card ---------- */
+  .card{
+    background:linear-gradient(180deg, var(--panel-2), var(--panel));
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px;
+  }
+  .upload-card label{
+    display:block; font-size:12px; color:var(--muted); text-transform:uppercase;
+    letter-spacing:.08em; margin-bottom:6px; font-family:'IBM Plex Mono', monospace;
+  }
+  .upload-row{display:flex; gap:14px; flex-wrap:wrap; margin-bottom:14px;}
+  .field{flex:1; min-width:150px;}
+  input[type="date"], input[type="text"]{
+    width:100%; background:rgba(0,0,0,0.25); border:1px solid var(--line);
+    border-radius:8px; color:var(--text); padding:10px 12px; font-size:14px;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  input[type="date"]:focus, input[type="text"]:focus{outline:2px solid var(--accent); outline-offset:1px;}
+
+  .dropzone{
+    border:1.5px dashed var(--line); border-radius:10px; padding:18px;
+    text-align:center; cursor:pointer; transition:border-color .15s, background .15s;
+    background:rgba(255,255,255,0.02);
+  }
+  .dropzone:hover, .dropzone.drag{border-color:var(--accent); background:rgba(51,214,192,0.06);}
+  .dropzone span{display:block; color:var(--muted); font-size:13px; margin-top:4px;}
+  .dropzone input{display:none;}
+
+  .queue{display:flex; flex-direction:column; gap:8px; margin-top:14px;}
+  .queue-item{
+    display:flex; align-items:center; gap:10px; background:rgba(0,0,0,0.2);
+    border:1px solid var(--line); border-radius:8px; padding:8px 10px;
+  }
+  .queue-item img{width:44px; height:44px; object-fit:cover; border-radius:6px; flex-shrink:0;}
+  .queue-item .fit-badge{
+    width:44px; height:44px; border-radius:6px; flex-shrink:0; background:rgba(51,214,192,0.1);
+    border:1px solid var(--line); color:var(--accent); font-family:'IBM Plex Mono', monospace;
+    font-size:10px; font-weight:600; display:flex; align-items:center; justify-content:center;
+  }
+  .queue-item .name{font-size:12px; color:var(--muted); font-family:'IBM Plex Mono', monospace; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .queue-item input[type="date"]{width:150px; padding:7px 8px; font-size:12px;}
+  .queue-item .remove{background:none; border:none; color:var(--muted); font-size:16px; padding:2px 6px;}
+  .queue-item .remove:hover{color:var(--danger);}
+  .queue-item .item-status{font-size:11px; color:var(--muted); font-family:'IBM Plex Mono', monospace; min-width:60px; text-align:right;}
+  .queue-item .item-status.ok{color:var(--accent);}
+  .queue-item .item-status.err{color:var(--danger);}
+
+  button{
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:14px;
+    background:var(--accent); color:#04262260; color:#04201C; border:none;
+    padding:11px 20px; border-radius:8px; cursor:pointer; transition:transform .12s, opacity .12s;
+  }
+  button:hover{transform:translateY(-1px);}
+  button:disabled{opacity:.5; cursor:not-allowed; transform:none;}
+  button.ghost{
+    background:transparent; color:var(--text); border:1px solid var(--line);
+  }
+  button:focus-visible{outline:2px solid var(--accent-2); outline-offset:2px;}
+
+  .add-row{display:flex; align-items:center; gap:12px; margin-top:8px;}
+  .status{font-size:13px; color:var(--muted); font-family:'IBM Plex Mono', monospace;}
+  .status.err{color:var(--danger);}
+  .status.ok{color:var(--accent);}
+
+  /* ---------- Sheet sync (compact bar + modal) ---------- */
+  .upload-sync-row{
+    display:grid; grid-template-columns:1.1fr 1fr; gap:32px;
+    padding:28px 0 28px; border-bottom:1px solid var(--line); align-items:start;
+  }
+  .sheet-sync-card{padding:22px;}
+  .sheet-sync-card > label{
+    display:block; font-size:12px; color:var(--muted); text-transform:uppercase;
+    letter-spacing:.08em; margin-bottom:14px; font-family:'IBM Plex Mono', monospace;
+  }
+  .sheet-sync-card button{padding:11px 20px; font-size:14px;}
+  .sheet-sync-card .status{font-size:13px;}
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(4,10,13,0.6);
+    align-items:center; justify-content:center; z-index:100; padding:20px;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal-box{
+    background:linear-gradient(180deg, var(--panel-2), var(--panel));
+    border:1px solid var(--line); border-radius:var(--radius);
+    padding:22px; width:100%; max-width:420px; position:relative;
+    max-height:calc(100vh - 40px); overflow-y:auto; overflow-x:hidden;
+  }
+  .modal-box h3{font-size:15px; margin-bottom:14px;}
+  .cal-grid{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; margin-top:10px; width:100%;}
+  .cal-dow{font-size:10px; text-align:center; color:var(--muted); font-family:'IBM Plex Mono', monospace; padding-bottom:4px;}
+  .cal-day{
+    aspect-ratio:1; min-width:0; display:flex; align-items:center; justify-content:center;
+    border-radius:7px; font-size:12px; font-family:'IBM Plex Mono', monospace; position:relative;
+  }
+  .cal-day.empty{visibility:hidden;}
+  .cal-day.today{box-shadow:inset 0 0 0 2px var(--text);}
+  .cal-legend-dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:middle;}
+  .modal-box label{
+    display:block; font-size:12px; color:var(--muted); text-transform:uppercase;
+    letter-spacing:.08em; margin-bottom:6px; font-family:'IBM Plex Mono', monospace;
+  }
+  .modal-close{
+    position:absolute; top:12px; right:12px; background:none; border:none;
+    color:var(--muted); font-size:18px; padding:2px 6px; line-height:1;
+  }
+  .modal-close:hover{color:var(--danger);}
+  .modal-actions{display:flex; gap:10px; align-items:center; margin-top:14px;}
+
+  /* ---------- Sessions strand ---------- */
+  .section-title{
+    font-size:12px; text-transform:uppercase; letter-spacing:.14em; color:var(--muted);
+    font-family:'IBM Plex Mono', monospace; margin:44px 0 14px;
+  }
+  .empty{
+    color:var(--muted); font-size:14px; border:1px dashed var(--line); border-radius:var(--radius);
+    padding:26px; text-align:center;
+  }
+
+  /* ---------- Stats ---------- */
+  .stats-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:14px;}
+  .stat-card{padding:12px 14px;}
+  .stat-card .label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; font-family:'IBM Plex Mono', monospace;}
+  .stat-card .value{font-size:18px; font-weight:600; font-family:'Space Grotesk',sans-serif; margin-top:4px;}
+
+  /* ---------- Pool/attempt breakdown ---------- */
+  .pool-breakdown-grid{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:14px;}
+  .pool-breakdown-grid .card h3{font-size:14px; margin-bottom:2px;}
+  .pool-breakdown-grid .unit{font-size:12px; color:var(--muted); margin-bottom:10px;}
+  .pool-breakdown-grid table{font-size:12px;}
+  .pool-breakdown-grid th, .pool-breakdown-grid td{padding:7px 8px;}
+  .pool-breakdown-grid .table-wrap table{min-width:0;}
+
+  /* ---------- Detail table ---------- */
+  .detail-head{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-top:14px;}
+  .field-inline{display:flex; align-items:center; gap:8px;}
+  .mini-label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; font-family:'IBM Plex Mono', monospace; white-space:nowrap;}
+  .field-inline input[type="text"]{padding:9px 10px; font-size:13px;}
+  select{
+    background:rgba(0,0,0,0.25); color:var(--text); border:1px solid var(--line); border-radius:8px;
+    padding:9px 12px; font-family:'IBM Plex Mono', monospace; font-size:13px;
+  }
+  table{width:100%; border-collapse:collapse; margin-top:14px; font-size:13px;}
+  th{
+    text-align:left; font-family:'IBM Plex Mono', monospace; font-weight:500; color:var(--muted);
+    text-transform:uppercase; font-size:11px; letter-spacing:.06em; padding:8px 10px; border-bottom:1px solid var(--line);
+  }
+  td{
+    padding:9px 10px; border-bottom:1px solid var(--line); font-family:'IBM Plex Mono', monospace;
+  }
+  td[contenteditable="true"]{cursor:text;}
+  td[contenteditable="true"]:focus{outline:1px solid var(--accent); outline-offset:-1px; background:rgba(51,214,192,0.07);}
+  tr:hover td{background:rgba(255,255,255,0.02);}
+  .table-wrap{overflow-x:auto; border-radius:var(--radius); border:1px solid var(--line);}
+  table{margin-top:0;}
+  .table-wrap table{min-width:640px;}
+  .hint{font-size:12px; color:var(--muted); margin-top:8px;}
+
+  footer{margin-top:60px; color:var(--muted); font-size:12px; text-align:center;}
+
+  @media (max-width: 860px){
+    .hero{grid-template-columns:1fr;}
+    .upload-sync-row{grid-template-columns:1fr;}
+    .stats-grid{grid-template-columns:1fr 1fr;}
+    .pool-breakdown-grid{grid-template-columns:1fr;}
+  }
+  @media (max-width: 520px){
+    .stats-grid{grid-template-columns:1fr;}
+    .upload-row{flex-direction:column;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="app-header">
+    <div>
+      <div class="hero-eyebrow">DNF · Pool Training</div>
+      <h1>Read the log,<br>not the screenshot.</h1>
+    </div>
+    <div class="header-actions">
+      <button id="add-open-modal-btn">Add session(s)</button>
+      <button class="ghost" id="period-open-modal-btn">+ Log period</button>
+      <button class="ghost" id="sheet-sync-now-btn">Sync now</button>
+      <button class="ghost" id="sheet-open-modal-btn">Connect sheet <span id="sheet-connected-dot" style="display:none; color:var(--accent);">●</span></button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="period-modal-overlay">
+    <div class="modal-box">
+      <button class="modal-close" id="period-modal-close-btn" title="Close">×</button>
+      <h3>Cycle tracking</h3>
+      <label for="period-date-input">Period start date</label>
+      <input type="text" id="period-date-input" placeholder="DDMMYYYY" maxlength="8" inputmode="numeric">
+      <div class="modal-actions">
+        <button id="log-period-btn">+ Log period</button>
+        <span class="mini-label" style="margin-left:auto;">Avg cycle length: <span id="cycle-length-display" class="mono"></span> days</span>
+      </div>
+      <div id="period-dates-list" class="queue" style="margin-top:14px; max-height:220px; overflow-y:auto;"></div>
+      <div class="hint">Log the first day of your period each cycle (format DDMMYYYY, e.g. 01082026 for 01-08-2026, or leave blank for today). Your average cycle length is calculated automatically from these dates, and every session's cycle phase is then estimated from that automatically.</div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="add-modal-overlay">
+    <div class="modal-box">
+      <button class="modal-close" id="add-modal-close-btn" title="Close">×</button>
+      <h3>Add session(s)</h3>
+      <div class="dropzone" id="dropzone">
+        <div id="dropzone-text">
+          Drop one or more files here, or click to choose
+          <span>PNG/JPG of the Garmin interval table, or a .fit activity file — pick several at once for several sessions</span>
+        </div>
+        <input type="file" id="file-input" accept="image/*,.fit" multiple>
+      </div>
+      <div class="queue" id="queue-wrap"></div>
+      <div class="modal-actions">
+        <button id="add-btn" disabled>Add session(s)</button>
+        <span class="status" id="status-msg"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="calendar-modal-overlay">
+    <div class="modal-box" style="max-width:380px;">
+      <button class="modal-close" id="calendar-modal-close-btn" title="Close">×</button>
+      <h3>Predicted cycle phases</h3>
+      <div class="detail-head" style="margin-bottom:4px;">
+        <button class="ghost" id="cal-prev-btn" style="padding:6px 12px;">‹</button>
+        <span id="cal-month-label" class="mono" style="font-size:14px;"></span>
+        <button class="ghost" id="cal-next-btn" style="padding:6px 12px;">›</button>
+      </div>
+      <div id="calendar-grid"></div>
+      <div id="calendar-legend" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; font-size:12px; color:var(--muted);"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="sheet-modal-overlay">
+    <div class="modal-box">
+      <button class="modal-close" id="sheet-modal-close-btn" title="Close">×</button>
+      <h3>Connect Google Sheet</h3>
+      <label for="sheet-url-input">Apps Script web app URL</label>
+      <input type="text" id="sheet-url-input" placeholder="https://script.google.com/macros/s/.../exec">
+      <div class="modal-actions">
+        <button id="sheet-connect-btn">Save &amp; connect</button>
+      </div>
+      <span class="status" id="sheet-connect-status" style="display:block; margin-top:10px;"></span>
+    </div>
+  </div>
+
+  <div id="analysis-wrap" style="display:none;">
+    <div class="section-title">Overall</div>
+    <div class="stats-grid" id="stats-grid"></div>
+
+    <div class="section-title">By pool &amp; attempt number</div>
+    <div id="pool-breakdown-wrap" class="pool-breakdown-grid"></div>
+
+    <div class="section-title">Dive prediction</div>
+    <div class="card" style="margin-bottom:28px;">
+      <label style="display:block; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:10px; font-family:'IBM Plex Mono', monospace;">Enter distance or time — the other fills in below</label>
+      <div class="upload-row" style="margin-bottom:0;">
+        <div class="field" style="max-width:160px;">
+          <label for="predict-distance-input" style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px; font-family:'IBM Plex Mono', monospace;">Distance (m)</label>
+          <input type="text" inputmode="numeric" id="predict-distance-input" placeholder="e.g. 75">
+        </div>
+        <div class="field" style="max-width:160px;">
+          <label for="predict-time-input" style="display:block; font-size:11px; color:var(--muted); margin-bottom:5px; font-family:'IBM Plex Mono', monospace;">Time (MM:SS)</label>
+          <input type="text" inputmode="numeric" id="predict-time-input" placeholder="e.g. 1:30">
+        </div>
+      </div>
+      <div class="stats-grid" id="predict-stats-grid" style="margin-top:16px; grid-template-columns:repeat(2,1fr);"></div>
+      <div class="hint" id="predict-hint" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="section-title" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+      <span>By cycle phase</span>
+      <button class="ghost" id="cycle-calendar-btn" style="text-transform:none; letter-spacing:normal; padding:7px 14px; font-size:12.5px;">📅 Calendar</button>
+    </div>
+    <div id="cycle-breakdown-wrap" class="pool-breakdown-grid"></div>
+
+    <div class="section-title">Session detail</div>
+    <div class="card">
+      <div class="detail-head">
+        <select id="session-select"></select>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="ghost" id="remove-session-btn">Remove session</button>
+          <button class="ghost" id="csv-btn">Export all as CSV</button>
+        </div>
+      </div>
+      <div class="stats-grid" id="detail-stats-grid" style="margin-bottom:14px; grid-template-columns:repeat(3,1fr);"></div>
+      <div class="table-wrap">
+        <table id="detail-table">
+          <thead>
+            <tr>
+              <th>Attempt</th><th>Time</th><th>Distance (m)</th><th>Avg vel (m/s)</th>
+              <th>Min HR</th><th>Avg HR</th><th>Max HR</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="detail-tbody"></tbody>
+        </table>
+      </div>
+      <div class="hint">Cells are editable — fix anything the extraction got wrong and the charts update automatically.</div>
+    </div>
+  </div>
+
+  <footer></footer>
+</div>
+
+<script>
+  // Paste your deployed Apps Script web app URL here once (see apps-script.gs for setup)
+  // and this page will auto-connect to your sheet on every load — no need to paste it
+  // into the UI again. Leave it as '' to keep using the manual "Connect" field instead.
+  const CONFIG = { SHEET_URL: 'https://script.google.com/macros/s/AKfycbzekF6ZYMVjEZcG2J46pBtrPhzBksqSy_rE9725KByKBa34aF0HE4tSJ9QONcEDram3/exec' };
+
+  const PALETTE = ['#33D6C0','#FF8C52','#FFD166','#9D8CFF','#FF6B8B','#6BCB77','#5AB9EA'];
+  const SWATCHES = ['var(--pal-1)','var(--pal-2)','var(--pal-3)','var(--pal-4)','var(--pal-5)','var(--pal-6)','var(--pal-7)','var(--pal-8)','var(--pal-9)','var(--pal-10)'];
+  const PHASE_COLORS = { Menstrual:'var(--pal-10)', Follicular:'var(--pal-6)', Ovulation:'var(--pal-7)', Luteal:'var(--pal-8)' };
+  const state = { sessions: [], queue: [], selectedSessionId: null, sheetUrl: null, periodDates: [] };
+
+  // ---------- helpers ----------
+  function uid(){ return Math.random().toString(36).slice(2,10); }
+
+  function secToMMSS(s){
+    s = Math.round(s);
+    const m = Math.floor(s/60), r = s%60;
+    return m + ':' + String(r).padStart(2,'0');
+  }
+  function mmssToSec(str){
+    const parts = String(str).split(':').map(x=>parseFloat(x));
+    if(parts.length===2 && !isNaN(parts[0]) && !isNaN(parts[1])) return parts[0]*60+parts[1];
+    const n = parseFloat(str);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function setStatus(msg, kind){
+    const el = document.getElementById('status-msg');
+    el.textContent = msg;
+    el.className = 'status' + (kind ? ' '+kind : '');
+  }
+
+  // ---------- upload wiring ----------
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('file-input');
+  const addBtn = document.getElementById('add-btn');
+  const queueWrap = document.getElementById('queue-wrap');
+
+  const addModalOverlay = document.getElementById('add-modal-overlay');
+  const addOpenModalBtn = document.getElementById('add-open-modal-btn');
+  const addModalCloseBtn = document.getElementById('add-modal-close-btn');
+  function openAddModal(){ addModalOverlay.classList.add('open'); }
+  function closeAddModal(){ addModalOverlay.classList.remove('open'); }
+  addOpenModalBtn.addEventListener('click', openAddModal);
+  addModalCloseBtn.addEventListener('click', closeAddModal);
+  addModalOverlay.addEventListener('click', e=>{ if(e.target === addModalOverlay) closeAddModal(); });
+
+  dropzone.addEventListener('click', ()=>fileInput.click());
+  dropzone.addEventListener('dragover', e=>{e.preventDefault(); dropzone.classList.add('drag');});
+  dropzone.addEventListener('dragleave', ()=>dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', e=>{
+    e.preventDefault(); dropzone.classList.remove('drag');
+    if(e.dataTransfer.files && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', e=>{
+    if(e.target.files && e.target.files.length) handleFiles(e.target.files);
+  });
+
+  function handleFiles(fileList){
+    const files = Array.from(fileList).filter(f=>f.type.startsWith('image/') || /\.fit$/i.test(f.name));
+    if(!files.length){ setStatus('Please choose image or .fit files.', 'err'); return; }
+    files.forEach(file=>{
+      const isFit = /\.fit$/i.test(file.name) && !file.type.startsWith('image/');
+      const reader = new FileReader();
+      reader.onload = e=>{
+        if(isFit){
+          const item = {
+            qid: uid(),
+            kind: 'fit',
+            name: file.name,
+            arrayBuffer: e.target.result,
+            date: '',
+            status: 'reading .fit…'
+          };
+          state.queue.push(item);
+          parseFitToAttempts(item.arrayBuffer).then(parsed=>{
+            item.parsed = parsed;
+            if(parsed.dateISO) item.date = parsed.dateISO;
+            item.status = '';
+            renderQueue();
+          }).catch(err=>{
+            item.status = 'could not read .fit';
+            renderQueue();
+          });
+        }else{
+          state.queue.push({
+            qid: uid(),
+            kind: 'image',
+            name: file.name,
+            dataUrl: e.target.result,
+            mediaType: file.type,
+            date: '',
+            status: ''
+          });
+        }
+        renderQueue();
+        checkReady();
+      };
+      if(isFit) reader.readAsArrayBuffer(file); else reader.readAsDataURL(file);
+    });
+  }
+
+  function renderQueue(){
+    if(!state.queue.length){ queueWrap.innerHTML = ''; return; }
+    queueWrap.innerHTML = state.queue.map(item => `
+      <div class="queue-item" data-qid="${item.qid}">
+        ${item.kind === 'fit' ? '<div class="fit-badge">FIT</div>' : `<img src="${item.dataUrl}">`}
+        <span class="name">${item.name}</span>
+        <input type="date" class="q-date" data-qid="${item.qid}" value="${item.date}">
+        <span class="item-status" data-qid="${item.qid}">${item.status}</span>
+        <button class="remove q-remove" data-qid="${item.qid}" title="Remove">×</button>
+      </div>
+    `).join('');
+    queueWrap.querySelectorAll('.q-date').forEach(inp=>{
+      inp.addEventListener('change', ()=>{
+        const item = state.queue.find(q=>q.qid===inp.dataset.qid);
+        if(item) item.date = inp.value;
+      });
+    });
+    queueWrap.querySelectorAll('.q-remove').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        state.queue = state.queue.filter(q=>q.qid !== btn.dataset.qid);
+        renderQueue();
+        checkReady();
+        fileInput.value = '';
+      });
+    });
+  }
+
+  function checkReady(){
+    addBtn.disabled = state.queue.length === 0;
+  }
+  function todayISO(){
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function setItemStatus(qid, msg, kind){
+    const el = queueWrap.querySelector('.item-status[data-qid="'+qid+'"]');
+    if(el){ el.textContent = msg; el.className = 'item-status' + (kind ? ' '+kind : ''); }
+  }
+
+  addBtn.addEventListener('click', async ()=>{
+    addBtn.disabled = true;
+    const items = state.queue.slice();
+    let done = 0, failed = 0;
+    for(const item of items){
+      setItemStatus(item.qid, item.kind === 'fit' ? 'parsing…' : 'reading…');
+      setStatus('Processing ' + (done+failed+1) + ' of ' + items.length + '…');
+      try{
+        let attempts, fitDate = null, fitPool = null;
+        if(item.kind === 'fit'){
+          const parsed = item.parsed || await parseFitToAttempts(item.arrayBuffer);
+          attempts = parsed.attempts;
+          fitDate = parsed.dateISO;
+          fitPool = parsed.poolLength;
+        }else{
+          attempts = await extractAttempts(item.dataUrl, item.mediaType);
+        }
+        if(!attempts.length) throw new Error('No rows found');
+        const session = {
+          id: uid(),
+          date: item.date || fitDate || todayISO(),
+          poolLength: fitPool || null,
+          cycle: '',
+          attempts
+        };
+        state.sessions.push(session);
+        state.selectedSessionId = session.id;
+        const countNote = ' (' + attempts.length + ' attempt' + (attempts.length===1?'':'s') + ')';
+        setItemStatus(item.qid, 'added' + countNote, 'ok');
+        done++;
+        if(state.sheetUrl){
+          // Awaited on purpose: pushing sessions concurrently can race
+          // with Apps Script's read-delete-append cycle on the sheet and
+          // leave stray/duplicate rows behind. One at a time is safe.
+          await pushSessionToSheet(session).catch(()=>{ flashSyncBtn('Save not synced'); });
+        }
+        state.queue = state.queue.filter(q=>q.qid !== item.qid);
+      }catch(err){
+        console.error(err);
+        setItemStatus(item.qid, 'failed', 'err');
+        failed++;
+      }
+    }
+    state.sessions.sort((a,b)=> a.date.localeCompare(b.date));
+    renderQueue();
+    checkReady();
+    renderAll();
+    setStatus(done + ' session(s) added' + (failed ? ', ' + failed + ' failed — try a clearer screenshot or check the .fit file' : '.'), failed ? 'err' : 'ok');
+    if(!state.queue.length) fileInput.value = '';
+    if(!state.queue.length && !failed) setTimeout(closeAddModal, 700);
+  });
+
+  // ---------- extraction via Claude ----------
+  async function extractAttempts(dataUrl, mediaType){
+    const base64 = dataUrl.split(',')[1];
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: "Extract the interval training table from the image into a compact JSON array only — no markdown fences, no explanation, no extra text. Read every row top to bottom and renumber them sequentially starting at 1 as 'attempt' (ignore whatever number is printed in the interval column). For each row produce an object with exactly these keys: attempt (integer), time_seconds (integer, convert any mm:ss value to total seconds), distance_m (number), avg_velocity (number), min_hr (integer), avg_hr (integer), max_hr (integer). If a field is unreadable, omit it from that object rather than guessing. Output only the JSON array.",
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+            { type: 'text', text: 'Extract the table.' }
+          ]
+        }]
+      })
+    });
+    const data = await response.json();
+    const text = (data.content || []).map(b=>b.text || '').join('\n');
+    const clean = text.replace(/```json/gi,'').replace(/```/g,'').trim();
+    const parsed = JSON.parse(clean);
+    return parsed
+      .filter(r => r && typeof r.time_seconds === 'number')
+      .map((r,i)=>({
+        attempt: r.attempt || (i+1),
+        time_seconds: r.time_seconds,
+        distance_m: r.distance_m ?? 50,
+        avg_velocity: r.avg_velocity ?? null,
+        min_hr: r.min_hr ?? null,
+        avg_hr: r.avg_hr ?? null,
+        max_hr: r.max_hr ?? null
+      }));
+  }
+
+  // ---------- extraction from a .fit file ----------
+  // Loaded lazily via dynamic import so the page never needs a bundler or a
+  // separate <script type="module"> block — this stays a single plain file.
+  let _fitSdkPromise = null;
+  function loadFitSDK(){
+    if(!_fitSdkPromise) _fitSdkPromise = import('https://esm.run/@garmin/fitsdk');
+    return _fitSdkPromise;
+  }
+
+  async function parseFitToAttempts(arrayBuffer){
+    const { Decoder, Stream } = await loadFitSDK();
+    const stream = Stream.fromArrayBuffer(arrayBuffer);
+    if(!Decoder.isFIT(stream)) throw new Error('Not a valid .fit file');
+    const decoder = new Decoder(stream);
+    const { messages, errors } = decoder.read();
+    if((!messages.lapMesgs || !messages.lapMesgs.length) && errors && errors.length){
+      throw new Error(errors[0]);
+    }
+
+    const laps = messages.lapMesgs || [];
+    const records = (messages.recordMesgs || []).slice()
+      .sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
+
+    // A pool interval session alternates "active" (the actual dive) and
+    // "rest" laps — a DNF training session is 10 active laps, each with a
+    // non-zero swum distance, separated by zero-distance rest laps. Require
+    // BOTH conditions together so a rest lap can never slip in as an
+    // attempt, and only fall back to a looser match if that combination
+    // finds nothing at all (e.g. a differently-structured file).
+    const isActive = l => typeof l.intensity === 'string'
+      ? l.intensity.toLowerCase() === 'active'
+      : l.intensity === 0;
+    let attemptLaps = laps.filter(l => isActive(l) && (l.totalDistance||0) > 0);
+    if(!attemptLaps.length) attemptLaps = laps.filter(l => isActive(l));
+    if(!attemptLaps.length) attemptLaps = laps.filter(l => (l.totalDistance||0) > 0);
+    if(!attemptLaps.length) attemptLaps = laps;
+
+    const attempts = attemptLaps.map((lap)=>{
+      const startMs = lap.startTime ? new Date(lap.startTime).getTime() : null;
+      const endMs = lap.timestamp ? new Date(lap.timestamp).getTime() : null;
+      const hrs = records
+        .filter(r => r.heartRate != null && r.timestamp
+          && (startMs == null || new Date(r.timestamp).getTime() >= startMs)
+          && (endMs == null || new Date(r.timestamp).getTime() <= endMs))
+        .map(r => r.heartRate);
+
+      const time_seconds = lap.totalTimerTime ?? lap.totalElapsedTime ?? null;
+      const distance_m = lap.totalDistance ?? null;
+      const avg_velocity = (distance_m && time_seconds)
+        ? Math.round((distance_m/time_seconds)*100)/100
+        : (lap.avgSpeed ?? null);
+
+      return {
+        time_seconds: time_seconds != null ? Math.round(time_seconds) : null,
+        distance_m: distance_m != null ? Math.round(distance_m*10)/10 : null,
+        avg_velocity,
+        min_hr: hrs.length ? Math.min(...hrs) : (lap.minHeartRate ?? null),
+        avg_hr: lap.avgHeartRate ?? (hrs.length ? Math.round(hrs.reduce((a,b)=>a+b,0)/hrs.length) : null),
+        max_hr: lap.maxHeartRate ?? (hrs.length ? Math.max(...hrs) : null)
+      };
+    })
+      .filter(a => a.time_seconds != null)
+      // Number 1..N only after dropping any incomplete laps, so a lap that
+      // gets excluded can never leave a gap in the sequence (e.g. 1,2,4,5…).
+      .map((a, i) => ({ attempt: i+1, ...a }));
+
+    const sessionMesg = messages.sessionMesgs && messages.sessionMesgs[0];
+    const sessionStart = (sessionMesg && sessionMesg.startTime) || (laps[0] && laps[0].startTime);
+    let dateISO = null;
+    if(sessionStart){
+      const d = new Date(sessionStart);
+      dateISO = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+
+    // Swim/pool activities carry the pool length the watch was set to
+    // (Session message field "poolLength", in meters).
+    let poolLength = null;
+    if(sessionMesg && sessionMesg.poolLength){
+      poolLength = Math.round(sessionMesg.poolLength);
+    }
+
+    return { attempts, dateISO, poolLength };
+  }
+
+  // ---------- Google Sheets sync ----------
+  // Same pattern as samisdiving.html: the connected URL is remembered in
+  // localStorage (so it survives closing the tab / reopening the file, not
+  // just a refresh), and a "Sync now" button lets you manually re-pull —
+  // handy after editing the sheet directly or syncing from another device.
+  const sheetUrlInput = document.getElementById('sheet-url-input');
+  const sheetConnectBtn = document.getElementById('sheet-connect-btn');
+  const sheetSyncNowBtn = document.getElementById('sheet-sync-now-btn');
+  const sheetConnectStatus = document.getElementById('sheet-connect-status');
+  const sheetDot = document.getElementById('sheet-connected-dot');
+  const sheetModalOverlay = document.getElementById('sheet-modal-overlay');
+  const sheetOpenModalBtn = document.getElementById('sheet-open-modal-btn');
+  const sheetModalCloseBtn = document.getElementById('sheet-modal-close-btn');
+
+  function openSheetModal(){ sheetModalOverlay.classList.add('open'); sheetUrlInput.focus(); }
+  function closeSheetModal(){ sheetModalOverlay.classList.remove('open'); }
+  sheetOpenModalBtn.addEventListener('click', openSheetModal);
+  sheetModalCloseBtn.addEventListener('click', closeSheetModal);
+  sheetModalOverlay.addEventListener('click', e=>{ if(e.target === sheetModalOverlay) closeSheetModal(); });
+
+  const periodModalOverlay = document.getElementById('period-modal-overlay');
+  const periodOpenModalBtn = document.getElementById('period-open-modal-btn');
+  const periodModalCloseBtn = document.getElementById('period-modal-close-btn');
+  function openPeriodModal(){ periodModalOverlay.classList.add('open'); document.getElementById('period-date-input').focus(); }
+  function closePeriodModal(){ periodModalOverlay.classList.remove('open'); }
+  periodOpenModalBtn.addEventListener('click', openPeriodModal);
+  periodModalCloseBtn.addEventListener('click', closePeriodModal);
+  periodModalOverlay.addEventListener('click', e=>{ if(e.target === periodModalOverlay) closePeriodModal(); });
+
+  const calendarModalOverlay = document.getElementById('calendar-modal-overlay');
+  const calendarOpenBtn = document.getElementById('cycle-calendar-btn');
+  const calendarCloseBtn = document.getElementById('calendar-modal-close-btn');
+  const today0 = new Date();
+  state.calYear = today0.getFullYear();
+  state.calMonth = today0.getMonth();
+  function openCalendarModal(){ calendarModalOverlay.classList.add('open'); renderCalendar(); }
+  function closeCalendarModal(){ calendarModalOverlay.classList.remove('open'); }
+  calendarOpenBtn.addEventListener('click', openCalendarModal);
+  calendarCloseBtn.addEventListener('click', closeCalendarModal);
+  calendarModalOverlay.addEventListener('click', e=>{ if(e.target === calendarModalOverlay) closeCalendarModal(); });
+  document.getElementById('cal-prev-btn').addEventListener('click', ()=>{
+    state.calMonth--; if(state.calMonth < 0){ state.calMonth = 11; state.calYear--; }
+    renderCalendar();
+  });
+  document.getElementById('cal-next-btn').addEventListener('click', ()=>{
+    state.calMonth++; if(state.calMonth > 11){ state.calMonth = 0; state.calYear++; }
+    renderCalendar();
+  });
+
+  // Renders a month grid where each day is tinted by its predicted cycle
+  // phase (via computeCyclePhase, which already extrapolates forward from
+  // the logged period dates using the computed average cycle length).
+  function renderCalendar(){
+    const grid = document.getElementById('calendar-grid');
+    const legend = document.getElementById('calendar-legend');
+    const label = document.getElementById('cal-month-label');
+    const y = state.calYear, m = state.calMonth;
+    label.textContent = new Date(y, m, 1).toLocaleDateString(undefined, { month:'long', year:'numeric' });
+
+    if(!state.periodDates.length){
+      grid.innerHTML = '<div class="unit">Log a period date first to predict phases.</div>';
+      legend.innerHTML = '';
+      return;
+    }
+
+    const dows = ['S','M','T','W','T','F','S'];
+    const firstDow = new Date(y, m, 1).getDay();
+    const daysInMonth = new Date(y, m+1, 0).getDate();
+    const todayStr = todayISO();
+
+    let cells = dows.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+    for(let i=0;i<firstDow;i++) cells += '<div class="cal-day empty"></div>';
+    for(let day=1; day<=daysInMonth; day++){
+      const iso = y + '-' + String(m+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+      const phase = computeCyclePhase(iso);
+      const bg = phase ? PHASE_COLORS[phase] : 'transparent';
+      const border = phase ? 'transparent' : 'var(--line)';
+      const isToday = iso === todayStr ? ' today' : '';
+      cells += `<div class="cal-day${isToday}" style="background:${bg}; box-shadow:${isToday ? 'inset 0 0 0 2px var(--text)' : (phase ? 'none' : 'inset 0 0 0 1px '+border)};" title="${phase || 'No prediction'}">${day}</div>`;
+    }
+    grid.innerHTML = '<div class="cal-grid">' + cells + '</div>';
+
+    legend.innerHTML = Object.keys(PHASE_COLORS).map(phase=>`
+      <span><span class="cal-legend-dot" style="background:${PHASE_COLORS[phase]};"></span>${phase}</span>
+    `).join('');
+  }
+
+
+  const SYNC_KEY = 'dnf-dive-log-sync-url';
+  const PERIOD_KEY = 'dnf-dive-log-period-dates';
+  function safeLocalStorage(){
+    try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); return localStorage; }
+    catch(e){ return null; }
+  }
+  const LS = safeLocalStorage();
+
+  function savePeriodDates(){
+    if(LS) LS.setItem(PERIOD_KEY, JSON.stringify(state.periodDates));
+    if(state.sheetUrl) pushPeriodDatesToSheet().catch(()=>{ flashSyncBtn('Save not synced'); });
+  }
+  function loadPeriodDates(){
+    if(!LS) return;
+    try{
+      const raw = LS.getItem(PERIOD_KEY);
+      if(raw) state.periodDates = JSON.parse(raw);
+    }catch(e){}
+  }
+
+  // Average cycle length, computed from the gaps between consecutive logged
+  // period start dates. Falls back to the standard 28-day default when fewer
+  // than two dates have been logged.
+  function computeAvgCycleLength(){
+    if(state.periodDates.length < 2) return 28;
+    const sorted = state.periodDates.slice().sort((a,b)=>new Date(a)-new Date(b));
+    const gaps = [];
+    for(let i=1;i<sorted.length;i++){
+      const d1 = new Date(sorted[i-1]+'T00:00:00');
+      const d2 = new Date(sorted[i]+'T00:00:00');
+      const days = Math.round((d2 - d1) / 86400000);
+      if(days > 0) gaps.push(days);
+    }
+    if(!gaps.length) return 28;
+    return Math.round(gaps.reduce((a,b)=>a+b,0) / gaps.length);
+  }
+
+  // Cycle-phase estimation from logged period start dates + computed cycle length.
+  // Day 1 = period start. Phase bands are approximate, standard 4-phase model,
+  // scaled to the user's own average cycle length.
+  function computeCyclePhase(dateISO){
+    if(!state.periodDates.length) return null;
+    const target = new Date(dateISO + 'T00:00:00');
+    const starts = state.periodDates.map(d=>new Date(d+'T00:00:00')).filter(d=>d<=target).sort((a,b)=>b-a);
+    if(!starts.length) return null;
+    const start = starts[0];
+    const dayNum = Math.floor((target - start) / 86400000) + 1;
+    const len = computeAvgCycleLength();
+    const cycleDay = ((dayNum - 1) % len) + 1;
+    if(cycleDay <= 5) return 'Menstrual';
+    if(cycleDay <= Math.round(len/2) - 1) return 'Follicular';
+    if(cycleDay <= Math.round(len/2) + 1) return 'Ovulation';
+    return 'Luteal';
+  }
+
+  function setConnectStatus(msg, kind){
+    sheetConnectStatus.textContent = msg;
+    sheetConnectStatus.className = 'status' + (kind ? ' '+kind : '');
+  }
+  function nowHHMM(){
+    const d = new Date();
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+  const SYNC_BTN_DEFAULT = 'Sync now';
+  function setSyncBtn(text){ sheetSyncNowBtn.textContent = text; }
+  function flashSyncBtn(text){
+    setSyncBtn(text);
+    setTimeout(()=>{ setSyncBtn(state.lastSyncTime ? ('Sync ' + state.lastSyncTime) : SYNC_BTN_DEFAULT); }, 2500);
+  }
+
+  sheetConnectBtn.addEventListener('click', ()=> connectSheet(sheetUrlInput.value.trim()));
+  sheetSyncNowBtn.addEventListener('click', ()=>{
+    if(!state.sheetUrl){ flashSyncBtn('Connect a sheet first'); return; }
+    pullFromSheet(state.sheetUrl);
+  });
+
+  async function loadSessionsFromSheet(url){
+    const res = await fetch(url);
+    const data = await res.json();
+    const sessions = (data.sessions || []).map(s=>({
+      id: uid(), date: normalizeDateStr(s.date), poolLength: s.pool_length ? parseInt(s.pool_length, 10) : null,
+      cycle: '', attempts: s.attempts
+    })).sort((a,b)=> a.date.localeCompare(b.date));
+    return { sessions, periodDates: Array.isArray(data.periodDates) ? data.periodDates : null };
+  }
+
+  async function connectSheet(url){
+    if(!url){ setConnectStatus('Paste your web app URL first.', 'err'); return; }
+    setConnectStatus('Connecting…');
+    try{
+      const { sessions, periodDates } = await loadSessionsFromSheet(url);
+      state.sheetUrl = url;
+      state.sessions = sessions;
+      if(periodDates) state.periodDates = periodDates;
+      state.selectedSessionId = sessions.length ? sessions[sessions.length-1].id : null;
+      sheetUrlInput.value = url;
+      sheetDot.style.display = 'inline';
+      if(LS) LS.setItem(PERIOD_KEY, JSON.stringify(state.periodDates));
+      setConnectStatus('Connected.', 'ok');
+      state.lastSyncTime = nowHHMM();
+      setSyncBtn('Sync ' + state.lastSyncTime);
+      closeSheetModal();
+      renderAll();
+    }catch(err){
+      console.error(err);
+      setConnectStatus('Could not reach that sheet — check the URL and deployment access.', 'err');
+    }
+  }
+
+  async function pullFromSheet(url){
+    setSyncBtn('Syncing…');
+    try{
+      const { sessions, periodDates } = await loadSessionsFromSheet(url);
+      state.sessions = sessions;
+      if(periodDates) state.periodDates = periodDates;
+      state.selectedSessionId = sessions.length ? sessions[sessions.length-1].id : null;
+      if(LS) LS.setItem(PERIOD_KEY, JSON.stringify(state.periodDates));
+      state.lastSyncTime = nowHHMM();
+      setSyncBtn('Sync ' + state.lastSyncTime);
+      renderAll();
+    }catch(err){
+      console.error(err);
+      flashSyncBtn('Sync failed');
+    }
+  }
+
+  async function pushSessionToSheet(session){
+    await fetch(state.sheetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ date: session.date, pool_length: session.poolLength, attempts: session.attempts })
+    });
+  }
+
+  async function pushPeriodDatesToSheet(){
+    if(!state.sheetUrl) return;
+    await fetch(state.sheetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'save_periods', periodDates: state.periodDates })
+    });
+  }
+
+  async function deleteSessionFromSheet(date, poolLength){
+    await fetch(state.sheetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'delete', date, pool_length: poolLength })
+    });
+  }
+
+  // Auto-connect on load: a saved URL in this browser's localStorage wins
+  // (it persists across visits, same as samisdiving.html), then a ?sheet=
+  // link in the address bar, then the CONFIG.SHEET_URL baked into this file.
+  (function initSheetConnection(){
+    const params = new URLSearchParams(location.search);
+    const fromParam = params.get('sheet');
+    const fromStorage = LS ? LS.getItem(SYNC_KEY) : null;
+    const url = fromStorage || (fromParam ? decodeURIComponent(fromParam) : '') || CONFIG.SHEET_URL;
+    if(url) connectSheet(url);
+  })();
+
+  // ---------- rendering ----------
+  function renderAll(){
+    loadPeriodDates();
+    applyAutoCycles();
+    const vis = state.sessions;
+    const has = vis.length > 0;
+    document.getElementById('analysis-wrap').style.display = has ? 'block' : 'none';
+    renderPeriodTracking();
+    renderCalendar();
+    if(!has) return;
+    renderStats();
+    renderPoolBreakdown();
+    renderCycleBreakdown();
+    renderSessionSelect();
+    renderDetailTable();
+    renderPrediction();
+  }
+
+  function normalizeDateStr(d){
+    if(d == null) return '';
+    const s = String(d);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})T/);
+    if(m) return m[1];
+    const dt = new Date(s);
+    if(!isNaN(dt)) return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+    return s;
+  }
+  function formatDate(iso){
+    const d = new Date(normalizeDateStr(iso) + 'T00:00:00');
+    return d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+  }
+
+  function renderStats(){
+    const vis = state.sessions;
+    const all = vis.flatMap(s=>s.attempts);
+    const avgTime = avg(all.map(a=>a.time_seconds));
+    const hrVals = all.map(a=>a.avg_hr).filter(v=>v!=null);
+    const avgHr = hrVals.length ? avg(hrVals) : null;
+    const pace25 = avgPacePer50(25);
+    const pace50 = avgPacePer50(50);
+    const speed25 = avgSpeed(25);
+    const speed50 = avgSpeed(50);
+    const grid = document.getElementById('stats-grid');
+    const cards = [
+      { label:'Average time', value: secToMMSS(avgTime) },
+      { label:'Sessions logged', value: String(vis.length) },
+      { label:'Average heart rate', value: avgHr!=null ? Math.round(avgHr)+' bpm' : '—' },
+      { label:'Avg time / 50m (25m pool)', value: pace25!=null ? secToMMSS(pace25) : '—' },
+      { label:'Avg time / 50m (50m pool)', value: pace50!=null ? secToMMSS(pace50) : '—' },
+      { label:'Avg speed (25m pool)', value: speed25!=null ? speed25.toFixed(2)+' m/s' : '—' },
+      { label:'Avg speed (50m pool)', value: speed50!=null ? speed50.toFixed(2)+' m/s' : '—' },
+      { label:'Current cycle phase', value: state.periodDates.length ? (computeCyclePhase(todayISO()) || '—') : '—' }
+    ];
+    grid.innerHTML = cards.map((c, i)=>`
+      <div class="card stat-card" style="background:${SWATCHES[i % SWATCHES.length]}; border-color:transparent;">
+        <div class="label">${c.label}</div>
+        <div class="value">${c.value}</div>
+      </div>
+    `).join('');
+  }
+  function avg(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+
+  // Normalizes each attempt's time to a per-50m pace (time_seconds / distance_m * 50)
+  // so 25m-pool and 50m-pool sessions can be compared on the same basis.
+  function avgPacePer50(poolLen){
+    const attempts = state.sessions.filter(s=>s.poolLength===poolLen).flatMap(s=>s.attempts);
+    const valid = attempts.filter(a=>a.time_seconds!=null && a.distance_m);
+    if(!valid.length) return null;
+    return avg(valid.map(a=>a.time_seconds/a.distance_m*50));
+  }
+
+  function avgSpeed(poolLen){
+    const attempts = state.sessions.filter(s=>s.poolLength===poolLen).flatMap(s=>s.attempts);
+    const valid = attempts.filter(a=>a.avg_velocity!=null);
+    if(!valid.length) return null;
+    return avg(valid.map(a=>a.avg_velocity));
+  }
+
+  function renderPoolBreakdown(){
+    const wrap = document.getElementById('pool-breakdown-wrap');
+    const pools = [25, 50];
+    const poolColors = { 25:'var(--pal-6)', 50:'var(--pal-7)' };
+    const cards = pools.map(poolLen=>{
+      const byAttempt = {};
+      state.sessions.filter(s=>s.poolLength === poolLen).forEach(s=>{
+        s.attempts.forEach(a=>{
+          if(!byAttempt[a.attempt]) byAttempt[a.attempt] = [];
+          byAttempt[a.attempt].push(a);
+        });
+      });
+      const nums = Object.keys(byAttempt).map(Number).sort((x,y)=>x-y);
+      if(!nums.length){
+        return `<div class="card" style="background:${poolColors[poolLen]}; border-color:transparent;"><h3>${poolLen} m pool</h3><div class="unit">No sessions logged yet</div></div>`;
+      }
+      const rows = nums.map(num=>{
+        const arr = byAttempt[num];
+        const times = arr.map(a=>a.time_seconds).filter(v=>v!=null);
+        const vels = arr.map(a=>a.avg_velocity).filter(v=>v!=null);
+        const hrs = arr.map(a=>a.avg_hr).filter(v=>v!=null);
+        const t = times.length ? secToMMSS(avg(times)) : '—';
+        const v = vels.length ? avg(vels).toFixed(2)+' m/s' : '—';
+        const h = hrs.length ? Math.round(avg(hrs))+' bpm' : '—';
+        return `<tr><td>${num}</td><td>${t}</td><td>${v}</td><td>${h}</td></tr>`;
+      }).join('');
+      return `
+        <div class="card" style="background:${poolColors[poolLen]}; border-color:transparent;">
+          <h3>${poolLen} m pool</h3>
+          <div class="unit">average per attempt number, across ${new Set(state.sessions.filter(s=>s.poolLength===poolLen).map(s=>s.id)).size} session(s)</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Attempt</th><th>Avg time</th><th>Avg speed</th><th>Avg HR</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    });
+    wrap.innerHTML = cards.join('');
+  }
+
+  // Predicts total dive time for a typed distance using each pool's
+  // average speed (avg_velocity across all logged attempts in that pool).
+  // Predicts either total time (from a typed distance) or total distance
+  // (from a typed MM:SS time), using each pool's average speed. Whichever
+  // field the user typed into most recently drives the calculation; the
+  // other input is cleared so the result isn't ambiguous.
+  let predictMode = null; // 'distance' | 'time'
+
+  function renderPrediction(){
+    const grid = document.getElementById('predict-stats-grid');
+    const hint = document.getElementById('predict-hint');
+    const distInput = document.getElementById('predict-distance-input');
+    const timeInput = document.getElementById('predict-time-input');
+    if(!grid || !distInput || !timeInput) return;
+
+    const speed25 = avgSpeed(25);
+    const speed50 = avgSpeed(50);
+
+    const distRaw = distInput.value.trim();
+    const timeRaw = timeInput.value.trim();
+    const mode = predictMode || (distRaw ? 'distance' : (timeRaw ? 'time' : null));
+
+    let cards, hintMsg;
+
+    if(mode === 'time'){
+      const seconds = timeRaw ? mmssToSec(timeRaw) : 0;
+      cards = [
+        { label:'25m pool', speed: speed25, bg:'var(--pal-6)' },
+        { label:'50m pool', speed: speed50, bg:'var(--pal-7)' }
+      ].map(({label, speed, bg})=>{
+        const value = (seconds > 0 && speed) ? Math.round(seconds * speed) + ' m' : '—';
+        const sub = speed ? speed.toFixed(2)+' m/s avg' : 'No data yet';
+        return `
+          <div class="card stat-card" style="background:${bg}; border-color:transparent;">
+            <div class="label">${label} · predicted distance</div>
+            <div class="value">${value}</div>
+            <div class="unit" style="font-size:12px; color:var(--muted); margin-top:2px;">${sub}</div>
+          </div>
+        `;
+      });
+      if(!timeRaw) hintMsg = 'Type a time (MM:SS) to predict distance at each pool\'s average speed.';
+      else if(!(seconds > 0)) hintMsg = 'Enter a valid time, e.g. 1:30.';
+      else if(!speed25 && !speed50) hintMsg = 'No speed data logged yet for either pool length.';
+      else hintMsg = '';
+    }else{
+      const distance = distRaw ? parseFloat(distRaw) : NaN;
+      cards = [
+        { label:'25m pool', speed: speed25, bg:'var(--pal-6)' },
+        { label:'50m pool', speed: speed50, bg:'var(--pal-7)' }
+      ].map(({label, speed, bg})=>{
+        const value = (distance > 0 && speed) ? secToMMSS(distance / speed) : '—';
+        const sub = speed ? speed.toFixed(2)+' m/s avg' : 'No data yet';
+        return `
+          <div class="card stat-card" style="background:${bg}; border-color:transparent;">
+            <div class="label">${label} · predicted time</div>
+            <div class="value">${value}</div>
+            <div class="unit" style="font-size:12px; color:var(--muted); margin-top:2px;">${sub}</div>
+          </div>
+        `;
+      });
+      if(!distRaw) hintMsg = 'Type a distance (m) or a time (MM:SS) above to predict the other.';
+      else if(!(distance > 0)) hintMsg = 'Enter a distance greater than 0.';
+      else if(!speed25 && !speed50) hintMsg = 'No speed data logged yet for either pool length.';
+      else hintMsg = '';
+    }
+
+    grid.innerHTML = cards.join('');
+    hint.textContent = hintMsg;
+  }
+
+  document.getElementById('predict-distance-input').addEventListener('input', (e)=>{
+    predictMode = 'distance';
+    if(e.target.value.trim()) document.getElementById('predict-time-input').value = '';
+    renderPrediction();
+  });
+  document.getElementById('predict-time-input').addEventListener('input', (e)=>{
+    predictMode = 'time';
+    if(e.target.value.trim()) document.getElementById('predict-distance-input').value = '';
+    renderPrediction();
+  });
+
+  function parseDDMMYYYY(str){
+    const digits = String(str).replace(/\D/g,'');
+    if(digits.length !== 8) return null;
+    const dd = digits.slice(0,2), mm = digits.slice(2,4), yyyy = digits.slice(4,8);
+    const iso = `${yyyy}-${mm}-${dd}`;
+    const dt = new Date(iso + 'T00:00:00');
+    if(isNaN(dt) || dt.getDate() != +dd || (dt.getMonth()+1) != +mm) return null;
+    return iso;
+  }
+  function formatDateDMY(iso){
+    const s = normalizeDateStr(iso);
+    const [y,m,d] = s.split('-');
+    return `${d}-${m}-${y}`;
+  }
+
+  function renderPeriodTracking(){
+    document.getElementById('cycle-length-display').textContent = computeAvgCycleLength();
+    const listEl = document.getElementById('period-dates-list');
+    const sorted = state.periodDates.slice().sort((a,b)=>b.localeCompare(a));
+    listEl.innerHTML = sorted.length ? sorted.map(d=>`
+      <div class="queue-item">
+        <div class="name">${formatDateDMY(d)}</div>
+        <button class="remove" data-date="${d}" title="Remove">✕</button>
+      </div>
+    `).join('') : '<div class="unit">No period dates logged yet.</div>';
+    listEl.querySelectorAll('.remove').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        state.periodDates = state.periodDates.filter(d=>d!==btn.dataset.date);
+        savePeriodDates();
+        renderPeriodTracking();
+        applyAutoCycles();
+        renderCycleBreakdown();
+        renderDetailTable();
+      });
+    });
+  }
+
+  function applyAutoCycles(){
+    state.sessions.forEach(s=>{
+      const phase = computeCyclePhase(s.date);
+      s.cycle = phase || '';
+    });
+  }
+
+  function logPeriodDate(opts){
+    const closeAfter = !opts || opts.closeAfter !== false;
+    const input = document.getElementById('period-date-input');
+    const raw = input.value.trim();
+    const d = raw ? parseDDMMYYYY(raw) : todayISO();
+    if(!d){
+      input.style.outline = '2px solid var(--danger)';
+      setTimeout(()=>{ input.style.outline = ''; }, 1200);
+      return;
+    }
+    if(!state.periodDates.includes(d)){
+      state.periodDates.push(d);
+      savePeriodDates();
+      renderPeriodTracking();
+      applyAutoCycles();
+      renderStats();
+      renderCycleBreakdown();
+      renderDetailTable();
+    }
+    input.value = '';
+    if(closeAfter) closePeriodModal();
+    else input.focus();
+  }
+  document.getElementById('log-period-btn').addEventListener('click', ()=>logPeriodDate());
+  document.getElementById('period-date-input').addEventListener('keydown', e=>{
+    if(e.key === 'Enter'){ e.preventDefault(); logPeriodDate({closeAfter:false}); }
+  });
+
+  // Phase start day-offsets (0-indexed from a period start date), matching
+  // the day-number bands used in computeCyclePhase().
+  function phaseStartOffsets(len){
+    return {
+      Menstrual: 0,
+      Follicular: 5,
+      Ovulation: Math.round(len/2) - 1,
+      Luteal: Math.round(len/2) + 1
+    };
+  }
+
+  // Next upcoming date (today or later) that a given phase starts, based on
+  // the most recent logged period start date and the computed average cycle
+  // length — rolls forward a cycle at a time until it lands today or later.
+  function nextPhaseDate(phase, len){
+    if(!state.periodDates.length) return null;
+    const today = new Date(todayISO() + 'T00:00:00');
+    const sorted = state.periodDates.map(d=>new Date(d+'T00:00:00')).sort((a,b)=>b-a);
+    const lastStart = sorted[0];
+    const offset = phaseStartOffsets(len)[phase];
+    let d = new Date(lastStart.getTime() + offset*86400000);
+    while(d < today){
+      d = new Date(d.getTime() + len*86400000);
+    }
+    return d;
+  }
+
+  function formatLongDate(d){
+    return d.toLocaleDateString(undefined, { day:'numeric', month:'long', year:'numeric' });
+  }
+
+  function renderCycleBreakdown(){
+    const wrap = document.getElementById('cycle-breakdown-wrap');
+    const phases = ['Menstrual','Follicular','Ovulation','Luteal'];
+    const len = computeAvgCycleLength();
+    const cards = phases.map(phase=>{
+      const nextDate = nextPhaseDate(phase, len);
+      const nextNote = nextDate ? `<div class="unit">Next: ${formatLongDate(nextDate)}</div>` : '';
+      const sessions = state.sessions.filter(s=>s.cycle===phase);
+      const bg = PHASE_COLORS[phase] || 'var(--pal-1)';
+      if(!sessions.length){
+        return `<div class="card" style="background:${bg}; border-color:transparent;"><h3>${phase}</h3>${nextNote}<div class="unit">No sessions logged yet</div></div>`;
+      }
+      const attempts = sessions.flatMap(s=>s.attempts);
+      const times = attempts.map(a=>a.time_seconds).filter(v=>v!=null);
+      const vels = attempts.map(a=>a.avg_velocity).filter(v=>v!=null);
+      const hrs = attempts.map(a=>a.avg_hr).filter(v=>v!=null);
+      const t = times.length ? secToMMSS(avg(times)) : '—';
+      const v = vels.length ? avg(vels).toFixed(2)+' m/s' : '—';
+      const h = hrs.length ? Math.round(avg(hrs))+' bpm' : '—';
+      return `
+        <div class="card" style="background:${bg}; border-color:transparent;">
+          <h3>${phase}</h3>
+          ${nextNote}
+          <div class="unit">${sessions.length} session(s) logged</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Avg time</th><th>Avg speed</th><th>Avg HR</th></tr></thead>
+              <tbody><tr><td>${t}</td><td>${v}</td><td>${h}</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    });
+    wrap.innerHTML = cards.join('');
+  }
+
+  function renderSessionSelect(){
+    const sel = document.getElementById('session-select');
+    const vis = state.sessions;
+    sel.innerHTML = vis.map(s=>`<option value="${s.id}">${formatDate(s.date)}</option>`).join('');
+    if(!state.selectedSessionId || !vis.find(s=>s.id===state.selectedSessionId)){
+      state.selectedSessionId = vis.length ? vis[vis.length-1].id : null;
+    }
+    sel.value = state.selectedSessionId;
+  }
+  document.getElementById('session-select').addEventListener('change', e=>{
+    state.selectedSessionId = e.target.value;
+    renderDetailTable();
+  });
+
+  document.getElementById('remove-session-btn').addEventListener('click', ()=>{
+    const removed = state.sessions.find(s=>s.id === state.selectedSessionId);
+    if(!removed) return;
+    state.sessions = state.sessions.filter(s=>s.id !== removed.id);
+    state.selectedSessionId = state.sessions.length ? state.sessions[state.sessions.length-1].id : null;
+    renderAll();
+    if(state.sheetUrl) deleteSessionFromSheet(removed.date, removed.poolLength).catch(()=>{ flashSyncBtn('Delete not synced'); });
+  });
+
+  function renderDetailStats(session){
+    const grid = document.getElementById('detail-stats-grid');
+    if(!session){ grid.innerHTML=''; return; }
+    const times = session.attempts.map(a=>a.time_seconds).filter(v=>v!=null);
+    const vels = session.attempts.map(a=>a.avg_velocity).filter(v=>v!=null);
+    const hrs = session.attempts.map(a=>a.avg_hr).filter(v=>v!=null);
+    const t = times.length ? secToMMSS(avg(times)) : '—';
+    const best = times.length ? secToMMSS(Math.min(...times)) : '—';
+    const v = vels.length ? avg(vels).toFixed(2)+' m/s' : '—';
+    const h = hrs.length ? Math.round(avg(hrs))+' bpm' : '—';
+    const c = session.cycle || '—';
+    const p = session.poolLength ? session.poolLength+'m' : '—';
+    grid.innerHTML = `
+      <div class="card stat-card" style="background:var(--pal-7); border-color:transparent;">
+        <div class="label">Pool length</div>
+        <div class="value">${p}</div>
+      </div>
+      <div class="card stat-card" style="background:var(--pal-4); border-color:transparent;">
+        <div class="label">Avg time</div>
+        <div class="value">${t}</div>
+      </div>
+      <div class="card stat-card" style="background:var(--pal-5); border-color:transparent;">
+        <div class="label">Best time</div>
+        <div class="value">${best}</div>
+      </div>
+      <div class="card stat-card" style="background:var(--pal-6); border-color:transparent;">
+        <div class="label">Avg speed</div>
+        <div class="value">${v}</div>
+      </div>
+      <div class="card stat-card" style="background:var(--pal-9); border-color:transparent;">
+        <div class="label">Avg heart rate</div>
+        <div class="value">${h}</div>
+      </div>
+      <div class="card stat-card" style="background:${PHASE_COLORS[c] || 'var(--pal-8)'}; border-color:transparent;">
+        <div class="label">Cycle phase</div>
+        <div class="value">${c}</div>
+      </div>
+    `;
+  }
+
+  function renderDetailTable(){
+    const session = state.sessions.find(s=>s.id===state.selectedSessionId);
+    const tbody = document.getElementById('detail-tbody');
+    renderDetailStats(session);
+    if(!session){ tbody.innerHTML=''; return; }
+    tbody.innerHTML = session.attempts.map((a,i)=>`
+      <tr>
+        <td>${a.attempt}</td>
+        <td contenteditable="true" data-i="${i}" data-field="time">${secToMMSS(a.time_seconds)}</td>
+        <td contenteditable="true" data-i="${i}" data-field="distance_m">${a.distance_m ?? ''}</td>
+        <td contenteditable="true" data-i="${i}" data-field="avg_velocity">${a.avg_velocity ?? ''}</td>
+        <td contenteditable="true" data-i="${i}" data-field="min_hr">${a.min_hr ?? ''}</td>
+        <td contenteditable="true" data-i="${i}" data-field="avg_hr">${a.avg_hr ?? ''}</td>
+        <td contenteditable="true" data-i="${i}" data-field="max_hr">${a.max_hr ?? ''}</td>
+        <td><button class="ghost remove-attempt-btn" data-i="${i}" title="Remove this attempt" style="padding:4px 9px; font-size:12px;">✕</button></td>
+      </tr>
+    `).join('');
+    tbody.querySelectorAll('.remove-attempt-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const i = +btn.dataset.i;
+        session.attempts.splice(i, 1);
+        session.attempts.forEach((a, idx)=>{ a.attempt = idx + 1; });
+        renderDetailTable();
+        renderStats(); renderPoolBreakdown(); renderCycleBreakdown();
+        if(state.sheetUrl) pushSessionToSheet(session).catch(()=>{ flashSyncBtn('Edit not synced'); });
+      });
+    });
+    tbody.querySelectorAll('td[contenteditable]').forEach(td=>{
+      td.addEventListener('blur', ()=>{
+        const i = +td.dataset.i, field = td.dataset.field;
+        const val = td.textContent.trim();
+        if(field==='time'){ session.attempts[i].time_seconds = mmssToSec(val); }
+        else{ session.attempts[i][field] = val==='' ? undefined : parseFloat(val); }
+
+        // If distance was just entered/edited and there's no speed logged yet,
+        // auto-derive avg velocity from distance ÷ time and reflect it in that cell.
+        if(field==='distance_m'){
+          const a = session.attempts[i];
+          if(a.distance_m > 0 && a.time_seconds > 0 && !(a.avg_velocity > 0)){
+            a.avg_velocity = Math.round((a.distance_m / a.time_seconds) * 100) / 100;
+            const velTd = tbody.querySelector(`td[data-field="avg_velocity"][data-i="${i}"]`);
+            if(velTd) velTd.textContent = a.avg_velocity;
+          }
+        }
+
+        renderStats(); renderPoolBreakdown(); renderCycleBreakdown(); renderDetailStats(session);
+        if(state.sheetUrl) pushSessionToSheet(session).catch(()=>{ flashSyncBtn('Edit not synced'); });
+      });
+      td.addEventListener('keydown', (e)=>{
+        if(e.key!=='ArrowDown' && e.key!=='ArrowUp' && e.key!=='Enter') return;
+        e.preventDefault();
+        const field = td.dataset.field;
+        const i = +td.dataset.i;
+        const targetI = e.key==='ArrowUp' ? i-1 : i+1;
+        const targetTd = tbody.querySelector(`td[data-field="${field}"][data-i="${targetI}"]`);
+        td.blur();
+        if(targetTd){
+          targetTd.focus();
+          const range = document.createRange();
+          range.selectNodeContents(targetTd);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      });
+    });
+  }
+
+  document.getElementById('csv-btn').addEventListener('click', ()=>{
+    let rows = [['date','cycle','attempt','time_seconds','distance_m','avg_velocity','min_hr','avg_hr','max_hr']];
+    state.sessions.forEach(s=>{
+      s.attempts.forEach(a=>{
+        rows.push([s.date, s.cycle||'', a.attempt, a.time_seconds, a.distance_m, a.avg_velocity, a.min_hr, a.avg_hr, a.max_hr]);
+      });
+    });
+    const csv = rows.map(r=>r.join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'dnf-dive-log.csv';
+    a.click();
+  });
+
+  renderAll();
+</script>
+</body>
+</html>
