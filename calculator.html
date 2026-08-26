@@ -121,7 +121,15 @@
     flex-wrap: wrap;
     margin-bottom: clamp(28px, 5vw, 40px);
   }
-  header.top .add-btn { flex: none; margin-top: 4px; }
+  header.top .top-actions { display: flex; align-items: center; gap: 10px; flex: none; margin-top: 4px; }
+  header.top .add-btn { flex: none; margin-top: 0; }
+  .nav-btn {
+    background: var(--surface-2);
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+    text-decoration: none;
+  }
+  .nav-btn:hover { color: var(--ink); border-color: var(--accent); filter: none; }
 
   .brand-eyebrow {
     text-transform: uppercase;
@@ -921,7 +929,10 @@
       <p class="brand-eyebrow">Course pricing &amp; margin</p>
       <h1>Session Calculator</h1>
     </div>
-    <button class="add-btn" id="addMine">+ Add your course</button>
+    <div class="top-actions">
+      <a class="add-btn nav-btn" href="https://samisdiving.com/nav" target="_blank" rel="noopener noreferrer">Nav</a>
+      <button class="add-btn" id="addMine">+ Add your course</button>
+    </div>
   </header>
 
   <div class="summary-panel" id="summaryPanel" style="display:none;">
