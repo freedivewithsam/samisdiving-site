@@ -1,0 +1,2581 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session Calculator</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='16' fill='%23FFC7CE'/%3E%3Ctext x='32' y='34' font-size='34' text-anchor='middle' dominant-baseline='central'%3E%F0%9F%A7%AE%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --yellow: #FBF6C4;
+    --peach:  #FCE1C2;
+    --pink:   #FFC7CE;
+    --orchid: #F1C6EF;
+    --lav:    #D6C3F0;
+    --blue:   #AEC1F2;
+    --sky:    #97DCF5;
+    --cyan:   #8EF0F0;
+    --aqua:   #97F5D9;
+    --green:  #B3F5C0;
+
+    --bg: #fbfaf6;
+    --surface: #ffffff;
+    --surface-2: #f4f2ea;
+    --ink: #1e2b2a;
+    --ink-soft: #4b5957;
+    --ink-faint: #8a938e;
+    --line: #e2ded0;
+    --accent: #4fb8a8;
+    --accent-ink: #0d3d38;
+    --good: #2f8f5b;
+    --good-bg: #e1f3e6;
+    --warn: #b5791f;
+    --warn-bg: #f7ecd8;
+    --shadow: rgba(30, 43, 42, 0.08);
+  }
+
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --bg: #10161a;
+      --surface: #182124;
+      --surface-2: #1e2a2d;
+      --ink: #eef2ee;
+      --ink-soft: #b6c2bd;
+      --ink-faint: #7c8b86;
+      --line: #2b3a3c;
+      --accent: #6fd0bd;
+      --accent-ink: #d9fff3;
+      --good: #6fd08a;
+      --good-bg: #1e332480;
+      --warn: #e0ac52;
+      --warn-bg: #3a2f1880;
+      --shadow: rgba(0, 0, 0, 0.35);
+
+      --yellow: #6b6635;
+      --peach:  #6b5636;
+      --pink:   #6b3d43;
+      --orchid: #5e3d5c;
+      --lav:    #473d5e;
+      --blue:   #37456b;
+      --sky:    #2f5566;
+      --cyan:   #2c5f5f;
+      --aqua:   #2f5f4f;
+      --green:  #3c5f43;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #10161a;
+    --surface: #182124;
+    --surface-2: #1e2a2d;
+    --ink: #eef2ee;
+    --ink-soft: #b6c2bd;
+    --ink-faint: #7c8b86;
+    --line: #2b3a3c;
+    --accent: #6fd0bd;
+    --accent-ink: #d9fff3;
+    --good: #6fd08a;
+    --good-bg: #1e332480;
+    --warn: #e0ac52;
+    --warn-bg: #3a2f1880;
+    --shadow: rgba(0, 0, 0, 0.35);
+
+    --yellow: #6b6635;
+    --peach:  #6b5636;
+    --pink:   #6b3d43;
+    --orchid: #5e3d5c;
+    --lav:    #473d5e;
+    --blue:   #37456b;
+    --sky:    #2f5566;
+    --cyan:   #2c5f5f;
+    --aqua:   #2f5f4f;
+    --green:  #3c5f43;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: clamp(20px, 4vw, 56px) clamp(16px, 4vw, 40px) 80px;
+  }
+
+  header.top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: clamp(28px, 5vw, 40px);
+  }
+  header.top .add-btn { flex: none; margin-top: 4px; }
+
+  .brand-eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 0.72rem;
+    color: var(--accent);
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+
+  h1 {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 600;
+    font-size: clamp(2rem, 4.2vw, 3rem);
+    margin: 0;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+
+  .top-sub {
+    max-width: 54ch;
+    color: var(--ink-soft);
+    font-size: 0.98rem;
+    margin: 10px 0 0;
+  }
+  .top-sub code {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-size: 0.88em;
+  }
+
+  .summary-panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: clamp(16px, 2.4vw, 22px);
+    box-shadow: 0 1px 2px var(--shadow);
+    margin-bottom: 22px;
+  }
+  .summary-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .summary-head h2 {
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+  }
+  .png-export-btn {
+    background: var(--surface-2);
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.8rem;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  .png-export-btn:hover { color: var(--ink); border-color: var(--accent); }
+  .png-export-btn:disabled { opacity: 0.6; cursor: default; }
+  .png-export-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .png-price-toggle {
+    display: flex;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .png-price-toggle-btn {
+    background: transparent;
+    border: none;
+    color: var(--ink-soft);
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.76rem;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .png-price-toggle-btn:hover { color: var(--ink); }
+  .png-price-toggle-btn.active {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+  .png-export-note {
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+    margin: 10px 2px 0;
+  }
+  .summary-table { overflow-x: auto; }
+
+  .png-preview-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 100;
+  }
+  .png-preview-box {
+    background: var(--surface);
+    border-radius: 20px;
+    padding: 20px;
+    max-width: min(760px, 100%);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  }
+  .png-preview-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .png-preview-head h3 {
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+  }
+  .png-preview-x {
+    background: transparent;
+    border: none;
+    color: var(--ink-faint);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+  }
+  .png-preview-x:hover { background: var(--surface-2); color: var(--warn); }
+  .png-preview-imgwrap {
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-2);
+    padding: 10px;
+  }
+  .png-preview-imgwrap img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
+  }
+  .png-preview-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  .png-preview-cancel {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.86rem;
+    padding: 9px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .png-preview-cancel:hover { color: var(--ink); border-color: var(--accent); }
+  .summary-row-head, .summary-row {
+    display: grid;
+    grid-template-columns: 1.4fr 0.85fr 0.85fr 1fr 0.6fr 0.65fr;
+    gap: 10px;
+    align-items: center;
+    min-width: 660px;
+  }
+  .summary-row-head {
+    padding: 0 4px 8px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 8px;
+  }
+  .summary-row-head span {
+    font-size: 0.64rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
+    font-weight: 600;
+  }
+  .summary-row-head span:nth-child(n+2) { text-align: right; }
+  .summary-row {
+    padding: 10px 4px;
+    border-radius: 10px;
+  }
+  .summary-row:nth-child(even) { background: var(--surface-2); }
+  .summary-row-clickable {
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .summary-row-clickable:hover { background: var(--good-bg); }
+  .summary-row-clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .level-group.course-flash { animation: course-flash-anim 1.6s ease; }
+  @keyframes course-flash-anim {
+    0% { box-shadow: 0 0 0 3px var(--accent); }
+    70% { box-shadow: 0 0 0 3px var(--accent); }
+    100% { box-shadow: 0 1px 2px var(--shadow); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .level-group.course-flash { animation: none; }
+  }
+  .summary-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 0.92rem;
+    min-width: 0;
+  }
+  .summary-name .legend-dot { flex: none; }
+  .summary-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .summary-val {
+    text-align: right;
+    font-family: "JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.9rem;
+  }
+  input.summary-price-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--surface-2);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 4px 7px;
+  }
+  input.summary-price-input:hover { border-color: var(--line); }
+  input.summary-price-input:focus {
+    background: var(--surface);
+    border-color: transparent;
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .summary-margin {
+    text-align: right;
+    font-family: "Fraunces", serif;
+    font-weight: 600;
+    font-size: 0.98rem;
+  }
+  .summary-margin.margin-positive { color: var(--good); }
+  .summary-margin.margin-negative { color: var(--warn); }
+  @media (max-width: 640px) {
+    .summary-row-head { display: none; }
+    .summary-row {
+      grid-template-columns: 1fr 1fr;
+      grid-template-areas: "name name" "price discount" "reco reco" "margin discmargin";
+      row-gap: 4px;
+      border-bottom: 1px solid var(--line);
+    }
+    .summary-name { grid-area: name; }
+    .summary-price { grid-area: price; text-align: left; }
+    .summary-discount { grid-area: discount; }
+    .summary-reco { grid-area: reco; text-align: left; }
+    .summary-margin { grid-area: margin; text-align: left; }
+    .summary-disc-margin { grid-area: discmargin; }
+  }
+
+  .groups { display: flex; flex-direction: column; gap: 24px; }
+
+  .level-group {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: clamp(16px, 2.4vw, 24px);
+    box-shadow: 0 1px 2px var(--shadow);
+  }
+
+  .level-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .level-badge {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: none;
+  }
+
+  .move-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: none;
+  }
+  .move-btn {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    width: 22px;
+    height: 18px;
+    font-size: 0.55rem;
+    line-height: 1;
+    border-radius: 5px;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .move-btn:hover:not(:disabled) { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .move-btn:disabled { opacity: 0.35; cursor: default; }
+
+  .level-title-input {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 600;
+    font-size: 1.18rem;
+    background: transparent;
+    border: none;
+    padding: 2px 0;
+    flex: 1;
+    min-width: 0;
+    color: var(--ink);
+  }
+  .level-title-input:focus { outline: none; border-bottom: 1px solid var(--accent); }
+
+  .level-remove {
+    background: transparent;
+    border: none;
+    color: var(--ink-faint);
+    font-size: 0.78rem;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .level-remove:hover { background: var(--surface-2); color: var(--warn); }
+
+  .add-school-btn, .add-expense-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface-2);
+    color: var(--ink-soft);
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.82rem;
+    padding: 9px 14px;
+    cursor: pointer;
+  }
+  .add-school-btn { width: 100%; margin-top: 12px; }
+  .add-expense-btn { font-size: 0.78rem; padding: 7px 12px; }
+  .add-school-btn:hover, .add-expense-btn:hover { color: var(--ink); border-color: var(--accent); }
+
+  .unassigned-block { margin-top: 24px; }
+  .unassigned-note {
+    font-size: 0.82rem;
+    color: var(--warn);
+    margin: 0 0 12px;
+  }
+
+  input[type="text"], input[type="number"], select {
+    width: 100%;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.95rem;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  input[type="text"], select { font-family: "Space Grotesk", sans-serif; }
+  input:focus, select:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-color: transparent;
+  }
+  input::placeholder { color: var(--ink-faint); }
+
+  /* remove native number spinners so the digits get the full field width */
+  input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* number fields that accept a quick formula (e.g. "75000*2+50000") */
+  .formula-input {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .formula-input.formula-error {
+    border-color: var(--warn);
+    background: var(--warn-bg);
+    animation: formula-shake 0.3s;
+  }
+  @keyframes formula-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    75% { transform: translateX(3px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .formula-input.formula-error { animation: none; }
+  }
+
+  .add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: none;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.86rem;
+    padding: 9px 16px;
+    cursor: pointer;
+  }
+  .add-btn:hover { filter: brightness(1.04); }
+  .add-btn:active { transform: translateY(1px); }
+
+  .rows { display: flex; flex-direction: column; gap: 12px; }
+
+  .row-card {
+    position: relative;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--row-color, var(--line));
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .row-card.you { background: var(--surface); box-shadow: 0 0 0 1px var(--accent) inset; }
+
+  .row-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .row-name-wrap { min-width: 0; flex: 1; }
+  .row-name-label {
+    display: block;
+    font-size: 0.64rem;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+  .row-name {
+    font-weight: 600;
+    font-size: 0.98rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 9px;
+    width: 100%;
+    color: var(--ink);
+    font-family: inherit;
+    box-sizing: border-box;
+  }
+  .row-tag {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    font-weight: 700;
+    margin-top: 4px;
+  }
+
+  .row-price-group { width: 168px; flex: none; }
+  .row-price-group label,
+  .row-input-group label {
+    display: block;
+    font-size: 0.64rem;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+  .row-price-group input {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 9px;
+    font-size: 0.9rem;
+  }
+
+  .row-remove {
+    background: transparent;
+    border: none;
+    color: var(--ink-faint);
+    font-size: 1.05rem;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 8px;
+    line-height: 1;
+    flex: none;
+  }
+  .row-remove:hover { background: var(--surface-2); color: var(--warn); }
+
+  .reco-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    flex-wrap: wrap;
+    background: var(--good-bg);
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+  .reco-target { width: 120px; }
+  .reco-target input { background: var(--surface); }
+  .salary-hint {
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    margin-top: 4px;
+    font-family: "JetBrains Mono", monospace;
+  }
+  .discount-group { display: flex; flex-direction: column; gap: 6px; }
+  .discount-label-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .discount-label-row label {
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+  .discount-pct-input {
+    width: 52px;
+    flex: none;
+    padding: 3px 6px !important;
+    font-size: 0.85rem !important;
+    text-align: center;
+    border-radius: 6px !important;
+  }
+  .discount-price-bar {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 9px;
+    font-size: 0.9rem;
+    font-family: "JetBrains Mono", monospace;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .reco-display { flex: 1; min-width: 140px; }
+  .reco-label {
+    font-size: 0.64rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-faint);
+    font-weight: 600;
+  }
+  .reco-value {
+    font-family: "Fraunces", serif;
+    font-weight: 600;
+    font-size: 1.2rem;
+    color: var(--good);
+    font-variant-numeric: tabular-nums;
+  }
+  .use-reco-btn {
+    background: var(--surface);
+    border: 1px solid var(--good);
+    color: var(--good);
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.8rem;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 18px;
+  }
+  .use-reco-btn:hover { background: var(--good); color: var(--accent-ink); }
+  @media (max-width: 560px) {
+    .reco-row { flex-direction: column; align-items: stretch; }
+    .reco-target { width: 100%; }
+  }
+
+  .row-level-select {
+    font-size: 0.8rem;
+    padding: 6px 8px;
+    flex: none;
+    max-width: 160px;
+  }
+
+  /* --- expenses (your courses) --- */
+  .expense-list { display: flex; flex-direction: column; gap: 10px; }
+  .expense-row-head {
+    display: grid;
+    grid-template-columns: 1.6fr 0.7fr 1fr 1fr 28px;
+    gap: 8px;
+    padding: 0 2px;
+  }
+  .expense-row-head span {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
+    font-weight: 600;
+  }
+  .expense-row-head span:nth-child(2),
+  .expense-row-head span:nth-child(3),
+  .expense-row-head span:nth-child(4) {
+    text-align: right;
+  }
+  .expense-row {
+    display: grid;
+    grid-template-columns: 1.6fr 0.7fr 1fr 1fr 28px;
+    gap: 8px;
+    align-items: center;
+  }
+  @media (max-width: 640px) {
+    .expense-row-head { display: none; }
+    .expense-row { grid-template-columns: 1fr 1fr; }
+    .expense-row .expense-name { grid-column: 1 / -1; }
+    .expense-row .expense-total-wrap { grid-column: 1 / -1; }
+  }
+  .expense-row input[type="text"] {
+    background: var(--surface);
+    padding: 8px 9px;
+    font-size: 0.88rem;
+  }
+  .expense-row input.formula-input { text-align: right; }
+  .expense-total-wrap {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 9px;
+    font-size: 0.88rem;
+    font-family: "JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-soft);
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 4px;
+  }
+  @media (max-width: 720px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 400px) {
+    .stats-row { grid-template-columns: 1fr; }
+  }
+  .stat-chip {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 14px;
+    text-align: center;
+  }
+  .stat-chip .label {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
+    font-weight: 600;
+  }
+  .stat-chip .value {
+    font-family: "Fraunces", serif;
+    font-weight: 600;
+    font-size: 1.15rem;
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-chip.margin-positive { background: var(--good-bg); border-color: transparent; }
+  .stat-chip.margin-positive .value { color: var(--good); }
+  .stat-chip.margin-negative { background: var(--warn-bg); border-color: transparent; }
+  .stat-chip.margin-negative .value { color: var(--warn); }
+
+  .margin-input-chip { padding: 8px 14px 9px; }
+  input.margin-chip-input {
+    display: block;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 0;
+    text-align: center;
+    color: inherit;
+  }
+  input.margin-chip-input:focus {
+    outline: none;
+    background: var(--surface-2);
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  input.margin-chip-input.formula-error { background: var(--warn-bg); }
+
+  /* --- other schools: price-only comparison --- */
+  .school-compare {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .school-diff {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+  .school-diff b {
+    font-family: "JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .school-diff.cheaper b { color: var(--good); }
+  .school-diff.pricier b { color: var(--warn); }
+  .school-diff .cheapest-badge {
+    display: inline-block;
+    background: var(--good-bg);
+    color: var(--good);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+    margin-left: 8px;
+  }
+
+  .empty-hint {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.88rem;
+    padding: 30px 10px;
+    border: 1px dashed var(--line);
+    border-radius: 14px;
+  }
+
+  .legend-strip {
+    margin-top: 28px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+  }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 3px; display: inline-block;
+  }
+
+  footer.foot {
+    margin-top: 44px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-faint);
+    font-size: 0.8rem;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .foot-right { display: inline-flex; align-items: center; gap: 6px; }
+  .cloud-settings-btn {
+    background: transparent;
+    border: none;
+    color: var(--ink-faint);
+    font-size: 0.9rem;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .cloud-settings-btn:hover { color: var(--ink); background: var(--surface-2); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="brand-eyebrow">Course pricing &amp; margin</p>
+      <h1>Session Calculator</h1>
+    </div>
+    <button class="add-btn" id="addMine">+ Add your course</button>
+  </header>
+
+  <div class="summary-panel" id="summaryPanel" style="display:none;">
+    <div class="summary-head">
+      <h2>Your course prices at a glance</h2>
+      <div class="png-export-controls">
+        <div class="png-price-toggle" role="group" aria-label="Price to show in the exported image">
+          <button class="png-price-toggle-btn active" id="pngPriceFullBtn" type="button">Full price</button>
+          <button class="png-price-toggle-btn" id="pngPriceDiscountBtn" type="button">Discounted price</button>
+        </div>
+        <button class="png-export-btn" id="exportPngBtn" type="button">&#128247; Preview &amp; download PNG</button>
+      </div>
+    </div>
+    <div class="summary-table" id="summaryTable"></div>
+  </div>
+
+  <div class="groups" id="groups"></div>
+  <div class="empty-hint" id="noGroupsHint" style="display:none;">No courses yet — add your first one to start calculating.</div>
+
+  <div class="level-group unassigned-block" id="unassignedGroup" style="display:none;">
+    <div class="level-header">
+      <span class="level-badge" style="background: var(--warn);"></span>
+      <h2 style="font-family:'Fraunces',serif; font-size:1.18rem; margin:0;">Not matched to a course yet</h2>
+    </div>
+    <p class="unassigned-note">Pick which of your courses each of these lines up with.</p>
+    <div class="rows" id="unassignedRows"></div>
+  </div>
+
+  <div class="legend-strip" id="legendStrip"></div>
+
+  <datalist id="expensePresets"></datalist>
+
+  <footer class="foot">
+    <span id="footNote">Figures are computed live in your browser — nothing is sent anywhere.</span>
+    <span class="foot-right">
+      <span id="savedNote">Saved on this device</span>
+      <button class="cloud-settings-btn" id="exportDataBtn" type="button" title="Export data as a file (e.g. to move it into a downloaded copy of this page)">&#11015;</button>
+      <input type="file" id="importDataInput" accept="application/json" style="display:none;">
+      <button class="cloud-settings-btn" id="importDataBtn" type="button" title="Import data from an exported file">&#11014;</button>
+      <button class="cloud-settings-btn" id="cloudSettingsBtn" type="button" title="Cloud sync settings">&#9881;</button>
+    </span>
+  </footer>
+</div>
+
+<div class="png-preview-overlay" id="pngPreviewOverlay" style="display:none;">
+  <div class="png-preview-box">
+    <div class="png-preview-head">
+      <h3>Preview</h3>
+      <button class="png-preview-x" id="pngPreviewCloseX" type="button" title="Close">&#10005;</button>
+    </div>
+    <div class="png-preview-imgwrap">
+      <img id="pngPreviewImg" alt="Course price summary preview" />
+    </div>
+    <div class="png-preview-actions">
+      <button class="png-preview-cancel" id="pngPreviewCancel" type="button">Cancel</button>
+      <button class="add-btn" id="pngPreviewSave" type="button">Save PNG</button>
+    </div>
+    <p class="png-export-note" id="pngPreviewNote" style="display:none;"></p>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var PALETTE = ["yellow","peach","pink","orchid","lav","blue","sky","cyan","aqua","green"];
+
+  var currency = "Rp";
+  // mine: {id, name, color, price, expenses:[{id,label,amount}]} — one entry per course you teach
+  // theirs: {id, name, color, price, levelId} — a simple comparison price; levelId points at the
+  //   mine.id it's being compared to
+  var mine = [];
+  var theirs = [];
+  var nextId = 1;
+
+  // Expense presets: remembers the qty/unit cost you last used for an expense
+  // name, so typing that same name into a new row fills the rest in for you.
+  var presets = {};
+
+  function presetKey(label) {
+    return String(label || "").trim().toLowerCase();
+  }
+
+  function loadPresets() {
+    try {
+      var raw = localStorage.getItem("session_calc_presets");
+      presets = raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      presets = {};
+    }
+  }
+
+  function savePresets() {
+    try { localStorage.setItem("session_calc_presets", JSON.stringify(presets)); } catch (e) { /* ignore */ }
+  }
+
+  function rememberPreset(label, qty, unitPrice) {
+    var key = presetKey(label);
+    if (!key) return;
+    presets[key] = { label: label.trim(), qty: Number(qty) || 0, unitPrice: Number(unitPrice) || 0 };
+    savePresets();
+    refreshPresetDatalist();
+  }
+
+  function refreshPresetDatalist() {
+    var list = document.getElementById("expensePresets");
+    if (!list) return;
+    list.innerHTML = "";
+    Object.keys(presets).forEach(function (key) {
+      var opt = document.createElement("option");
+      opt.value = presets[key].label;
+      list.appendChild(opt);
+    });
+  }
+
+  function fmt(n) {
+    if (!isFinite(n) || isNaN(n)) return "—";
+    return currency + " " + Math.round(n).toLocaleString("id-ID");
+  }
+  function fmtSigned(n) {
+    if (!isFinite(n) || isNaN(n)) return "—";
+    var sign = n > 0 ? "+" : n < 0 ? "−" : "";
+    return sign + currency + " " + Math.round(Math.abs(n)).toLocaleString("id-ID");
+  }
+  function fmtPct(n) {
+    if (!isFinite(n) || isNaN(n)) return "—";
+    return (n > 0 ? "+" : "") + n.toFixed(0) + "%";
+  }
+
+  // Lets any number field take a quick sum like "75000*2+50000" instead of a
+  // typed-out total. Only digits/+-*/()./space are ever allowed through, so
+  // this can't run anything but arithmetic.
+  function evalFormula(str) {
+    if (str === null || str === undefined) return NaN;
+    str = String(str).trim();
+    if (str === "") return 0;
+    if (/^-?\d+(\.\d+)?$/.test(str)) return parseFloat(str);
+    if (!/^[0-9+\-*/().\s]+$/.test(str)) return NaN;
+    try {
+      var result = Function('"use strict"; return (' + str + ')')();
+      return typeof result === "number" && isFinite(result) ? result : NaN;
+    } catch (e) {
+      return NaN;
+    }
+  }
+
+  // Wire a formula-capable number field: while typing, the raw text is kept as-is
+  // (so partial formulas like "75000+" don't get clobbered); on blur it evaluates,
+  // replaces the field with the clean result, and calls onCommit(value). An
+  // invalid formula flashes red and reverts to the last good value.
+  function wireFormulaField(input, getLastGood, onCommit) {
+    input.addEventListener("change", function () {
+      var evaluated = evalFormula(input.value);
+      if (isNaN(evaluated)) {
+        input.classList.add("formula-error");
+        setTimeout(function () { input.classList.remove("formula-error"); }, 700);
+        input.value = getLastGood();
+        return;
+      }
+      input.value = evaluated;
+      onCommit(evaluated);
+    });
+  }
+
+  // Select the whole value when a numeric/formula field gains focus (click or
+  // tab-in), so typing immediately replaces it instead of requiring the user
+  // to delete the previous number first.
+  document.addEventListener("focus", function (e) {
+    if (e.target && e.target.matches && e.target.matches(".formula-input")) {
+      e.target.select();
+    }
+  }, true);
+
+  function expenseLineTotal(e) {
+    var qty = Number(e.qty);
+    if (!isFinite(qty) || qty < 0) qty = 0;
+    var unitPrice = Number(e.unitPrice) || 0;
+    return qty * unitPrice;
+  }
+
+  function computeMine(mc) {
+    var price = Number(mc.price) || 0;
+    var fixedExpenses = (mc.expenses || []).reduce(function (s, e) { return s + expenseLineTotal(e); }, 0);
+
+    // Salary/instructor cut is a % of the price rather than a fixed Rp amount,
+    // so it scales automatically whenever the price changes.
+    var salaryPct = mc.salaryPct === undefined ? 0 : Number(mc.salaryPct);
+    if (!isFinite(salaryPct)) salaryPct = 0;
+    var clampedSalaryPct = Math.min(Math.max(salaryPct, 0), 100);
+    var salaryAmount = price * (clampedSalaryPct / 100);
+
+    var expTotal = fixedExpenses + salaryAmount;
+    var margin = price - expTotal;
+    var marginPct = price > 0 ? (margin / price) * 100 : 0;
+
+    // Recommended price: the price at which fixed expenses + a salaryPct cut of
+    // that same price together leave exactly targetMarginPct of margin. Solving
+    // price - fixedExpenses - price*salaryPct% = price*targetMarginPct% for price:
+    var targetMarginPct = mc.targetMarginPct === undefined ? 30 : Number(mc.targetMarginPct);
+    if (!isFinite(targetMarginPct)) targetMarginPct = 30;
+    var clampedTarget = Math.min(Math.max(targetMarginPct, 0), 95);
+    var denom = 1 - clampedSalaryPct / 100 - clampedTarget / 100;
+    if (denom < 0.05) denom = 0.05;
+    var rawRecommendedPrice = fixedExpenses / denom;
+    // Round up to the nearest Rp 100,000 so the recommended price is a clean,
+    // easy-to-quote number (e.g. 4,850,000 -> 4,900,000; 4,420,000 -> 4,500,000).
+    var recommendedPrice = rawRecommendedPrice > 0 ? Math.ceil(rawRecommendedPrice / 100000) * 100000 : 0;
+
+    // Discount is a % off the regular price. Salary (if any) is still a cut
+    // of whatever price actually gets charged, so it scales with the discount too.
+    var discountPct = mc.discountPct === undefined ? 0 : Number(mc.discountPct);
+    if (!isFinite(discountPct) || discountPct < 0) discountPct = 0;
+    var clampedDiscountPct = Math.min(discountPct, 100);
+    var rawDiscountPrice = price * (1 - clampedDiscountPct / 100);
+    // Round to a clean, easy-to-quote number — but rounding UP to the nearest
+    // Rp 100,000 (like the recommended price does) can round a small discount
+    // right back up to the original price on lower-priced courses (e.g. Rp
+    // 800,000 at 5% off -> 760,000 -> ceils back to 800,000, hiding the
+    // discount entirely). So round to the nearest Rp 10,000 instead, and if a
+    // nonzero discount would still land on the exact same number as the full
+    // price, round down instead so the discount is always visibly applied.
+    var discountPrice = 0;
+    if (rawDiscountPrice > 0) {
+      discountPrice = Math.round(rawDiscountPrice / 10000) * 10000;
+      if (clampedDiscountPct > 0 && discountPrice >= price) {
+        discountPrice = Math.floor(rawDiscountPrice / 10000) * 10000;
+      }
+    }
+    var discountSalaryAmount = discountPrice * (clampedSalaryPct / 100);
+    var discountExpTotal = fixedExpenses + discountSalaryAmount;
+    var discountMargin = discountPrice - discountExpTotal;
+    var discountMarginPct = discountPrice > 0 ? (discountMargin / discountPrice) * 100 : 0;
+
+    return {
+      price: price, fixedExpenses: fixedExpenses, salaryPct: salaryPct, salaryAmount: salaryAmount,
+      expTotal: expTotal, margin: margin, marginPct: marginPct,
+      targetMarginPct: targetMarginPct, recommendedPrice: recommendedPrice,
+      discountPct: discountPct, discountPrice: discountPrice,
+      discountExpTotal: discountExpTotal, discountMargin: discountMargin, discountMarginPct: discountMarginPct
+    };
+  }
+
+  // Given a course and a desired margin %, back-solve the price that would
+  // produce that margin (accounting for salary %), rounded up to the nearest
+  // Rp 100,000 so it's a clean, easy-to-quote number.
+  function priceForMarginPct(mc, marginPct) {
+    var s = computeMine(mc);
+    var clampedSalaryPct = Math.min(Math.max(s.salaryPct, 0), 100);
+    var clampedMarginPct = Math.min(Math.max(marginPct, -500), 95);
+    var denom = 1 - clampedSalaryPct / 100 - clampedMarginPct / 100;
+    if (denom < 0.05) denom = 0.05;
+    var raw = s.fixedExpenses / denom;
+    return raw > 0 ? Math.ceil(raw / 100000) * 100000 : 0;
+  }
+
+  function renderMineStats(mc, statsEl) {
+    var s = computeMine(mc);
+    var chips = statsEl.children;
+    chips[0].querySelector(".value").textContent = fmt(s.expTotal);
+    chips[1].querySelector(".value").textContent = fmt(s.margin);
+    var marginChip = chips[1];
+    marginChip.classList.toggle("margin-positive", s.margin >= 0);
+    marginChip.classList.toggle("margin-negative", s.margin < 0);
+
+    var marginInputEl = chips[2] && chips[2].querySelector(".margin-chip-input");
+    if (marginInputEl && document.activeElement !== marginInputEl) {
+      marginInputEl.value = fmtPctPlain(s.marginPct);
+    }
+    if (chips[2]) {
+      chips[2].classList.toggle("margin-positive", s.margin >= 0);
+      chips[2].classList.toggle("margin-negative", s.margin < 0);
+    }
+
+    var discMarginChip = chips[3];
+    if (discMarginChip) {
+      discMarginChip.querySelector(".value").textContent = s.discountPct > 0 ? fmtPct(s.discountMarginPct) : "—";
+      discMarginChip.classList.toggle("margin-positive", s.discountPct > 0 && s.discountMargin >= 0);
+      discMarginChip.classList.toggle("margin-negative", s.discountPct > 0 && s.discountMargin < 0);
+    }
+
+    var recoEl = document.querySelector('[data-reco-for="' + mc.id + '"]');
+    if (recoEl) recoEl.textContent = fmt(s.recommendedPrice);
+
+    var salaryHintEl = document.querySelector('[data-salary-for="' + mc.id + '"]');
+    if (salaryHintEl) salaryHintEl.textContent = "= " + fmt(s.salaryAmount);
+
+    var discountHintEl = document.querySelector('[data-discount-for="' + mc.id + '"]');
+    if (discountHintEl) discountHintEl.textContent = fmt(s.discountPrice);
+
+    var summaryRow = document.querySelector('[data-summary-for="' + mc.id + '"]');
+    if (summaryRow) {
+      var summaryPriceEl = summaryRow.querySelector(".summary-price");
+      if (summaryPriceEl && document.activeElement !== summaryPriceEl) summaryPriceEl.value = s.price;
+      var summaryDiscount = summaryRow.querySelector(".summary-discount");
+      if (summaryDiscount) summaryDiscount.textContent = s.discountPct > 0 ? fmt(s.discountPrice) : "—";
+      summaryRow.querySelector(".summary-reco").textContent =
+        fmt(s.recommendedPrice) + " (" + fmtPct(s.targetMarginPct >= 0 ? s.targetMarginPct : 0).replace("+", "") + ")";
+      var summaryMargin = summaryRow.querySelector(".summary-margin");
+      summaryMargin.textContent = fmtPct(s.marginPct);
+      summaryMargin.classList.toggle("margin-positive", s.margin >= 0);
+      summaryMargin.classList.toggle("margin-negative", s.margin < 0);
+      var summaryDiscMargin = summaryRow.querySelector(".summary-disc-margin");
+      if (summaryDiscMargin) {
+        summaryDiscMargin.textContent = s.discountPct > 0 ? fmtPct(s.discountMarginPct) : "—";
+        summaryDiscMargin.classList.toggle("margin-positive", s.discountMargin >= 0);
+        summaryDiscMargin.classList.toggle("margin-negative", s.discountMargin < 0);
+      }
+    }
+  }
+
+  function makeMineRowEl(mc) {
+    var el = document.createElement("div");
+    el.className = "row-card you";
+    el.dataset.id = mc.id;
+    el.style.setProperty("--row-color", "var(--" + mc.color + ")");
+
+    var top = document.createElement("div");
+    top.className = "row-top";
+
+    var nameWrap = document.createElement("div");
+    nameWrap.className = "row-name-wrap";
+    var nameLabel = document.createElement("label");
+    nameLabel.className = "row-name-label";
+    nameLabel.textContent = "Course name";
+    nameWrap.appendChild(nameLabel);
+    var nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "row-name";
+    nameInput.value = mc.name;
+    nameInput.placeholder = "Course name";
+    nameInput.addEventListener("input", function () {
+      mc.name = nameInput.value;
+      persist();
+    });
+    nameInput.addEventListener("change", function () { renderAll(); });
+    nameWrap.appendChild(nameInput);
+    var tag = document.createElement("div");
+    tag.className = "row-tag";
+    tag.textContent = "You";
+    nameWrap.appendChild(tag);
+    top.appendChild(nameWrap);
+
+    var priceGroup = document.createElement("div");
+    priceGroup.className = "row-price-group";
+    var priceLabel = document.createElement("label");
+    priceLabel.textContent = "Price you charge (Rp)";
+    priceGroup.appendChild(priceLabel);
+    var priceInput = document.createElement("input");
+    priceInput.type = "text";
+    priceInput.inputMode = "decimal";
+    priceInput.className = "formula-input";
+    priceInput.placeholder = "e.g. 3500000 or 350000*12";
+    priceInput.dataset.priceFor = mc.id;
+    priceInput.value = mc.price;
+    priceInput.addEventListener("input", function () {
+      mc.price = priceInput.value;
+      persist();
+      renderMineStats(mc, statsRow);
+      updateSchoolDiffsFor(mc);
+    });
+    wireFormulaField(priceInput, function () { return mc.price; }, function (val) {
+      mc.price = val;
+      persist();
+      renderAll();
+    });
+    priceGroup.appendChild(priceInput);
+    top.appendChild(priceGroup);
+
+    var discountGroup = document.createElement("div");
+    discountGroup.className = "row-price-group discount-group";
+    discountGroup.style.cssText = "width:168px;flex:none;display:flex;flex-direction:column;gap:6px;";
+    var discountLabelRow = document.createElement("div");
+    discountLabelRow.className = "discount-label-row";
+    discountLabelRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+    var discountLabel = document.createElement("label");
+    discountLabel.textContent = "Discount %";
+    discountLabel.style.cssText = "margin-bottom:0;white-space:nowrap;";
+    discountLabelRow.appendChild(discountLabel);
+    var discountInput = document.createElement("input");
+    discountInput.type = "text";
+    discountInput.inputMode = "decimal";
+    discountInput.className = "formula-input discount-pct-input";
+    discountInput.placeholder = "0";
+    discountInput.style.cssText = "width:44px;flex:0 0 auto;padding:5px 6px;font-size:0.85rem;text-align:center;border-radius:6px;min-width:0;";
+    discountInput.value = mc.discountPct === undefined || mc.discountPct === 0 ? "" : mc.discountPct;
+    discountInput.addEventListener("input", function () {
+      mc.discountPct = discountInput.value;
+      persist();
+      renderMineStats(mc, statsRow);
+    });
+    wireFormulaField(discountInput, function () { return mc.discountPct === undefined ? 0 : mc.discountPct; }, function (val) {
+      mc.discountPct = Math.min(Math.max(val, 0), 100);
+      persist();
+      renderAll();
+    });
+    discountLabelRow.appendChild(discountInput);
+    discountGroup.appendChild(discountLabelRow);
+    var discountHint = document.createElement("div");
+    discountHint.className = "discount-price-bar";
+    discountHint.dataset.discountFor = mc.id;
+    discountHint.textContent = fmt(computeMine(mc).discountPrice);
+    discountGroup.appendChild(discountHint);
+    top.appendChild(discountGroup);
+
+    el.appendChild(top);
+
+    var recoRow = document.createElement("div");
+    recoRow.className = "reco-row";
+
+    var salaryGroup = document.createElement("div");
+    salaryGroup.className = "row-price-group reco-target";
+    var salaryLabel = document.createElement("label");
+    salaryLabel.textContent = "Salary %";
+    salaryGroup.appendChild(salaryLabel);
+    var salaryInput = document.createElement("input");
+    salaryInput.type = "text";
+    salaryInput.inputMode = "decimal";
+    salaryInput.className = "formula-input";
+    salaryInput.value = mc.salaryPct === undefined ? 0 : mc.salaryPct;
+    salaryInput.addEventListener("input", function () {
+      mc.salaryPct = salaryInput.value;
+      persist();
+      renderMineStats(mc, statsRow);
+    });
+    wireFormulaField(salaryInput, function () { return mc.salaryPct === undefined ? 0 : mc.salaryPct; }, function (val) {
+      mc.salaryPct = Math.min(Math.max(val, 0), 100);
+      persist();
+      renderAll();
+    });
+    salaryGroup.appendChild(salaryInput);
+    var salaryHint = document.createElement("div");
+    salaryHint.className = "salary-hint";
+    salaryHint.dataset.salaryFor = mc.id;
+    salaryHint.textContent = "= " + fmt(computeMine(mc).salaryAmount);
+    salaryGroup.appendChild(salaryHint);
+    recoRow.appendChild(salaryGroup);
+
+    var targetGroup = document.createElement("div");
+    targetGroup.className = "row-price-group reco-target";
+    var targetLabel = document.createElement("label");
+    targetLabel.textContent = "Target margin %";
+    targetGroup.appendChild(targetLabel);
+    var targetInput = document.createElement("input");
+    targetInput.type = "text";
+    targetInput.inputMode = "decimal";
+    targetInput.className = "formula-input";
+    targetInput.value = mc.targetMarginPct === undefined ? 30 : mc.targetMarginPct;
+    targetInput.addEventListener("input", function () {
+      mc.targetMarginPct = targetInput.value;
+      persist();
+      renderMineStats(mc, statsRow);
+    });
+    wireFormulaField(targetInput, function () { return mc.targetMarginPct === undefined ? 30 : mc.targetMarginPct; }, function (val) {
+      mc.targetMarginPct = Math.min(Math.max(val, 0), 95);
+      persist();
+      renderAll();
+    });
+    targetGroup.appendChild(targetInput);
+    recoRow.appendChild(targetGroup);
+
+    var recoDisplay = document.createElement("div");
+    recoDisplay.className = "reco-display";
+    var recoLabel = document.createElement("div");
+    recoLabel.className = "reco-label";
+    recoLabel.textContent = "Recommended price";
+    var recoValue = document.createElement("div");
+    recoValue.className = "reco-value";
+    recoValue.dataset.recoFor = mc.id;
+    recoValue.textContent = fmt(computeMine(mc).recommendedPrice);
+    recoDisplay.appendChild(recoLabel);
+    recoDisplay.appendChild(recoValue);
+    recoRow.appendChild(recoDisplay);
+
+    var useRecoBtn = document.createElement("button");
+    useRecoBtn.type = "button";
+    useRecoBtn.className = "use-reco-btn";
+    useRecoBtn.textContent = "Use this price";
+    useRecoBtn.addEventListener("click", function () {
+      var rec = Math.round(computeMine(mc).recommendedPrice);
+      mc.price = rec;
+      priceInput.value = rec;
+      persist();
+      renderMineStats(mc, statsRow);
+      updateSchoolDiffsFor(mc);
+    });
+    recoRow.appendChild(useRecoBtn);
+
+    el.appendChild(recoRow);
+
+    var expenseList = document.createElement("div");
+    expenseList.className = "expense-list";
+    if ((mc.expenses || []).length) expenseList.appendChild(makeExpenseHeadEl());
+    (mc.expenses || []).forEach(function (exp) {
+      expenseList.appendChild(makeExpenseRowEl(mc, exp));
+    });
+    el.appendChild(expenseList);
+
+    var addExpBtn = document.createElement("button");
+    addExpBtn.className = "add-expense-btn";
+    addExpBtn.textContent = "+ Add expense";
+    addExpBtn.addEventListener("click", function () {
+      if (!mc.expenses) mc.expenses = [];
+      if (mc.expenses.length === 0) expenseList.appendChild(makeExpenseHeadEl());
+      var exp = { id: "e" + (nextId++), label: "", qty: 1, unitPrice: 0 };
+      mc.expenses.push(exp);
+      expenseList.appendChild(makeExpenseRowEl(mc, exp));
+      persist();
+      renderMineStats(mc, statsRow);
+    });
+    el.appendChild(addExpBtn);
+
+    var statsRow = document.createElement("div");
+    statsRow.className = "stats-row";
+    statsRow.appendChild(statChip("Total expenses"));
+    statsRow.appendChild(statChip("Margin"));
+    statsRow.appendChild(makeMarginInputChip(mc, function () { return statsRow; }));
+    statsRow.appendChild(statChip("Margin % (discounted)"));
+    el.appendChild(statsRow);
+    renderMineStats(mc, statsRow);
+
+    var delBtn = document.createElement("button");
+    delBtn.className = "row-remove";
+    delBtn.innerHTML = "✕";
+    delBtn.title = "Remove course";
+    delBtn.style.position = "absolute";
+    delBtn.style.top = "10px";
+    delBtn.style.right = "10px";
+    delBtn.addEventListener("click", function () {
+      mine = mine.filter(function (x) { return x.id !== mc.id; });
+      theirs.forEach(function (t) { if (t.levelId === mc.id) t.levelId = null; });
+      renderAll();
+      persist();
+    });
+    el.style.paddingRight = "40px";
+    el.appendChild(delBtn);
+
+    return el;
+  }
+
+  function statChip(label) {
+    var chip = document.createElement("div");
+    chip.className = "stat-chip";
+    var l = document.createElement("div");
+    l.className = "label";
+    l.textContent = label;
+    var v = document.createElement("div");
+    v.className = "value";
+    v.textContent = "—";
+    chip.appendChild(l);
+    chip.appendChild(v);
+    return chip;
+  }
+
+  // The "Margin %" chip doubles as an input: type the margin you want and the
+  // course price is back-solved (and rounded up to a clean Rp 100,000) to hit it.
+  function makeMarginInputChip(mc) {
+    var chip = document.createElement("div");
+    chip.className = "stat-chip margin-input-chip";
+    chip.dataset.marginChipFor = mc.id;
+    var l = document.createElement("div");
+    l.className = "label";
+    l.textContent = "Margin %";
+    chip.appendChild(l);
+
+    var input = document.createElement("input");
+    input.type = "text";
+    input.inputMode = "decimal";
+    input.className = "formula-input value margin-chip-input";
+    input.value = fmtPctPlain(computeMine(mc).marginPct);
+
+    function applyMargin(val) {
+      var newPrice = priceForMarginPct(mc, val);
+      mc.price = newPrice;
+      persist();
+      var priceInputEl = document.querySelector('input[data-price-for="' + mc.id + '"]');
+      if (priceInputEl) priceInputEl.value = newPrice;
+      updateSchoolDiffsFor(mc);
+    }
+
+    input.addEventListener("input", function () {
+      var val = evalFormula(input.value);
+      if (isNaN(val)) return;
+      applyMargin(val);
+      renderMineStats(mc, chip.parentElement);
+    });
+    wireFormulaField(input, function () { return computeMine(mc).marginPct; }, function (val) {
+      applyMargin(val);
+      renderAll();
+    });
+    chip.appendChild(input);
+    return chip;
+  }
+
+  // fmt a percent without the +/- sign, for editable fields (typing "-5" should
+  // start from "-5", not from an already-signed display value)
+  function fmtPctPlain(n) {
+    var rounded = Math.round(n * 10) / 10;
+    return String(rounded);
+  }
+
+  function makeExpenseHeadEl() {
+    var head = document.createElement("div");
+    head.className = "expense-row-head";
+    ["Expense", "Qty", "Unit cost (Rp)", "Total (Rp)", ""].forEach(function (t) {
+      var span = document.createElement("span");
+      span.textContent = t;
+      head.appendChild(span);
+    });
+    return head;
+  }
+
+  function findStatsRow(mc, row) {
+    var card = row.closest(".row-card");
+    if (card) return card.querySelector(".stats-row");
+    return document.querySelector('[data-id="' + mc.id + '"] .stats-row');
+  }
+
+  function makeExpenseRowEl(mc, exp) {
+    var row = document.createElement("div");
+    row.className = "expense-row";
+
+    var labelInput = document.createElement("input");
+    labelInput.type = "text";
+    labelInput.className = "expense-name";
+    labelInput.placeholder = "e.g. tank rental, boat, instructor fee";
+    labelInput.setAttribute("list", "expensePresets");
+    labelInput.value = exp.label;
+    labelInput.addEventListener("input", function () { exp.label = labelInput.value; persist(); });
+    labelInput.addEventListener("change", function () {
+      // A known expense name and an unfilled cost means the person is reusing
+      // a standard line item — fill qty/unit cost in from what was saved last time.
+      var preset = presets[presetKey(labelInput.value)];
+      if (preset && !(Number(exp.unitPrice) > 0)) {
+        exp.qty = preset.qty;
+        exp.unitPrice = preset.unitPrice;
+        qtyInput.value = preset.qty;
+        unitInput.value = preset.unitPrice;
+        lineTotalEl.textContent = fmt(expenseLineTotal(exp));
+        renderMineStats(mc, findStatsRow(mc, row));
+        persist();
+      }
+    });
+    row.appendChild(labelInput);
+
+    var qtyInput = document.createElement("input");
+    qtyInput.type = "text";
+    qtyInput.inputMode = "decimal";
+    qtyInput.className = "formula-input";
+    qtyInput.placeholder = "1";
+    qtyInput.value = exp.qty;
+    qtyInput.addEventListener("input", function () {
+      exp.qty = qtyInput.value;
+      persist();
+      lineTotalEl.textContent = fmt(expenseLineTotal(exp));
+      renderMineStats(mc, findStatsRow(mc, row));
+    });
+    wireFormulaField(qtyInput, function () { return exp.qty; }, function (val) {
+      exp.qty = val;
+      persist();
+      lineTotalEl.textContent = fmt(expenseLineTotal(exp));
+      renderMineStats(mc, findStatsRow(mc, row));
+      rememberPreset(exp.label, exp.qty, exp.unitPrice);
+    });
+    row.appendChild(qtyInput);
+
+    var unitInput = document.createElement("input");
+    unitInput.type = "text";
+    unitInput.inputMode = "decimal";
+    unitInput.className = "formula-input";
+    unitInput.placeholder = "e.g. 75000 or 3*25000";
+    unitInput.value = exp.unitPrice;
+    unitInput.addEventListener("input", function () {
+      exp.unitPrice = unitInput.value;
+      persist();
+      lineTotalEl.textContent = fmt(expenseLineTotal(exp));
+      renderMineStats(mc, findStatsRow(mc, row));
+    });
+    wireFormulaField(unitInput, function () { return exp.unitPrice; }, function (val) {
+      exp.unitPrice = val;
+      persist();
+      lineTotalEl.textContent = fmt(expenseLineTotal(exp));
+      renderMineStats(mc, findStatsRow(mc, row));
+      rememberPreset(exp.label, exp.qty, exp.unitPrice);
+    });
+    row.appendChild(unitInput);
+
+    var lineTotalEl = document.createElement("div");
+    lineTotalEl.className = "expense-total-wrap";
+    lineTotalEl.textContent = fmt(expenseLineTotal(exp));
+    row.appendChild(lineTotalEl);
+
+    var rm = document.createElement("button");
+    rm.className = "row-remove";
+    rm.innerHTML = "✕";
+    rm.title = "Remove expense";
+    rm.addEventListener("click", function () {
+      mc.expenses = (mc.expenses || []).filter(function (x) { return x.id !== exp.id; });
+      var statsEl = findStatsRow(mc, row);
+      row.remove();
+      persist();
+      renderMineStats(mc, statsEl);
+    });
+    row.appendChild(rm);
+
+    return row;
+  }
+
+  function updateSchoolDiffsFor(mc) {
+    theirs.filter(function (t) { return t.levelId === mc.id; }).forEach(function (t) {
+      var diffEl = document.querySelector('[data-diff-for="' + t.id + '"]');
+      if (diffEl) setSchoolDiff(diffEl, t, mc);
+    });
+  }
+
+  function setSchoolDiff(diffEl, t, mc) {
+    var mineStats = computeMine(mc);
+    var theirPrice = Number(t.price) || 0;
+    var diff = theirPrice - mineStats.price;
+    var diffPct = mineStats.price > 0 ? (diff / mineStats.price) * 100 : 0;
+    diffEl.classList.toggle("cheaper", diff < 0);
+    diffEl.classList.toggle("pricier", diff > 0);
+    if (diff === 0) {
+      diffEl.innerHTML = "Same price as you";
+    } else {
+      diffEl.innerHTML = "<b>" + fmtSigned(diff) + "</b> vs. you (" + fmtPct(diffPct) + ")";
+    }
+  }
+
+  function makeSchoolRowEl(t, mc, isCheapest) {
+    var el = document.createElement("div");
+    el.className = "row-card";
+    el.dataset.id = t.id;
+    el.style.setProperty("--row-color", "var(--" + t.color + ")");
+
+    var top = document.createElement("div");
+    top.className = "row-top";
+
+    var nameWrap = document.createElement("div");
+    nameWrap.className = "row-name-wrap";
+    var nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "row-name";
+    nameInput.value = t.name;
+    nameInput.placeholder = "School name";
+    nameInput.addEventListener("input", function () { t.name = nameInput.value; persist(); });
+    nameInput.addEventListener("change", function () { renderAll(); });
+    nameWrap.appendChild(nameInput);
+    top.appendChild(nameWrap);
+
+    var sel = document.createElement("select");
+    sel.className = "row-level-select";
+    var noneOpt = document.createElement("option");
+    noneOpt.value = "";
+    noneOpt.textContent = "Not matched";
+    sel.appendChild(noneOpt);
+    mine.forEach(function (m) {
+      var opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = "= " + m.name;
+      if (t.levelId === m.id) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener("change", function () {
+      t.levelId = sel.value || null;
+      renderAll();
+      persist();
+    });
+    top.appendChild(sel);
+
+    var rm = document.createElement("button");
+    rm.className = "row-remove";
+    rm.innerHTML = "✕";
+    rm.title = "Remove";
+    rm.addEventListener("click", function () {
+      theirs = theirs.filter(function (x) { return x.id !== t.id; });
+      renderAll();
+      persist();
+    });
+    top.appendChild(rm);
+
+    el.appendChild(top);
+
+    var compare = document.createElement("div");
+    compare.className = "school-compare";
+
+    var priceGroup = document.createElement("div");
+    priceGroup.className = "row-price-group";
+    var priceLabel = document.createElement("label");
+    priceLabel.textContent = "Their price (Rp)";
+    priceGroup.appendChild(priceLabel);
+    var priceInput = document.createElement("input");
+    priceInput.type = "text";
+    priceInput.inputMode = "decimal";
+    priceInput.className = "formula-input";
+    priceInput.placeholder = "e.g. 4500000 or 900000*5";
+    priceInput.value = t.price;
+    priceInput.addEventListener("input", function () {
+      t.price = priceInput.value;
+      persist();
+      if (mc) setSchoolDiff(diffEl, t, mc);
+    });
+    wireFormulaField(priceInput, function () { return t.price; }, function (val) {
+      t.price = val;
+      persist();
+      renderAll();
+    });
+    priceGroup.appendChild(priceInput);
+    compare.appendChild(priceGroup);
+
+    var diffEl = document.createElement("div");
+    diffEl.className = "school-diff";
+    diffEl.dataset.diffFor = t.id;
+    if (mc) {
+      setSchoolDiff(diffEl, t, mc);
+      if (isCheapest) {
+        var badge = document.createElement("span");
+        badge.className = "cheapest-badge";
+        badge.textContent = "Cheapest";
+        diffEl.appendChild(badge);
+      }
+    } else {
+      diffEl.textContent = "Pick which course this matches to compare it.";
+    }
+    compare.appendChild(diffEl);
+
+    el.appendChild(compare);
+
+    return el;
+  }
+
+  function renderLegend() {
+    var strip = document.getElementById("legendStrip");
+    strip.innerHTML = "";
+    var used = {};
+    mine.concat(theirs).forEach(function (r) { used[r.color] = r.name; });
+    Object.keys(used).forEach(function (key) {
+      var span = document.createElement("span");
+      span.style.display = "inline-flex";
+      span.style.alignItems = "center";
+      span.style.gap = "5px";
+      var dot = document.createElement("span");
+      dot.className = "legend-dot";
+      dot.style.background = "var(--" + key + ")";
+      span.appendChild(dot);
+      var t = document.createElement("span");
+      t.textContent = used[key];
+      span.appendChild(t);
+      strip.appendChild(span);
+    });
+  }
+
+  function sortedSchools(list) {
+    return list.slice();
+  }
+
+  function jumpToCourse(id) {
+    var card = document.getElementById("course-card-" + id);
+    if (!card) return;
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    card.classList.remove("course-flash");
+    // force reflow so the animation replays if the same course is clicked again
+    void card.offsetWidth;
+    card.classList.add("course-flash");
+    setTimeout(function () { card.classList.remove("course-flash"); }, 1600);
+  }
+
+  function renderSummary() {
+    var panel = document.getElementById("summaryPanel");
+    var table = document.getElementById("summaryTable");
+    if (!mine.length) { panel.style.display = "none"; return; }
+    panel.style.display = "block";
+    table.innerHTML = "";
+
+    var head = document.createElement("div");
+    head.className = "summary-row-head";
+    ["Course", "Your price", "Discounted", "Recommended", "Margin", "Disc. margin"].forEach(function (t) {
+      var span = document.createElement("span");
+      span.textContent = t;
+      head.appendChild(span);
+    });
+    table.appendChild(head);
+
+    mine.forEach(function (mc) {
+      var s = computeMine(mc);
+      var row = document.createElement("div");
+      row.className = "summary-row summary-row-clickable";
+      row.dataset.summaryFor = mc.id;
+      row.title = "Jump to " + (mc.name || "this course");
+      row.tabIndex = 0;
+      row.setAttribute("role", "button");
+      row.addEventListener("click", function () { jumpToCourse(mc.id); });
+      row.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); jumpToCourse(mc.id); }
+      });
+
+      var nameEl = document.createElement("div");
+      nameEl.className = "summary-name";
+      var dot = document.createElement("span");
+      dot.className = "legend-dot";
+      dot.style.background = "var(--" + mc.color + ")";
+      var nameText = document.createElement("span");
+      nameText.textContent = mc.name || "Untitled course";
+      nameEl.appendChild(dot);
+      nameEl.appendChild(nameText);
+      row.appendChild(nameEl);
+
+      var priceEl = document.createElement("input");
+      priceEl.type = "text";
+      priceEl.inputMode = "decimal";
+      priceEl.className = "summary-val summary-price summary-price-input formula-input";
+      priceEl.value = s.price;
+      priceEl.addEventListener("click", function (e) { e.stopPropagation(); });
+      priceEl.addEventListener("keydown", function (e) { e.stopPropagation(); });
+      priceEl.addEventListener("input", function () {
+        var val = evalFormula(priceEl.value);
+        if (isNaN(val)) return;
+        mc.price = val;
+        persist();
+        var priceInputEl = document.querySelector('input[data-price-for="' + mc.id + '"]');
+        if (priceInputEl) priceInputEl.value = val;
+        var cardEl = document.getElementById("course-card-" + mc.id);
+        if (cardEl) renderMineStats(mc, cardEl.querySelector(".stats-row"));
+        updateSchoolDiffsFor(mc);
+        // keep the row's own price/discount/margin cells in sync while typing
+        var s2 = computeMine(mc);
+        row.querySelector(".summary-discount").textContent = s2.discountPct > 0 ? fmt(s2.discountPrice) : "—";
+        row.querySelector(".summary-reco").textContent =
+          fmt(s2.recommendedPrice) + " (" + fmtPct(s2.targetMarginPct >= 0 ? s2.targetMarginPct : 0).replace("+", "") + ")";
+        var mEl = row.querySelector(".summary-margin:not(.summary-disc-margin)");
+        mEl.textContent = fmtPct(s2.marginPct);
+        mEl.classList.toggle("margin-positive", s2.margin >= 0);
+        mEl.classList.toggle("margin-negative", s2.margin < 0);
+        var dmEl = row.querySelector(".summary-disc-margin");
+        dmEl.textContent = s2.discountPct > 0 ? fmtPct(s2.discountMarginPct) : "—";
+        dmEl.classList.toggle("margin-positive", s2.discountMargin >= 0);
+        dmEl.classList.toggle("margin-negative", s2.discountMargin < 0);
+      });
+      wireFormulaField(priceEl, function () { return mc.price; }, function (val) {
+        mc.price = val;
+        persist();
+        renderAll();
+      });
+      row.appendChild(priceEl);
+
+      var discountEl = document.createElement("div");
+      discountEl.className = "summary-val summary-discount";
+      discountEl.textContent = s.discountPct > 0 ? fmt(s.discountPrice) : "—";
+      row.appendChild(discountEl);
+
+      var recoEl = document.createElement("div");
+      recoEl.className = "summary-val summary-reco";
+      recoEl.textContent = fmt(s.recommendedPrice) + " (" + fmtPct(s.targetMarginPct >= 0 ? s.targetMarginPct : 0).replace("+", "") + ")";
+      row.appendChild(recoEl);
+
+      var marginEl = document.createElement("div");
+      marginEl.className = "summary-margin" + (s.margin >= 0 ? " margin-positive" : " margin-negative");
+      marginEl.textContent = fmtPct(s.marginPct);
+      row.appendChild(marginEl);
+
+      var discMarginEl = document.createElement("div");
+      discMarginEl.className = "summary-margin summary-disc-margin" + (s.discountMargin >= 0 ? " margin-positive" : " margin-negative");
+      discMarginEl.textContent = s.discountPct > 0 ? fmtPct(s.discountMarginPct) : "—";
+      row.appendChild(discMarginEl);
+
+      table.appendChild(row);
+    });
+  }
+
+  function cssVar(name, fallback) {
+    var v = getComputedStyle(document.documentElement).getPropertyValue(name);
+    return v && v.trim() ? v.trim() : fallback;
+  }
+
+  // Draws the course-price summary onto a canvas at 3x resolution for a crisp
+  // PNG, reading live theme colors so the export matches light/dark mode.
+  function buildSummaryCanvas() {
+    var scale = 3;
+    var width = 1200;
+    var padding = 60;
+    var rowHeight = 90;
+    var headerHeight = 130;
+    var footerHeight = 30;
+    var height = headerHeight + Math.max(mine.length, 1) * rowHeight + footerHeight;
+
+    var canvas = document.createElement("canvas");
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    var ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+
+    var bg = cssVar("--surface", "#ffffff");
+    var ink = cssVar("--ink", "#1e2b2a");
+    var inkSoft = cssVar("--ink-soft", "#4b5957");
+    var inkFaint = cssVar("--ink-faint", "#8a938e");
+    var line = cssVar("--line", "#e2ded0");
+    var accent = cssVar("--accent", "#4fb8a8");
+    var good = cssVar("--good", "#2f8f5b");
+    var warn = cssVar("--warn", "#b5791f");
+    var surface2 = cssVar("--surface-2", "#f4f2ea");
+
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = ink;
+    ctx.font = "600 34px 'Fraunces', serif";
+    ctx.fillText("Freedive with Sam", padding, 60);
+
+    var priceColRight = width - padding;
+    var tableTop = headerHeight;
+
+    ctx.fillStyle = inkFaint;
+    ctx.font = "700 11px 'Space Grotesk', sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("COURSE", padding, tableTop - 16);
+    ctx.textAlign = "right";
+    ctx.fillText("COURSE PRICE", priceColRight, tableTop - 16);
+
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padding, tableTop - 4);
+    ctx.lineTo(width - padding, tableTop - 4);
+    ctx.stroke();
+
+    if (!mine.length) {
+      ctx.fillStyle = inkFaint;
+      ctx.textAlign = "left";
+      ctx.font = "400 15px 'Space Grotesk', sans-serif";
+      ctx.fillText("No courses added yet.", padding, tableTop + 40);
+    }
+
+    mine.forEach(function (mc, i) {
+      var y = tableTop + i * rowHeight;
+      var rowBoxH = rowHeight - 10;
+      if (i % 2 === 1) {
+        ctx.fillStyle = surface2;
+        ctx.fillRect(padding - 14, y, width - 2 * padding + 28, rowBoxH);
+      }
+      var s = computeMine(mc);
+      var midY = y + rowBoxH / 2 + 6;
+
+      var dotColor = cssVar("--" + mc.color, accent);
+      ctx.fillStyle = dotColor;
+      ctx.beginPath();
+      ctx.arc(padding + 6, midY - 4, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = ink;
+      ctx.font = "600 17px 'Space Grotesk', sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(mc.name || "Untitled course", padding + 24, midY);
+
+      var shownPrice = (pngPriceMode === "discount" && s.discountPct > 0) ? s.discountPrice : s.price;
+
+      ctx.fillStyle = ink;
+      ctx.font = "600 18px 'JetBrains Mono', monospace";
+      ctx.textAlign = "right";
+      ctx.fillText(fmt(shownPrice), priceColRight, midY);
+    });
+
+    return canvas;
+  }
+
+  function showPngNote(text) {
+    var note = document.getElementById("pngPreviewNote");
+    note.textContent = text;
+    note.style.display = "block";
+  }
+
+  function openPngFallback(blob) {
+    var url = URL.createObjectURL(blob);
+    var win = window.open(url, "_blank");
+    if (win) {
+      showPngNote("Opened the image in a new tab — right-click (or long-press) it and choose Save.");
+    } else {
+      showPngNote("Your browser blocked the pop-up — allow pop-ups for this page, then try again.");
+    }
+    setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+  }
+
+  var pngPriceMode = "full"; // "full" or "discount" — which price the exported image shows
+
+  var pngPreviewBlob = null;
+  var pngPreviewUrl = null;
+
+  function closePngPreview() {
+    document.getElementById("pngPreviewOverlay").style.display = "none";
+    if (pngPreviewUrl) { URL.revokeObjectURL(pngPreviewUrl); pngPreviewUrl = null; }
+    pngPreviewBlob = null;
+    document.getElementById("pngPreviewNote").style.display = "none";
+  }
+
+  function exportSummaryPng() {
+    var btn = document.getElementById("exportPngBtn");
+    if (!mine.length) return;
+
+    btn.disabled = true;
+    var originalLabel = btn.innerHTML;
+    btn.innerHTML = "Rendering…";
+
+    var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+
+    fontsReady.then(function () {
+      var canvas = buildSummaryCanvas();
+      canvas.toBlob(function (blob) {
+        btn.disabled = false;
+        btn.innerHTML = originalLabel;
+        if (!blob) { showPngNote("Couldn't generate the image — try again."); return; }
+
+        pngPreviewBlob = blob;
+        pngPreviewUrl = URL.createObjectURL(blob);
+        document.getElementById("pngPreviewImg").src = pngPreviewUrl;
+        document.getElementById("pngPreviewNote").style.display = "none";
+        document.getElementById("pngPreviewOverlay").style.display = "flex";
+      }, "image/png");
+    }).catch(function () {
+      btn.disabled = false;
+      btn.innerHTML = originalLabel;
+      showPngNote("Couldn't generate the image — try again.");
+    });
+  }
+
+  function savePngFromPreview() {
+    if (!pngPreviewBlob) return;
+    var saveBtn = document.getElementById("pngPreviewSave");
+    saveBtn.disabled = true;
+
+    var usePromise = (window.claude && window.claude.use) ? window.claude.use("downloads") : Promise.resolve(null);
+    usePromise.then(function (downloads) {
+      if (!downloads) { openPngFallback(pngPreviewBlob); saveBtn.disabled = false; return; }
+      downloads.save({ filename: "freedive-with-sam-prices.png", data: pngPreviewBlob }).then(function () {
+        saveBtn.disabled = false;
+        closePngPreview();
+      }, function (err) {
+        saveBtn.disabled = false;
+        if (err && err.code === "declined") return;
+        openPngFallback(pngPreviewBlob);
+      });
+    }, function () { openPngFallback(pngPreviewBlob); saveBtn.disabled = false; });
+  }
+
+  function renderAll() {
+    var groupsWrap = document.getElementById("groups");
+    groupsWrap.innerHTML = "";
+
+    mine.forEach(function (mc, idx) {
+      var matched = sortedSchools(theirs.filter(function (t) { return t.levelId === mc.id; }));
+      var cheapestId = null;
+      if (matched.length) {
+        var minPrice = Math.min.apply(null, matched.map(function (t) { return Number(t.price) || 0; }));
+        cheapestId = matched.filter(function (t) { return (Number(t.price) || 0) === minPrice; })[0].id;
+      }
+
+      var card = document.createElement("div");
+      card.className = "level-group";
+      card.id = "course-card-" + mc.id;
+
+      var header = document.createElement("div");
+      header.className = "level-header";
+      var badge = document.createElement("span");
+      badge.className = "level-badge";
+      badge.style.background = "var(--" + mc.color + ")";
+      header.appendChild(badge);
+
+      var moveGroup = document.createElement("div");
+      moveGroup.className = "move-group";
+      var upBtn = document.createElement("button");
+      upBtn.type = "button";
+      upBtn.className = "move-btn";
+      upBtn.innerHTML = "&#9650;";
+      upBtn.title = "Move up";
+      upBtn.disabled = idx === 0;
+      upBtn.addEventListener("click", function () { moveMine(mc.id, -1); });
+      moveGroup.appendChild(upBtn);
+      var downBtn = document.createElement("button");
+      downBtn.type = "button";
+      downBtn.className = "move-btn";
+      downBtn.innerHTML = "&#9660;";
+      downBtn.title = "Move down";
+      downBtn.disabled = idx === mine.length - 1;
+      downBtn.addEventListener("click", function () { moveMine(mc.id, 1); });
+      moveGroup.appendChild(downBtn);
+      header.appendChild(moveGroup);
+
+      var titleInput = document.createElement("input");
+      titleInput.type = "text";
+      titleInput.className = "level-title-input";
+      titleInput.value = mc.name;
+      titleInput.placeholder = "Course name";
+      titleInput.addEventListener("input", function () { mc.name = titleInput.value; persist(); });
+      titleInput.addEventListener("change", function () { renderAll(); });
+      header.appendChild(titleInput);
+
+      card.appendChild(header);
+
+      var rowsWrap = document.createElement("div");
+      rowsWrap.className = "rows";
+      rowsWrap.appendChild(makeMineRowEl(mc));
+      matched.forEach(function (t) { rowsWrap.appendChild(makeSchoolRowEl(t, mc, t.id === cheapestId)); });
+      card.appendChild(rowsWrap);
+
+      var addSchoolBtn = document.createElement("button");
+      addSchoolBtn.className = "add-school-btn";
+      addSchoolBtn.textContent = "+ Add a school's price for " + (mc.name || "this course") + " to compare";
+      addSchoolBtn.addEventListener("click", function () { addTheirs(mc.id); });
+      card.appendChild(addSchoolBtn);
+
+      groupsWrap.appendChild(card);
+    });
+
+    document.getElementById("noGroupsHint").style.display = mine.length === 0 ? "block" : "none";
+
+    var unassigned = theirs.filter(function (t) { return !mine.some(function (mc) { return mc.id === t.levelId; }); });
+    var unassignedGroup = document.getElementById("unassignedGroup");
+    var unassignedWrap = document.getElementById("unassignedRows");
+    unassignedWrap.innerHTML = "";
+    if (unassigned.length) {
+      unassignedGroup.style.display = "block";
+      sortedSchools(unassigned).forEach(function (t) { unassignedWrap.appendChild(makeSchoolRowEl(t, null, false)); });
+    } else {
+      unassignedGroup.style.display = "none";
+    }
+
+    renderLegend();
+    renderSummary();
+  }
+
+  function moveMine(id, delta) {
+    var idx = mine.findIndex(function (x) { return x.id === id; });
+    var newIdx = idx + delta;
+    if (idx === -1 || newIdx < 0 || newIdx >= mine.length) return;
+    var tmp = mine[idx];
+    mine[idx] = mine[newIdx];
+    mine[newIdx] = tmp;
+    renderAll();
+    persist();
+  }
+
+  function addMine() {
+    var color = PALETTE[mine.length % PALETTE.length];
+    mine.push({
+      id: "m" + (nextId++),
+      name: "Course " + (mine.length + 1),
+      color: color,
+      price: 4200000,
+      discountPct: 0,
+      salaryPct: 0,
+      expenses: [
+        { id: "e" + (nextId++), label: "Equipment & tanks", qty: 1, unitPrice: 400000 },
+        { id: "e" + (nextId++), label: "Instructor fee", qty: 1, unitPrice: 1200000 }
+      ]
+    });
+    renderAll();
+    persist();
+  }
+
+  function addTheirs(levelId) {
+    var color = PALETTE[(theirs.length + 5) % PALETTE.length];
+    theirs.push({
+      id: "s" + (nextId++),
+      name: "School " + (theirs.length + 1),
+      color: color,
+      levelId: levelId || null,
+      price: 4500000
+    });
+    renderAll();
+    persist();
+  }
+
+  function persist() {
+    try {
+      var state = {
+        mine: mine,
+        theirs: theirs
+      };
+      localStorage.setItem("session_calc_state", JSON.stringify(state));
+    } catch (e) { /* storage unavailable — ignore */ }
+    scheduleCloudSync();
+  }
+
+  // Shared cleanup applied to state loaded from either localStorage or the
+  // cloud-synced data file: migrates old field shapes and bumps nextId past
+  // whatever ids are already in use so new rows never collide.
+  function normalizeLoadedState() {
+    mine.forEach(function (mc) {
+      if (!Array.isArray(mc.expenses)) mc.expenses = [];
+      // migrate expenses saved by an earlier version that used a single "amount" field
+      mc.expenses.forEach(function (e) {
+        if (e.unitPrice === undefined && e.amount !== undefined) {
+          e.unitPrice = e.amount;
+          e.qty = 1;
+          delete e.amount;
+        }
+      });
+      // migrate discountPrice (an earlier version stored the discount as a flat
+      // Rp amount) to discountPct (% off) — flat values don't translate cleanly,
+      // so just drop it and let the course start with no discount set.
+      if (mc.discountPct === undefined && mc.discountPrice !== undefined) {
+        delete mc.discountPrice;
+        mc.discountPct = 0;
+      }
+    });
+    mine.concat(theirs).forEach(function (r) {
+      var n = parseInt(String(r.id).replace(/[a-z]/gi, ""), 10);
+      if (!isNaN(n) && n >= nextId) nextId = n + 1;
+    });
+    mine.forEach(function (mc) {
+      (mc.expenses || []).forEach(function (e) {
+        var n = parseInt(String(e.id).replace(/[a-z]/gi, ""), 10);
+        if (!isNaN(n) && n >= nextId) nextId = n + 1;
+      });
+    });
+  }
+
+  function restore() {
+    try {
+      var raw = localStorage.getItem("session_calc_state");
+      if (!raw) return false;
+      var state = JSON.parse(raw);
+      if (Array.isArray(state.mine)) mine = state.mine;
+      if (Array.isArray(state.theirs)) theirs = state.theirs;
+      normalizeLoadedState();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // --- cross-device sync ---
+  // Two possible backends:
+  //  - "artifact": this page's own published data file (data/state.json).
+  //    Only works while running as the claude.ai artifact page.
+  //  - "sheet": a Google Sheet, via a small Apps Script Web App the user
+  //    deploys themselves. Works from a downloaded, standalone .html file
+  //    too, since it's just a plain fetch() to a URL — set it from the
+  //    gear icon in the footer.
+  var artifactCap = null;
+  var cloudBackend = null; // "artifact" | "sheet" | null
+  var cloudAvailable = false;
+  var cloudSyncTimer = null;
+  var lastSyncedJson = null;
+
+  // Built-in default Google Sheet sync endpoint (Apps Script Web App URL).
+  // Used automatically when no per-browser override is set via the gear icon.
+  var DEFAULT_SHEET_URL = "https://script.google.com/macros/s/AKfycby3dYHiixQcbtYqmvRSi4_XZwtNB9pIN_o0cmmYk8yCn5OzUz4SIzkwExb7o--9rktF/exec";
+
+  function sheetEndpoint() {
+    try {
+      var override = localStorage.getItem("session_calc_sheet_url");
+      if (override === "off") return null; // explicitly turned off from the gear icon
+      if (override) return override;
+    } catch (e) { /* ignore */ }
+    return DEFAULT_SHEET_URL || null;
+  }
+  function setSheetEndpoint(url) {
+    try {
+      if (url) localStorage.setItem("session_calc_sheet_url", url);
+      else localStorage.setItem("session_calc_sheet_url", "off");
+    } catch (e) { /* ignore */ }
+  }
+
+  function updateSavedNote() {
+    var el = document.getElementById("savedNote");
+    var footEl = document.getElementById("footNote");
+    if (el) {
+      if (cloudAvailable && cloudBackend === "artifact") el.textContent = "Synced — same on every device";
+      else if (cloudAvailable && cloudBackend === "sheet") el.textContent = "Synced via Google Sheet";
+      else el.textContent = "Saved on this device";
+    }
+    if (footEl) {
+      footEl.textContent = (cloudAvailable && cloudBackend === "sheet")
+        ? "Figures are computed live in your browser, and synced to your Google Sheet."
+        : "Figures are computed live in your browser — nothing is sent anywhere.";
+    }
+  }
+
+  function scheduleCloudSync(immediate) {
+    if (!cloudBackend) return;
+    if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = setTimeout(doCloudSync, immediate ? 50 : 1200);
+  }
+
+  function doCloudSync() {
+    cloudSyncTimer = null;
+    var json = JSON.stringify({ mine: mine, theirs: theirs });
+    if (json === lastSyncedJson) return;
+
+    if (cloudBackend === "artifact" && artifactCap) {
+      artifactCap.publish({ "data/state.json": json }).then(function () {
+        lastSyncedJson = json;
+        cloudAvailable = true;
+        updateSavedNote();
+        mirrorToSheet(json);
+      }, function (err) {
+        var code = err && err.code;
+        if (code === "conflict") {
+          pullCloudState(); // someone/something else saved first — adopt the winner
+        } else if (code === "not_writer" || code === "not_granted" || code === "capability_disabled" || code === "not_declared" || code === "capability_removed") {
+          artifactCap = null;
+          cloudBackend = null;
+          cloudAvailable = false;
+          updateSavedNote();
+        } else {
+          scheduleCloudSync(); // transient failure — try again shortly
+        }
+      });
+    } else if (cloudBackend === "sheet") {
+      var url = sheetEndpoint();
+      if (!url) return;
+      // text/plain avoids a CORS preflight, which a default Apps Script
+      // Web App deployment doesn't handle
+      fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: json })
+        .then(function (r) { if (!r.ok) throw new Error("save failed"); return r.json(); })
+        .then(function () {
+          lastSyncedJson = json;
+          cloudAvailable = true;
+          updateSavedNote();
+        })
+        .catch(function () { scheduleCloudSync(); });
+    }
+  }
+
+  function pullCloudState() {
+    if (cloudBackend === "artifact") {
+      fetch("data/state.json", { cache: "no-store" }).then(function (r) {
+        if (!r.ok) throw new Error("no remote state yet");
+        return r.json();
+      }).then(applyRemoteState).catch(function () {
+        // nothing published yet — publish what we have now to create the file
+        cloudAvailable = true;
+        updateSavedNote();
+        scheduleCloudSync(true);
+      });
+    } else if (cloudBackend === "sheet") {
+      var url = sheetEndpoint();
+      if (!url) return;
+      fetch(url, { cache: "no-store" }).then(function (r) {
+        if (!r.ok) throw new Error("fetch failed");
+        return r.json();
+      }).then(function (data) {
+        if (data && Array.isArray(data.mine)) { applyRemoteState(data); return; }
+        // sheet has nothing saved yet — push what we have now
+        cloudAvailable = true;
+        updateSavedNote();
+        scheduleCloudSync(true);
+      }).catch(function () {
+        // couldn't reach the sheet — keep working locally, retry next edit
+        cloudAvailable = false;
+        updateSavedNote();
+      });
+    }
+  }
+
+  function applyRemoteState(data) {
+    if (!data || !Array.isArray(data.mine)) throw new Error("bad data");
+    mine = data.mine;
+    theirs = Array.isArray(data.theirs) ? data.theirs : [];
+    normalizeLoadedState();
+    lastSyncedJson = JSON.stringify({ mine: mine, theirs: theirs });
+    try { localStorage.setItem("session_calc_state", lastSyncedJson); } catch (e) { /* ignore */ }
+    cloudAvailable = true;
+    updateSavedNote();
+    renderAll();
+    // Mirror the artifact's live data into the Google Sheet backend too, so
+    // a downloaded standalone copy of this file (which can't reach the
+    // artifact's own storage) opens showing the same numbers.
+    if (cloudBackend === "artifact") mirrorToSheet(lastSyncedJson);
+  }
+
+  function mirrorToSheet(json) {
+    var url = sheetEndpoint();
+    if (!url) return;
+    fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: json }).catch(function () { /* best-effort — the primary artifact save already succeeded */ });
+  }
+
+  function openCloudSettings() {
+    var current = sheetEndpoint() || "";
+    var msg = artifactCap
+      ? "This page is already syncing via the artifact link.\n\nIf you also want a downloaded standalone copy of this file to sync, paste a Google Apps Script Web App URL below (leave blank to turn it off):"
+      : "Paste your Google Apps Script Web App URL to sync this file's prices to a Google Sheet across devices (leave blank to turn it off):";
+    var next = window.prompt(msg, current);
+    if (next === null) return; // cancelled
+    next = next.trim();
+    setSheetEndpoint(next || null);
+    if (next) {
+      if (!artifactCap) { cloudBackend = "sheet"; }
+      pullCloudState();
+    } else if (cloudBackend === "sheet") {
+      cloudBackend = artifactCap ? "artifact" : null;
+      cloudAvailable = !!artifactCap;
+      updateSavedNote();
+    }
+  }
+
+  // --- manual data export/import ---
+  // The artifact viewer's sandbox blocks it from reaching external hosts
+  // (like a Google Apps Script URL) directly, so automatic mirroring only
+  // works one way (artifact -> its own storage). To get data OUT of the
+  // artifact and INTO a Google Sheet (for a standalone downloaded copy to
+  // read), export it here as a small file, then import that file from the
+  // standalone copy — its browser has no such restriction, so importing
+  // there pushes straight to the sheet.
+  function exportDataFile() {
+    var json = JSON.stringify({ mine: mine, theirs: theirs }, null, 2);
+    var filename = "session-calculator-data.json";
+    if (window.claude && window.claude.use) {
+      window.claude.use("downloads").then(function (downloads) {
+        if (!downloads) { fallbackDownload(json, filename); return; }
+        downloads.save({ filename: filename, data: json }).catch(function () { fallbackDownload(json, filename); });
+      }, function () { fallbackDownload(json, filename); });
+    } else {
+      fallbackDownload(json, filename);
+    }
+  }
+
+  function fallbackDownload(json, filename) {
+    try {
+      var blob = new Blob([json], { type: "application/json" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    } catch (e) {
+      window.alert("Couldn't start the download in this view.");
+    }
+  }
+
+  function importState(data) {
+    if (!data || !Array.isArray(data.mine)) {
+      window.alert("That file doesn't look like a Session Calculator export.");
+      return;
+    }
+    mine = data.mine;
+    theirs = Array.isArray(data.theirs) ? data.theirs : [];
+    normalizeLoadedState();
+    lastSyncedJson = null; // force the next sync to push, even if content looks unchanged
+    persist();
+    renderAll();
+    updateSavedNote();
+  }
+
+  document.getElementById("exportDataBtn").addEventListener("click", exportDataFile);
+  document.getElementById("importDataBtn").addEventListener("click", function () {
+    document.getElementById("importDataInput").click();
+  });
+  document.getElementById("importDataInput").addEventListener("change", function (e) {
+    var file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        importState(JSON.parse(reader.result));
+      } catch (err) {
+        window.alert("Couldn't read that file — make sure it's a Session Calculator export.");
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById("addMine").addEventListener("click", addMine);
+  document.getElementById("exportPngBtn").addEventListener("click", exportSummaryPng);
+  document.getElementById("pngPriceFullBtn").addEventListener("click", function () {
+    pngPriceMode = "full";
+    document.getElementById("pngPriceFullBtn").classList.add("active");
+    document.getElementById("pngPriceDiscountBtn").classList.remove("active");
+  });
+  document.getElementById("pngPriceDiscountBtn").addEventListener("click", function () {
+    pngPriceMode = "discount";
+    document.getElementById("pngPriceDiscountBtn").classList.add("active");
+    document.getElementById("pngPriceFullBtn").classList.remove("active");
+  });
+  document.getElementById("pngPreviewSave").addEventListener("click", savePngFromPreview);
+  document.getElementById("pngPreviewCancel").addEventListener("click", closePngPreview);
+  document.getElementById("pngPreviewCloseX").addEventListener("click", closePngPreview);
+  document.getElementById("pngPreviewOverlay").addEventListener("click", function (e) {
+    if (e.target.id === "pngPreviewOverlay") closePngPreview();
+  });
+
+  var hadState = restore();
+  loadPresets();
+  if (Object.keys(presets).length === 0) {
+    // seed a starting set of standard freediving-school expenses so the
+    // autofill has something to suggest before you've typed any yourself
+    rememberPreset("Tank rental", 1, 75000);
+    rememberPreset("Boat / venue fee", 1, 500000);
+    rememberPreset("Instructor fee", 1, 1400000);
+    rememberPreset("Certification card", 1, 250000);
+    rememberPreset("Weight belt & weights", 1, 100000);
+    rememberPreset("Line & buoy setup", 1, 150000);
+  } else {
+    refreshPresetDatalist();
+  }
+
+  if (!hadState) {
+    mine = [
+      {
+        id: "m" + (nextId++), name: "Freediver — 2 day", color: "cyan", price: 4200000, discountPct: 0, salaryPct: 0,
+        expenses: [
+          { id: "e" + (nextId++), label: "Tank rental", qty: 2, unitPrice: 75000 },
+          { id: "e" + (nextId++), label: "Boat / venue fee", qty: 1, unitPrice: 500000 },
+          { id: "e" + (nextId++), label: "Instructor fee", qty: 1, unitPrice: 1400000 },
+          { id: "e" + (nextId++), label: "Certification card", qty: 1, unitPrice: 250000 }
+        ]
+      },
+      {
+        id: "m" + (nextId++), name: "Advanced Freediver", color: "aqua", price: 6800000, discountPct: 0, salaryPct: 0,
+        expenses: [
+          { id: "e" + (nextId++), label: "Tank rental", qty: 3, unitPrice: 75000 },
+          { id: "e" + (nextId++), label: "Boat / venue fee", qty: 2, unitPrice: 500000 },
+          { id: "e" + (nextId++), label: "Instructor fee", qty: 1, unitPrice: 2200000 },
+          { id: "e" + (nextId++), label: "Certification card", qty: 1, unitPrice: 250000 }
+        ]
+      }
+    ];
+    theirs = [
+      { id: "s" + (nextId++), name: "Blue Element Freediving", color: "orchid", levelId: mine[0].id, price: 4800000 },
+      { id: "s" + (nextId++), name: "Apnea Total", color: "sky", levelId: mine[0].id, price: 3900000 },
+      { id: "s" + (nextId++), name: "Deep Blue Academy", color: "green", levelId: mine[1].id, price: 7900000 }
+    ];
+  }
+
+  renderAll();
+  updateSavedNote();
+  document.getElementById("cloudSettingsBtn").addEventListener("click", openCloudSettings);
+
+  // Try to hook up cross-device sync. Rendering above already happened from
+  // whatever this browser had locally (or the built-in defaults), so the
+  // page is usable immediately; if a synced copy exists elsewhere it takes
+  // over as soon as it's fetched.
+  if (window.claude && window.claude.use) {
+    window.claude.use("artifact").then(function (cap) {
+      if (!cap) {
+        // not running as the artifact page (e.g. a downloaded standalone
+        // file) — fall back to a Google Sheet backend if one is configured
+        if (sheetEndpoint()) { cloudBackend = "sheet"; pullCloudState(); }
+        return;
+      }
+      artifactCap = cap;
+      cloudBackend = "artifact";
+      pullCloudState();
+    }, function () {
+      if (sheetEndpoint()) { cloudBackend = "sheet"; pullCloudState(); }
+    });
+  } else if (sheetEndpoint()) {
+    cloudBackend = "sheet";
+    pullCloudState();
+  }
+})();
+</script>
+</body>
+</html>
