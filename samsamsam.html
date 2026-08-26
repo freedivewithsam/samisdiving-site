@@ -1154,14 +1154,15 @@ function safeRender(){
   }
 }
 
-function cloudGetUrl(){
-  // The cache-busting timestamp matters: without it this URL is
-  // byte-identical on every call (same base URL), which lets the
-  // browser silently serve a STALE cached response instead of actually
-  // hitting the backend — exactly the kind of thing that would make
-  // "discard local data & re-pull" seem to do nothing, still showing
-  // data that was already cleaned up on the sheet.
-  return syncUrl + (syncUrl.indexOf('?') === -1 ? '?' : '&') + '_ts=' + Date.now();
+/* Reads (pulling data from the sheet) go through POST now, not GET — see
+   the matching note in code.gs's doPost(). GET requests to Apps Script Web
+   Apps are much more prone to browser CORS failures in real-world hosting
+   ("No Access-Control-Allow-Origin header") even when the deployment is
+   correctly set to "Anyone" — apparently from how Apps Script internally
+   redirects a GET response. POST doesn't have that problem, so this sends
+   {action:'getData'} instead of doing a plain GET. */
+async function fetchCloudData(){
+  return fetch(syncUrl, {method:'POST', cache:'no-store', body: JSON.stringify({action:'getData'})});
 }
 
 async function pullCloud(){
@@ -1169,7 +1170,7 @@ async function pullCloud(){
   syncing = true;
   setSyncStatus('Loading from cloud…');
   try{
-    const res = await fetch(cloudGetUrl(), {method:'GET', cache:'no-store'});
+    const res = await fetchCloudData();
     const data = await res.json();
     if(!res.ok || data.error){
       setSyncStatus('Cloud error: ' + (data && data.error ? data.error : ('HTTP ' + res.status)));
@@ -1292,7 +1293,7 @@ async function resetLocalAndRepull(){
   syncing = true;
   setSyncStatus('Discarding local data and pulling fresh from cloud…');
   try{
-    const res = await fetch(cloudGetUrl(), {method:'GET', cache:'no-store'});
+    const res = await fetchCloudData();
     const data = await res.json();
     if(!res.ok || data.error){
       setSyncStatus('Cloud error: ' + (data && data.error ? data.error : ('HTTP ' + res.status)));
