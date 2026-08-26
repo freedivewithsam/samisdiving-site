@@ -4113,32 +4113,6 @@ $('fSessDate').addEventListener('input', ()=>{
   $('fSessDate').value = out;
 });
 
-$('fCalEvTime').addEventListener('input', ()=>{
-  let digits = $('fCalEvTime').value.replace(/\D/g,'').slice(0,4);
-  let out = digits.slice(0,2);
-  if(digits.length > 2) out += ':' + digits.slice(2,4);
-  $('fCalEvTime').value = out;
-});
-$('fSessTime').addEventListener('input', ()=>{
-  let digits = $('fSessTime').value.replace(/\D/g,'').slice(0,4);
-  let out = digits.slice(0,2);
-  if(digits.length > 2) out += ':' + digits.slice(2,4);
-  $('fSessTime').value = out;
-});
-
-$('fTxTime').addEventListener('input', ()=>{
-  let digits = $('fTxTime').value.replace(/\D/g,'').slice(0,4);
-  let out = digits.slice(0,2);
-  if(digits.length > 2) out += ':' + digits.slice(2,4);
-  $('fTxTime').value = out;
-});
-
-$('pTxTime').addEventListener('input', ()=>{
-  let digits = $('pTxTime').value.replace(/\D/g,'').slice(0,4);
-  let out = digits.slice(0,2);
-  if(digits.length > 2) out += ':' + digits.slice(2,4);
-  $('pTxTime').value = out;
-});
 
 $('searchInput').addEventListener('input', ()=>{
   searchQuery = $('searchInput').value.trim().toLowerCase();
