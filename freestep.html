@@ -37,11 +37,6 @@
     font-size:15px; line-height:1.45; min-height:100vh;
   }
   .wrap{max-width:880px;margin:0 auto;padding:24px 16px 80px}
-  .wrap.pin-locked{display:none}
-  .pin-key:active{background:var(--rose)}
-  #pinLockScreen{touch-action:manipulation}
-  #pinLockScreen button{touch-action:manipulation}
-  .pin-dot.filled{background:var(--accent-dark);border-color:var(--accent-dark)}
 
   header.app{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;flex-wrap:wrap}
   .header-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -211,33 +206,6 @@
   input, select, textarea{ font-size:16px !important; }
 </style>
 
-<div id="pinLockScreen" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px;text-align:center">
-  <div style="font-size:15px;font-weight:600;color:var(--ink)">freestep</div>
-  <div id="pinLockTitle" style="font-size:14px;color:var(--ink-soft)">Enter PIN</div>
-  <div id="pinDots" style="display:flex;gap:14px">
-    <div class="pin-dot" style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rose-line);background:transparent"></div>
-    <div class="pin-dot" style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rose-line);background:transparent"></div>
-    <div class="pin-dot" style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rose-line);background:transparent"></div>
-    <div class="pin-dot" style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rose-line);background:transparent"></div>
-  </div>
-  <div id="pinError" style="font-size:12.5px;color:var(--warn);min-height:16px"></div>
-  <div style="display:grid;grid-template-columns:repeat(3,64px);gap:12px">
-    <button type="button" class="btn btn-ghost pin-key" data-key="1" style="height:64px;font-size:20px">1</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="2" style="height:64px;font-size:20px">2</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="3" style="height:64px;font-size:20px">3</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="4" style="height:64px;font-size:20px">4</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="5" style="height:64px;font-size:20px">5</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="6" style="height:64px;font-size:20px">6</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="7" style="height:64px;font-size:20px">7</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="8" style="height:64px;font-size:20px">8</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="9" style="height:64px;font-size:20px">9</button>
-    <div></div>
-    <button type="button" class="btn btn-ghost pin-key" data-key="0" style="height:64px;font-size:20px">0</button>
-    <button type="button" class="btn btn-ghost" id="pinBackspace" style="height:64px;font-size:16px">⌫</button>
-  </div>
-  <button type="button" id="pinResetBtn" style="display:none;background:none;border:none;color:var(--ink-soft);font-size:12.5px;text-decoration:underline;margin-top:6px">Forgot PIN? Reset app lock</button>
-</div>
-
 <div class="wrap">
   <header class="app">
     <div class="brand">
@@ -245,7 +213,6 @@
       <p>your shoe stock, sorted by size, width &amp; color</p>
     </div>
     <div class="header-actions">
-      <button class="btn header-btn header-btn-sync" data-action="open-sync" id="syncBtn">☁️ Sync</button>
       <button class="btn header-btn header-btn-syncnow" data-action="sync-now-header" id="syncNowBtn">Sync now</button>
       <button type="button" class="btn header-btn header-btn-sale" data-action="new-sale">+ Log sale</button>
       <button type="button" class="btn header-btn header-btn-add" data-action="new-product">+ Add product</button>
@@ -291,23 +258,6 @@
   </div>
 </dialog>
 
-<dialog id="syncModal">
-  <div class="modal-in">
-    <h3>Cloud sync</h3>
-    <p style="margin:0 0 14px;color:var(--ink-soft);font-size:13px">
-      Connect a free Google Sheet as shared storage so the same stock list shows up on every device you open this page on.
-      Paste the Web App URL from your deployed Apps Script below.
-    </p>
-    <div class="field"><label for="fSyncUrl">Google Apps Script Web App URL</label><input id="fSyncUrl" type="url" placeholder="https://script.google.com/macros/s/AKfycb.../exec"></div>
-    <div id="syncStatus" style="font-size:13px;color:var(--ink-soft);margin-bottom:4px">Not connected — data is only saved on this device/browser.</div>
-    <div class="modal-btns">
-      <button type="button" class="btn btn-ghost" data-action="close-sync-modal">Close</button>
-      <button type="button" class="btn btn-ghost btn-small" data-action="sync-now">Sync now</button>
-      <button type="button" class="btn btn-primary" data-action="save-sync-url">Save &amp; connect</button>
-    </div>
-  </div>
-</dialog>
-
 <dialog id="alertModal">
   <div class="modal-in">
     <h3 id="alertModalTitle">Notice</h3>
@@ -327,17 +277,6 @@
       <button type="button" class="btn btn-danger-solid" id="confirmYesBtn" data-action="confirm-yes">Delete</button>
     </div>
   </div>
-</dialog>
-
-<dialog id="recoveryModal">
-  <form class="modal-in" id="recoveryForm" method="dialog">
-    <h3>Reset app lock</h3>
-    <div class="field"><label for="fRecoveryPw">Recovery password</label><input id="fRecoveryPw" type="password" autocomplete="off" required></div>
-    <div class="modal-btns">
-      <button type="button" class="btn btn-ghost" data-action="close-recovery-modal">Cancel</button>
-      <button type="submit" class="btn btn-primary">Continue</button>
-    </div>
-  </form>
 </dialog>
 
 <dialog id="productModal">
@@ -474,218 +413,6 @@
 </dialog>
 
 <script>
-/* ---------- PIN lock (server-side auth) ---------- */
-/* Gates the whole app behind a PIN that is checked on the server (the
-   Apps Script backend), not in this file. The browser never stores or
-   compares a PIN/password hash itself — it sends the PIN once over
-   HTTPS to the backend and gets back a short-lived session token if
-   correct. That token is then required on every products/sales sync
-   call. Nothing here can be read out of the page source to learn or
-   bypass the PIN — the actual check only happens server-side. */
-(function(){
-  const TOKEN_KEY = 'freestep-session-token';
-  const CLOUD_SYNC_KEY = 'freestep-sync-url';
-  const CLOUD_DEFAULT_SYNC_URL = 'https://script.google.com/macros/s/AKfycbyZyLMsu78i3Y6Q8Az8-AAMqs4XdoPndB_MWjA9WwCbcfO4doqZJ_ZoPxcHXzVAaomCiw/exec';
-  let cloudSyncUrl = '';
-  try { cloudSyncUrl = localStorage.getItem(CLOUD_SYNC_KEY) || CLOUD_DEFAULT_SYNC_URL; } catch(e){ cloudSyncUrl = CLOUD_DEFAULT_SYNC_URL; }
-
-  const wrap = document.querySelector('.wrap');
-  const lock = document.getElementById('pinLockScreen');
-  const dots = Array.from(document.querySelectorAll('#pinDots .pin-dot'));
-  const title = document.getElementById('pinLockTitle');
-  const err = document.getElementById('pinError');
-  const resetBtn = document.getElementById('pinResetBtn');
-  if(wrap) wrap.classList.add('pin-locked');
-  resetBtn.style.display = 'block';
-
-  // Kept on window so the rest of the app (pullCloud/pushCloud) can attach
-  // this token to every sync call, and so a 401 response can send the
-  // person back to this lock screen instead of silently failing.
-  window.freestepAuth = { token: null };
-  try{ window.freestepAuth.token = sessionStorage.getItem(TOKEN_KEY) || null; }catch(e){}
-
-  let entry = '';
-  let inputReady = true;
-  let mode = 'pin'; // 'pin' | 'resetRecovery' | 'resetNewPin' | 'resetConfirm'
-  let recoveryPasswordEntered = '';
-  let firstNewPinEntry = null;
-  let autoRetries = 0;
-  const MAX_AUTO_RETRIES = 3;
-
-  function renderDots(){
-    dots.forEach((d,i)=>{
-      const filled = i < entry.length;
-      d.classList.toggle('filled', filled);
-      d.style.background = filled ? 'var(--accent-dark)' : 'transparent';
-      d.style.borderColor = filled ? 'var(--accent-dark)' : 'var(--rose-line)';
-    });
-  }
-  function setTitle(t){ title.textContent = t; }
-  function shake(){
-    lock.style.transition = 'transform .08s';
-    lock.style.transform = 'translateX(-6px)';
-    setTimeout(()=>{ lock.style.transform = 'translateX(6px)'; }, 80);
-    setTimeout(()=>{ lock.style.transform = 'translateX(0)'; }, 160);
-  }
-  function unlock(token){
-    window.freestepAuth.token = token;
-    try{ sessionStorage.setItem(TOKEN_KEY, token); }catch(e){}
-    lock.style.display = 'none';
-    if(wrap) wrap.classList.remove('pin-locked');
-    if(typeof window.freestepOnUnlock === 'function') window.freestepOnUnlock();
-  }
-  // Called from pullCloud/pushCloud if the backend says the session token
-  // is missing/expired — brings the lock screen back instead of the app
-  // silently failing to sync.
-  window.freestepForceRelock = function(){
-    window.freestepAuth.token = null;
-    try{ sessionStorage.removeItem(TOKEN_KEY); }catch(e){}
-    entry = ''; recoveryPasswordEntered=''; firstNewPinEntry=null; mode='pin';
-    renderDots();
-    setTitle('Session expired — enter PIN');
-    lock.style.display = 'flex';
-    if(wrap) wrap.classList.add('pin-locked');
-  };
-
-  async function backendCallOnce(body){
-    const res = await fetch(cloudSyncUrl, {method:'POST', body: JSON.stringify(body)});
-    return await res.json();
-  }
-
-  // Network-level failures (dropped connection, an Apps Script cold-start
-  // hiccup, res.json() failing because the response wasn't valid JSON)
-  // are transient and shouldn't force the person to retype their PIN.
-  // Retry once, silently, before surfacing anything as an error.
-  async function backendCall(body){
-    if(!cloudSyncUrl) return { error: 'No backend configured.' };
-    try{
-      return await backendCallOnce(body);
-    } catch(e){
-      try{
-        return await backendCallOnce(body);
-      } catch(e2){
-        return { error: 'Could not reach the server. Check your connection and try again.', networkError: true };
-      }
-    }
-  }
-
-  async function submitEntry(){
-    if(mode === 'pin'){
-      inputReady = false;
-      setTitle('Checking…');
-      const resp = await backendCall({ action:'login', pin: entry });
-      inputReady = true;
-      if(resp && resp.ok && resp.token){
-        autoRetries = 0;
-        unlock(resp.token);
-      } else if(resp && resp.networkError && autoRetries < MAX_AUTO_RETRIES){
-        // Connection problem, not a wrong PIN — keep what they typed and
-        // have another go automatically instead of making them retype it.
-        autoRetries++;
-        err.textContent = resp.error + ' Retrying…';
-        setTitle('Checking…');
-        setTimeout(submitEntry, 1200);
-      } else {
-        autoRetries = 0;
-        err.textContent = (resp && resp.error) ? resp.error : 'Wrong PIN.';
-        shake();
-        entry = '';
-        renderDots();
-        setTitle('Enter PIN');
-      }
-      return;
-    }
-    if(mode === 'resetNewPin'){
-      if(firstNewPinEntry === null){
-        firstNewPinEntry = entry;
-        entry = '';
-        renderDots();
-        setTitle('Confirm new PIN');
-        return;
-      }
-      if(entry !== firstNewPinEntry){
-        err.textContent = "PINs didn't match — try again.";
-        shake();
-        entry = ''; firstNewPinEntry = null;
-        renderDots();
-        setTitle('Set a new PIN');
-        return;
-      }
-      inputReady = false;
-      setTitle('Saving new PIN…');
-      const resp = await backendCall({ action:'resetPin', recoveryPassword: recoveryPasswordEntered, newPin: entry });
-      inputReady = true;
-      if(resp && resp.ok && resp.token){
-        unlock(resp.token);
-      } else {
-        askAlert((resp && resp.error) ? resp.error : 'Could not reset the PIN.');
-        entry=''; firstNewPinEntry=null; recoveryPasswordEntered=''; mode='pin';
-        renderDots();
-        setTitle('Enter PIN');
-      }
-      return;
-    }
-  }
-
-  document.querySelectorAll('.pin-key').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      if(!inputReady) return;
-      if(mode === 'pin' || mode === 'resetNewPin'){
-        if(entry.length >= 4) return;
-        err.textContent = '';
-        entry += btn.dataset.key;
-        renderDots();
-        if(entry.length === 4) submitEntry();
-      }
-    });
-  });
-  document.getElementById('pinBackspace').addEventListener('click', ()=>{
-    if(!inputReady) return;
-    if(mode === 'pin' || mode === 'resetNewPin'){
-      entry = entry.slice(0,-1);
-      err.textContent = '';
-      renderDots();
-    }
-  });
-  document.addEventListener('keydown', (e)=>{
-    if(lock.style.display === 'none') return;
-    if(!inputReady) return;
-    if(mode !== 'pin' && mode !== 'resetNewPin') return;
-    if(e.key >= '0' && e.key <= '9'){
-      if(entry.length >= 4) return;
-      err.textContent = '';
-      entry += e.key;
-      renderDots();
-      if(entry.length === 4) submitEntry();
-    } else if(e.key === 'Backspace'){
-      entry = entry.slice(0,-1);
-      err.textContent = '';
-      renderDots();
-    }
-  });
-
-  resetBtn.addEventListener('click', ()=>{
-    if(!inputReady) return;
-    const recInput = document.getElementById('fRecoveryPw');
-    recInput.value = '';
-    document.getElementById('recoveryModal').showModal();
-    setTimeout(()=>recInput.focus(), 50);
-  });
-  document.getElementById('recoveryForm').addEventListener('submit', ()=>{
-    const pw = document.getElementById('fRecoveryPw').value;
-    document.getElementById('recoveryModal').close();
-    recoveryPasswordEntered = pw;
-    mode = 'resetNewPin';
-    firstNewPinEntry = null;
-    entry = '';
-    err.textContent = '';
-    renderDots();
-    setTitle('Set a new PIN');
-  });
-
-  setTitle('Enter PIN');
-})();
-
 /* ---------- storage ---------- */
 const LS_KEY = 'freestep-db-v1';
 
@@ -774,7 +501,6 @@ function setSyncStatus(msg){
     banner.classList.toggle('show', isError);
   }
 }
-function updateSyncBtn(){ $('syncBtn').textContent = syncUrl ? '☁️ Cloud sync' : '☁️ Sync'; }
 function updateSyncNowBtnText(){
   const btn = $('syncNowBtn');
   if(!btn) return;
@@ -965,29 +691,15 @@ function dedupeLocalProducts(){
 }
 
 function cloudGetUrl(){
-  const token = (window.freestepAuth && window.freestepAuth.token) || '';
-  return syncUrl + (syncUrl.indexOf('?') === -1 ? '?' : '&') + 'token=' + encodeURIComponent(token);
-}
-function withAuthToken(body){
-  return Object.assign({}, body, { token: (window.freestepAuth && window.freestepAuth.token) || '' });
-}
-function handleAuthFailure(data){
-  if(data && data.code === 401){
-    if(typeof window.freestepForceRelock === 'function') window.freestepForceRelock();
-    return true;
-  }
-  return false;
+  return syncUrl;
 }
 
 function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
 
 // A 401 landing right after a fresh login can be a transient blip on the
-// Apps Script side (the session token was written to CacheService a
-// moment earlier and a same-instant follow-up request can occasionally
-// land before that write is visible) rather than a truly dead session.
-// Retry the exact same request once, after a short pause, before treating
-// it as a real auth failure — handleAuthFailure() only relocks once this
-// has already given the token a second chance.
+// Apps Script side can occasionally hiccup on a request landing right
+// after the previous one. Retry the exact same request once, after a
+// short pause, before treating it as a real failure.
 async function fetchJsonAuthed(url, opts){
   let res, data;
   try{
@@ -996,7 +708,7 @@ async function fetchJsonAuthed(url, opts){
   } catch(e){
     throw e;
   }
-  if(data && data.code === 401){
+  if(!res.ok || (data && data.error)){
     await sleep(700);
     res = await fetch(url, opts);
     data = await res.json().catch(()=>({}));
@@ -1006,12 +718,10 @@ async function fetchJsonAuthed(url, opts){
 
 function pullCloud(){
   if(!syncUrl) return Promise.resolve();
-  if(!(window.freestepAuth && window.freestepAuth.token)) return Promise.resolve();
   return queueSync(async () => {
     setSyncStatus('Loading from cloud…');
     try{
       const { res, data } = await fetchJsonAuthed(cloudGetUrl(), {method:'GET'});
-      if(handleAuthFailure(data)) return;
       if(!res.ok || data.error){
         setSyncStatus('Cloud error: ' + (data && data.error ? data.error : ('HTTP ' + res.status)));
         return;
@@ -1046,14 +756,12 @@ function pullCloud(){
 
 function pushCloud(){
   if(!syncUrl) return Promise.resolve();
-  if(!(window.freestepAuth && window.freestepAuth.token)) return Promise.resolve();
   return queueSync(async () => {
     try{
       // Pull the latest cloud state first and merge into it, rather than
       // blindly overwriting — this is what stops a stale/second device
       // from wiping out entries someone else just added.
       const { res: getRes, data: cloud } = await fetchJsonAuthed(cloudGetUrl(), {method:'GET'});
-      if(handleAuthFailure(cloud)) return;
       if(!getRes.ok || cloud.error || !Array.isArray(cloud.products)){
         // Don't push on top of a failed/garbled read — that would merge
         // local data against an empty cloud and overwrite everything the
@@ -1078,8 +786,7 @@ function pushCloud(){
       };
       db = merged;
       storage.set(JSON.stringify(db));
-      const { res, data } = await fetchJsonAuthed(syncUrl, {method:'POST', body: JSON.stringify(withAuthToken(merged))});
-      if(handleAuthFailure(data)) return;
+      const { res, data } = await fetchJsonAuthed(syncUrl, {method:'POST', body: JSON.stringify(merged)});
       if(!res.ok || data.error){
         setSyncStatus('Cloud error: ' + (data && data.error ? data.error : ('HTTP ' + res.status)));
         return;
@@ -3254,29 +2961,12 @@ document.addEventListener('click', e=>{
     save(); render();
   }
   else if(a==='edit-sale'){ e.stopPropagation(); openSaleModal(sid); }
-  else if(a==='close-sync-modal') $('syncModal').close();
   else if(a==='alert-ok'){ $('alertModal').close(); }
   else if(a==='confirm-no'){ confirmCb = null; $('confirmModal').close(); }
   else if(a==='confirm-yes'){ const cb = confirmCb; confirmCb = null; $('confirmModal').close(); if(cb) cb(); }
-  else if(a==='close-recovery-modal'){ $('recoveryModal').close(); }
-  else if(a==='open-sync'){
-    $('fSyncUrl').value = syncUrl;
-    setSyncStatus(syncUrl ? 'Connected — tap "Sync now" to refresh.' : 'Not connected — data is only saved on this device/browser.');
-    $('syncModal').showModal();
-  }
-  else if(a==='save-sync-url'){
-    const url = $('fSyncUrl').value.trim();
-    syncUrl = url;
-    try { url ? localStorage.setItem(SYNC_KEY, url) : localStorage.removeItem(SYNC_KEY); } catch(e){}
-    updateSyncBtn();
-    if(url){ pushCloud().then(render); } else { setSyncStatus('Not connected — data is only saved on this device/browser.'); }
-  }
-  else if(a==='sync-now'){ pushCloud().then(render); }
   else if(a==='sync-now-header'){
     if(!syncUrl){
-      $('fSyncUrl').value = syncUrl;
-      setSyncStatus('Not connected — data is only saved on this device/browser.');
-      $('syncModal').showModal();
+      askAlert('No cloud sync URL is set up. Contact support to have one built into the app.');
       return;
     }
     const btn = $('syncNowBtn');
@@ -3292,20 +2982,9 @@ document.addEventListener('click', e=>{
 
 if(!storage.persistent) $('storageNote').classList.add('show');
 dedupeLocalProducts();
-updateSyncBtn();
 updateSyncNowBtnText();
-// Cloud sync can't run until the PIN lock screen hands us a session
-// token — render what's already stored locally now, and let the lock
-// screen's unlock callback trigger the first real cloud sync.
 render();
-window.freestepOnUnlock = function(){
-  if(syncUrl) pushCloud().then(render);
-};
-if(syncUrl && window.freestepAuth && window.freestepAuth.token){
-  // A token survived from earlier in this tab session (e.g. a reload) —
-  // sync right away instead of waiting for a fresh unlock.
-  pushCloud().then(render);
-}
+if(syncUrl) pushCloud().then(render);
 
 // Auto-sync: keep every device in agreement without a manual tap.
 // pushCloud() already does a full GET -> merge -> POST round trip, so
