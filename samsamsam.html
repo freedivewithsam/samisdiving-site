@@ -476,7 +476,6 @@
     <div class="header-actions">
       <a class="btn btn-ghost btn-small" href="https://samisdiving.com/nav">🧭 Nav</a>
       <button class="btn btn-peach btn-small" data-action="toggle-discreet" id="discreetBtn">Show totals</button>
-      <button class="btn btn-income btn-small" data-action="open-sync" id="syncBtn">☁️ Sync</button>
       <button class="btn btn-peach btn-small" data-action="sync-now-header" id="syncNowBtn">Sync now</button>
       <button class="btn btn-primary btn-small" data-action="new-cal-event" id="addCalEventBtn" style="display:none">+ Add event</button>
       <button class="btn btn-primary btn-small" data-action="new-todo" id="newTodoBtn" style="display:none">+ Add to-do</button>
@@ -1078,9 +1077,6 @@ let lastBillTxns = null;
 if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 function setSyncStatus(msg){ const el = $('syncStatus'); if(el) el.textContent = msg; }
-function updateSyncBtn(){
-  $('syncBtn').textContent = syncUrl ? '☁️ Cloud sync' : '☁️ Sync';
-}
 
 /* Keeps the header "Sync now" button labeled with when we last actually
    talked to the cloud, so it doubles as a status readout without losing
@@ -1114,9 +1110,10 @@ function performSyncNow(btn){
   const isHeaderBtn = btn && btn.id === 'syncNowBtn';
   if(btn){ btn.disabled = true; btn.textContent = 'Syncing…'; }
   pullCloud()
-    .then(()=>{
+    .then(async ()=>{
       try{
         render();
+        if(FREESTEP_SYNC_URL) await syncFreestepIncome();
         if(btn) btn.textContent = 'Synced';
       } catch(err){
         console.error('Render failed after sync:', err);
@@ -3921,11 +3918,6 @@ document.addEventListener('click', e => {
     save(); render(); renderPaymentsModal();
   }
   else if(a==='close-sync-modal') $('syncModal').close();
-  else if(a==='open-sync'){
-    setSyncStatus(syncUrl ? 'Connected — tap "Sync now" to refresh.' : 'Not connected — data is only saved on this device/browser.');
-    $('syncModal').showModal();
-  }
-  else if(a==='sync-now'){ pullCloud().then(safeRender); }
   else if(a==='open-backup'){ renderBackupModal(); $('backupModal').showModal(); }
   else if(a==='reset-local-repull'){
     askConfirm('This throws away this device\'s local copy of your data and replaces it with whatever is currently on the Google Sheet. Only do this after cleaning up duplicates from the Sheet\'s menu. Continue?', ()=>{ resetLocalAndRepull(); }, 'Discard & re-pull');
@@ -4384,12 +4376,17 @@ $('todoForm').addEventListener('submit', ()=>{
 });
 
 if(!storage.persistent) $('storageNote').classList.add('show');
-updateSyncBtn();
 updateSyncNowBtnText();
 updateDiscreetBtn();
 render();
-if(syncUrl){ pullCloud().then(safeRender); }
-if(FREESTEP_SYNC_URL) syncFreestepIncome();
+if(syncUrl){
+  pullCloud().then(()=>{
+    safeRender();
+    if(FREESTEP_SYNC_URL) syncFreestepIncome();
+  });
+} else if(FREESTEP_SYNC_URL){
+  syncFreestepIncome();
+}
 
 // Auto-sync: keep other devices' changes flowing in without a manual tap.
 // Pushing on every add/edit already happens via save() -> pushCloud().
@@ -4398,14 +4395,21 @@ if(FREESTEP_SYNC_URL) syncFreestepIncome();
 //   1) every 20s while the tab is open and visible
 //   2) whenever the tab regains focus/visibility (e.g. switching back to it)
 // Skipped whenever a dialog is open, so an in-progress add/edit never gets
-// overwritten mid-typing by an incoming pull. Free Step's sales are
-// pulled in on the exact same schedule (see syncFreestepIncome above).
+// overwritten mid-typing by an incoming pull. Free Step's sales are pulled
+// in right after samisdiving's own pull FINISHES, not alongside it —
+// running them concurrently was a real race: pullCloud() takes a snapshot
+// of db.personalFinance early and only writes its merged result back after
+// a network round-trip, so a Free Step entry added mid-flight could get
+// silently overwritten by that stale snapshot the moment pullCloud()
+// finished — exactly the "appeared for a second, then disappeared" bug.
 function autoPullIfIdle(){
   if(!syncUrl || syncing) return;
   if(document.querySelector('dialog[open]')) return;
   if(document.hidden) return;
-  pullCloud().then(safeRender);
-  if(FREESTEP_SYNC_URL) syncFreestepIncome();
+  pullCloud().then(()=>{
+    safeRender();
+    if(FREESTEP_SYNC_URL) syncFreestepIncome();
+  });
 }
 
 setInterval(autoPullIfIdle, 20000);
