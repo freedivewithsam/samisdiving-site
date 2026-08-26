@@ -86,6 +86,47 @@
 </style>
 </head>
 <body>
+<div id="__passcodeGate" style="position:fixed;inset:0;z-index:999999;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-family:sans-serif;">
+  <form id="__gateForm" style="background:#fff;padding:32px 28px;border-radius:14px;width:min(90vw,320px);box-shadow:0 10px 40px rgba(0,0,0,.35);text-align:center;">
+    <div style="font-size:15px;color:#333;margin-bottom:14px;">Enter passcode</div>
+    <input id="__gateInput" type="password" inputmode="numeric" autocomplete="off" style="width:100%;box-sizing:border-box;padding:10px 12px;font-size:18px;letter-spacing:2px;text-align:center;border:1px solid #ccc;border-radius:8px;outline:none;" autofocus>
+    <div id="__gateError" style="color:#c0392b;font-size:13px;height:18px;margin-top:8px;"></div>
+    <button type="submit" style="margin-top:6px;width:100%;padding:10px;font-size:15px;border:none;border-radius:8px;background:#333;color:#fff;cursor:pointer;">Unlock</button>
+  </form>
+</div>
+<script>
+(function(){
+  var HASH = "6c94e35ccc352d4e9ef0b99562cff995a5741ce8de8ad11b568892934daee366";
+  var SESSION_KEY = "__gateOk_" + HASH.slice(0,8);
+  async function sha256(text){
+    var enc = new TextEncoder().encode(text);
+    var buf = await crypto.subtle.digest("SHA-256", enc);
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+  }
+  function unlock(){
+    var g = document.getElementById("__passcodeGate");
+    if (g) g.remove();
+  }
+  if (sessionStorage.getItem(SESSION_KEY) === "1") {
+    unlock();
+  } else {
+    document.getElementById("__gateForm").addEventListener("submit", async function(e){
+      e.preventDefault();
+      var val = document.getElementById("__gateInput").value;
+      var h = await sha256(val);
+      if (h === HASH) {
+        sessionStorage.setItem(SESSION_KEY, "1");
+        unlock();
+      } else {
+        document.getElementById("__gateError").textContent = "Incorrect passcode";
+        document.getElementById("__gateInput").value = "";
+        document.getElementById("__gateInput").focus();
+      }
+    });
+  }
+})();
+</script>
+
   <div class="wrap">
     <h1>Sam's Diving — Tools</h1>
     <p class="sub">Internal navigation. Not linked from the main site.</p>
