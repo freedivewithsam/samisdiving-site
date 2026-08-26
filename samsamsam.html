@@ -460,44 +460,12 @@
   .tx-limit-toggle:hover{background:var(--card-hover, rgba(0,0,0,.03))}
 
 
-  .wrap.pin-locked{display:none}
-  #pinLockScreen{touch-action:manipulation}
-  .pin-key,#pinBackspace{touch-action:manipulation}
-  .pin-key:active{background:var(--rose)}
-  .pin-dot.filled{background:var(--accent-dark);border-color:var(--accent-dark)}
   footer{margin-top:40px;text-align:center;color:var(--ink-soft);font-size:12px}
   @media (prefers-reduced-motion: reduce){ *{transition:none !important} }
 
   /* Prevent iOS Safari auto-zoom on form focus: inputs must be >=16px on all screen sizes */
   input, select, textarea{ font-size:16px !important; }
 </style>
-
-<div id="pinLockScreen" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px;text-align:center">
-  <div class="brand" style="margin-bottom:0"><h1>Freedive with Sam</h1></div>
-  <div id="pinLockTitle" style="font-size:14px;color:var(--ink-soft)">Enter PIN</div>
-  <div id="pinDots" style="display:flex;gap:14px">
-    <div class="pin-dot" style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rose-line);background:transparent"></div>
-    <div class="pin-dot" style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rose-line);background:transparent"></div>
-    <div class="pin-dot" style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rose-line);background:transparent"></div>
-    <div class="pin-dot" style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rose-line);background:transparent"></div>
-  </div>
-  <div id="pinError" style="font-size:12.5px;color:var(--warn);min-height:16px"></div>
-  <div style="display:grid;grid-template-columns:repeat(3,64px);gap:12px">
-    <button type="button" class="btn btn-ghost pin-key" data-key="1" style="height:64px;font-size:20px">1</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="2" style="height:64px;font-size:20px">2</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="3" style="height:64px;font-size:20px">3</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="4" style="height:64px;font-size:20px">4</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="5" style="height:64px;font-size:20px">5</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="6" style="height:64px;font-size:20px">6</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="7" style="height:64px;font-size:20px">7</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="8" style="height:64px;font-size:20px">8</button>
-    <button type="button" class="btn btn-ghost pin-key" data-key="9" style="height:64px;font-size:20px">9</button>
-    <div></div>
-    <button type="button" class="btn btn-ghost pin-key" data-key="0" style="height:64px;font-size:20px">0</button>
-    <button type="button" class="btn btn-ghost" id="pinBackspace" style="height:64px;font-size:16px">⌫</button>
-  </div>
-  <button type="button" id="pinResetBtn" style="display:none;background:none;border:none;color:var(--ink-soft);font-size:12.5px;text-decoration:underline;margin-top:6px">Forgot PIN? Reset app lock</button>
-</div>
 
 <div class="wrap">
   <header class="app">
@@ -909,220 +877,6 @@
 <script>
 'use strict';
 
-/* ---------- PIN lock (server-side auth) ---------- */
-/* Gates the whole app behind a PIN that is checked on the server (the
-   Apps Script backend), not in this file. The browser never stores or
-   compares a PIN/password hash itself — it sends the PIN once over
-   HTTPS to the backend and gets back a short-lived session token if
-   correct. That token is then required on every students/finance sync
-   call. Nothing here can be read out of the page source to learn or
-   bypass the PIN — the actual check only happens server-side, so a
-   copy of this file on someone else's device is useless without it. */
-(function(){
-  const TOKEN_KEY = 'samisdiving-session-token';
-
-  const wrap = document.querySelector('.wrap');
-  const lock = document.getElementById('pinLockScreen');
-  const dots = Array.from(document.querySelectorAll('#pinDots .pin-dot'));
-  const title = document.getElementById('pinLockTitle');
-  const err = document.getElementById('pinError');
-  const resetBtn = document.getElementById('pinResetBtn');
-  if(wrap) wrap.classList.add('pin-locked');
-  resetBtn.style.display = 'block';
-
-  // Kept on window so the rest of the app (pullCloud/pushCloud) can attach
-  // this token to every sync call, and so a 401 response can send the
-  // person back to this lock screen instead of silently failing.
-  window.samisdivingAuth = { token: null };
-  try{ window.samisdivingAuth.token = sessionStorage.getItem(TOKEN_KEY) || null; }catch(e){}
-
-  let entry = '';
-  let inputReady = true;
-  let mode = 'pin'; // 'pin' | 'resetNewPin'
-  let recoveryPasswordEntered = '';
-  let firstNewPinEntry = null;
-  let autoRetries = 0;
-  const MAX_AUTO_RETRIES = 3;
-
-  function renderDots(){
-    dots.forEach((d,i)=>{
-      const filled = i < entry.length;
-      d.classList.toggle('filled', filled);
-      d.style.background = filled ? 'var(--accent-dark)' : 'transparent';
-      d.style.borderColor = filled ? 'var(--accent-dark)' : 'var(--rose-line)';
-    });
-  }
-  function setTitle(t){ title.textContent = t; }
-  function shake(){
-    lock.style.transition = 'transform .08s';
-    lock.style.transform = 'translateX(-6px)';
-    setTimeout(()=>{ lock.style.transform = 'translateX(6px)'; }, 80);
-    setTimeout(()=>{ lock.style.transform = 'translateX(0)'; }, 160);
-  }
-  function unlock(token){
-    window.samisdivingAuth.token = token;
-    try{ sessionStorage.setItem(TOKEN_KEY, token); }catch(e){}
-    lock.style.display = 'none';
-    if(wrap) wrap.classList.remove('pin-locked');
-    if(typeof window.samisdivingOnUnlock === 'function') window.samisdivingOnUnlock();
-  }
-  // Called from pullCloud/pushCloud if the backend says the session token
-  // is missing/expired — brings the lock screen back instead of the app
-  // silently failing to sync.
-  window.samisdivingForceRelock = function(){
-    window.samisdivingAuth.token = null;
-    try{ sessionStorage.removeItem(TOKEN_KEY); }catch(e){}
-    entry = ''; recoveryPasswordEntered=''; firstNewPinEntry=null; mode='pin';
-    renderDots();
-    setTitle('Session expired — enter PIN');
-    lock.style.display = 'flex';
-    if(wrap) wrap.classList.add('pin-locked');
-  };
-
-  async function backendCallOnce(body){
-    const res = await fetch(syncUrl, {method:'POST', body: JSON.stringify(body)});
-    return await res.json();
-  }
-
-  // Network-level failures (dropped connection, an Apps Script cold-start
-  // hiccup, res.json() failing because the response wasn't valid JSON)
-  // are transient and shouldn't force the person to retype their PIN.
-  // Retry once, silently, before surfacing anything as an error.
-  async function backendCall(body){
-    if(!syncUrl) return { error: 'No backend configured.' };
-    try{
-      return await backendCallOnce(body);
-    } catch(e){
-      try{
-        return await backendCallOnce(body);
-      } catch(e2){
-        return { error: 'Could not reach the server. Check your connection and try again.', networkError: true };
-      }
-    }
-  }
-
-  async function submitEntry(){
-    if(mode === 'pin'){
-      inputReady = false;
-      setTitle('Checking…');
-      const resp = await backendCall({ action:'login', pin: entry });
-      inputReady = true;
-      if(resp && resp.ok && resp.token){
-        autoRetries = 0;
-        unlock(resp.token);
-      } else if(resp && resp.networkError && autoRetries < MAX_AUTO_RETRIES){
-        // Connection problem, not a wrong PIN — keep what they typed and
-        // have another go automatically instead of making them retype it.
-        autoRetries++;
-        err.textContent = resp.error + ' Retrying…';
-        setTitle('Checking…');
-        setTimeout(submitEntry, 1200);
-      } else {
-        autoRetries = 0;
-        err.textContent = (resp && resp.error) ? resp.error : 'Wrong PIN.';
-        shake();
-        entry = '';
-        renderDots();
-        setTitle('Enter PIN');
-      }
-      return;
-    }
-    if(mode === 'resetNewPin'){
-      if(firstNewPinEntry === null){
-        firstNewPinEntry = entry;
-        entry = '';
-        renderDots();
-        setTitle('Confirm new PIN');
-        return;
-      }
-      if(entry !== firstNewPinEntry){
-        err.textContent = "PINs didn't match — try again.";
-        shake();
-        entry = ''; firstNewPinEntry = null;
-        renderDots();
-        setTitle('Set a new PIN');
-        return;
-      }
-      inputReady = false;
-      setTitle('Saving new PIN…');
-      const resp = await backendCall({ action:'resetPin', recoveryPassword: recoveryPasswordEntered, newPin: entry });
-      inputReady = true;
-      if(resp && resp.ok && resp.token){
-        unlock(resp.token);
-      } else {
-        askAlert((resp && resp.error) ? resp.error : 'Could not reset the PIN.');
-        entry=''; firstNewPinEntry=null; recoveryPasswordEntered=''; mode='pin';
-        renderDots();
-        setTitle('Enter PIN');
-      }
-      return;
-    }
-  }
-
-  document.querySelectorAll('.pin-key').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      if(!inputReady) return;
-      if(mode === 'pin' || mode === 'resetNewPin'){
-        if(entry.length >= 4) return;
-        err.textContent = '';
-        entry += btn.dataset.key;
-        renderDots();
-        if(entry.length === 4) submitEntry();
-      }
-    });
-  });
-  document.getElementById('pinBackspace').addEventListener('click', ()=>{
-    if(!inputReady) return;
-    if(mode === 'pin' || mode === 'resetNewPin'){
-      entry = entry.slice(0,-1);
-      err.textContent = '';
-      renderDots();
-    }
-  });
-  document.addEventListener('keydown', (e)=>{
-    if(lock.style.display === 'none') return;
-    if(!inputReady) return;
-    if(mode !== 'pin' && mode !== 'resetNewPin') return;
-    if(e.key >= '0' && e.key <= '9'){
-      if(entry.length >= 4) return;
-      err.textContent = '';
-      entry += e.key;
-      renderDots();
-      if(entry.length === 4) submitEntry();
-    } else if(e.key === 'Backspace'){
-      entry = entry.slice(0,-1);
-      err.textContent = '';
-      renderDots();
-    }
-  });
-
-  resetBtn.addEventListener('click', ()=>{
-    if(!inputReady) return;
-    const recForm = document.getElementById('recoveryForm');
-    const recInput = document.getElementById('fRecoveryPw');
-    recInput.value = '';
-    document.getElementById('recoveryModal').showModal();
-    setTimeout(()=>recInput.focus(), 50);
-  });
-  document.addEventListener('click', (e)=>{
-    const el = e.target.closest('[data-action="close-recovery-modal"]');
-    if(el) document.getElementById('recoveryModal').close();
-  });
-  document.getElementById('recoveryForm').addEventListener('submit', ()=>{
-    const pw = document.getElementById('fRecoveryPw').value;
-    document.getElementById('recoveryModal').close();
-    recoveryPasswordEntered = pw;
-    mode = 'resetNewPin';
-    firstNewPinEntry = null;
-    entry = '';
-    err.textContent = '';
-    renderDots();
-    setTitle('Set a new PIN');
-  });
-
-  setTitle('Enter PIN');
-})();
-
 const LS_KEY = 'freedive-crm-v1';
 
 /* storage that survives sandboxed iframes where localStorage throws */
@@ -1398,18 +1152,14 @@ function safeRender(){
   }
 }
 
-function withAuthToken(obj){
-  return Object.assign({}, obj, { authToken: (window.samisdivingAuth && window.samisdivingAuth.token) || null });
-}
 function cloudGetUrl(){
-  const token = (window.samisdivingAuth && window.samisdivingAuth.token) || '';
   // The cache-busting timestamp matters: without it this URL is
-  // byte-identical on every call (same base URL, same token), which
-  // lets the browser silently serve a STALE cached response instead of
-  // actually hitting the backend — exactly the kind of thing that would
-  // make "discard local data & re-pull" seem to do nothing, still
-  // showing data that was already cleaned up on the sheet.
-  return syncUrl + (syncUrl.indexOf('?') === -1 ? '?' : '&') + 'token=' + encodeURIComponent(token) + '&_ts=' + Date.now();
+  // byte-identical on every call (same base URL), which lets the
+  // browser silently serve a STALE cached response instead of actually
+  // hitting the backend — exactly the kind of thing that would make
+  // "discard local data & re-pull" seem to do nothing, still showing
+  // data that was already cleaned up on the sheet.
+  return syncUrl + (syncUrl.indexOf('?') === -1 ? '?' : '&') + '_ts=' + Date.now();
 }
 
 async function pullCloud(){
@@ -1419,11 +1169,6 @@ async function pullCloud(){
   try{
     const res = await fetch(cloudGetUrl(), {method:'GET', cache:'no-store'});
     const data = await res.json();
-    if(data && (data.code === 401 || /unauthor/i.test(data.error || ''))){
-      setSyncStatus('Session expired — please sign in again.');
-      if(typeof window.samisdivingForceRelock === 'function') window.samisdivingForceRelock();
-      return;
-    }
     if(!res.ok || data.error){
       setSyncStatus('Cloud error: ' + (data && data.error ? data.error : ('HTTP ' + res.status)));
       return;
@@ -1547,11 +1292,6 @@ async function resetLocalAndRepull(){
   try{
     const res = await fetch(cloudGetUrl(), {method:'GET', cache:'no-store'});
     const data = await res.json();
-    if(data && (data.code === 401 || /unauthor/i.test(data.error || ''))){
-      setSyncStatus('Session expired — please sign in again.');
-      if(typeof window.samisdivingForceRelock === 'function') window.samisdivingForceRelock();
-      return;
-    }
     if(!res.ok || data.error){
       setSyncStatus('Cloud error: ' + (data && data.error ? data.error : ('HTTP ' + res.status)));
       return;
@@ -1617,7 +1357,7 @@ async function pushCloud(){
   const sessionIdsBeingDeleted = deletedSessionIds.slice();
   const sessionPaymentIdsBeingDeleted = deletedSessionPaymentIds.slice();
   try{
-    const payload = Object.assign(withAuthToken(db), {
+    const payload = Object.assign({}, db, {
       deletedCalendarEventIds: idsBeingDeleted,
       deletedExpenseIds: expenseIdsBeingDeleted,
       deletedPersonalIds: personalIdsBeingDeleted,
@@ -1631,11 +1371,6 @@ async function pushCloud(){
     });
     const res = await fetch(syncUrl, {method:'POST', body: JSON.stringify(payload)});
     const data = await res.json().catch(()=>({}));
-    if(data && (data.code === 401 || /unauthor/i.test(data.error || ''))){
-      setSyncStatus('Session expired — please sign in again.');
-      if(typeof window.samisdivingForceRelock === 'function') window.samisdivingForceRelock();
-      return;
-    }
     if(!res.ok || data.error){
       // A "busy" response means another save was mid-write and holding
       // the backend's lock — the change wasn't dropped, just not saved
@@ -4504,9 +4239,7 @@ updateSyncBtn();
 updateSyncNowBtnText();
 updateDiscreetBtn();
 render();
-window.samisdivingOnUnlock = function(){
-  if(syncUrl){ pullCloud().then(safeRender); }
-};
+if(syncUrl){ pullCloud().then(safeRender); }
 
 // Auto-sync: keep other devices' changes flowing in without a manual tap.
 // Pushing on every add/edit already happens via save() -> pushCloud().
@@ -4518,7 +4251,6 @@ window.samisdivingOnUnlock = function(){
 // overwritten mid-typing by an incoming pull.
 function autoPullIfIdle(){
   if(!syncUrl || syncing) return;
-  if(!(window.samisdivingAuth && window.samisdivingAuth.token)) return; // not logged in yet — don't sync behind the PIN screen
   if(document.querySelector('dialog[open]')) return;
   if(document.hidden) return;
   pullCloud().then(safeRender);
