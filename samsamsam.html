@@ -535,18 +535,8 @@
       Connected to your Google Sheet — the same data shows up on every phone/iPad you open this file on.
     </p>
     <div id="syncStatus" style="font-size:13px;color:var(--ink-soft);margin-bottom:4px">Not connected — data is only saved on this device/browser.</div>
-    <div class="field" style="margin-top:14px;border-top:1px solid var(--line, #eee);padding-top:14px">
-      <label>Backups</label>
-      <button type="button" class="btn btn-ghost btn-small" data-action="open-backup" id="backupBtn">🛟 Backup &amp; restore</button>
-    </div>
-    <div class="field" style="margin-top:14px;border-top:1px solid var(--line, #eee);padding-top:14px">
-      <label>Fix duplicated data</label>
-      <p style="margin:0 0 8px;color:var(--ink-soft);font-size:12px">If students or sessions ever show up duplicated after an update, first run the cleanup from the Google Sheet's "Freedive CRM" menu, then use this on every device to discard this device's local copy and pull the cleaned-up version fresh — instead of merging with it (which would just re-introduce the duplicates from this device's cache).</p>
-      <button type="button" class="btn btn-ghost btn-small" data-action="reset-local-repull">🧹 Discard local data &amp; re-pull from cloud</button>
-    </div>
     <div class="modal-btns">
       <button type="button" class="btn btn-ghost" data-action="close-sync-modal">Close</button>
-      <button type="button" class="btn btn-primary" data-action="sync-now">Sync now</button>
     </div>
   </div>
 </dialog>
@@ -757,10 +747,18 @@
   <div class="modal-in">
     <h3>Settings</h3>
     <div style="display:flex;flex-direction:column;gap:8px;margin:14px 0">
-      <button type="button" class="btn btn-peach" id="settingsSyncNowBtn" data-action="settings-sync-now">🔄 Sync now</button>
       <button type="button" class="btn btn-peach" id="settingsQuickExpensesBtn" data-action="settings-quick-expenses" style="display:none">⚙️ Quick expenses</button>
       <button type="button" class="btn btn-peach" id="settingsCleanupPaymentsBtn" data-action="settings-cleanup-payments" style="display:none">🧹 Clean up empty payments</button>
       <button type="button" class="btn btn-peach" data-action="settings-check-bill">📄 Check bill</button>
+    </div>
+    <div class="field" style="margin-top:14px;border-top:1px solid var(--line, #eee);padding-top:14px">
+      <label>Backups</label>
+      <button type="button" class="btn btn-ghost btn-small" data-action="open-backup" id="backupBtn">🛟 Backup &amp; restore</button>
+    </div>
+    <div class="field" style="margin-top:14px;border-top:1px solid var(--line, #eee);padding-top:14px">
+      <label>Fix duplicated data</label>
+      <p style="margin:0 0 8px;color:var(--ink-soft);font-size:12px">If students or sessions ever show up duplicated after an update, first run the cleanup from the Google Sheet's "Freedive CRM" menu, then use this on every device to discard this device's local copy and pull the cleaned-up version fresh — instead of merging with it (which would just re-introduce the duplicates from this device's cache).</p>
+      <button type="button" class="btn btn-ghost btn-small" data-action="reset-local-repull">🧹 Discard local data &amp; re-pull from cloud</button>
     </div>
     <div class="modal-btns">
       <button type="button" class="btn btn-ghost" data-action="close-finance-settings">Close</button>
@@ -2133,11 +2131,15 @@ function render(){
   if($('newStudentBtn')) $('newStudentBtn').style.display = (onFinance || onPersonal || onCalendar || onTodos || onPrograms) ? 'none' : '';
   if($('newExpenseBtn')) $('newExpenseBtn').style.display = onFinance ? '' : 'none';
   if($('newPersonalTxBtn')) $('newPersonalTxBtn').style.display = onPersonal ? '' : 'none';
-  if($('financeSettingsBtn')) $('financeSettingsBtn').style.display = (onFinance || onPersonal) ? '' : 'none';
-  // The standalone header "Sync now" button is replaced by the ⚙️
-  // Settings modal on these two tabs (which has its own Sync now
-  // action) — everywhere else it stays as the normal header button.
-  if($('syncNowBtn')) $('syncNowBtn').style.display = (onFinance || onPersonal) ? 'none' : '';
+  // Settings now holds global tools (backup/restore, the duplicate-data
+  // recovery tool) alongside the finance-specific ones, so it's always
+  // reachable rather than only on the Freediving/Personal Finance tabs —
+  // those two just get extra items (Quick expenses, Clean up payments)
+  // shown/hidden inside it, same as before.
+  if($('financeSettingsBtn')) $('financeSettingsBtn').style.display = '';
+  // "Sync now" always stays on the page as its own button — no longer
+  // tucked inside Settings on any tab.
+  if($('syncNowBtn')) $('syncNowBtn').style.display = '';
   if($('addCalEventBtn')) $('addCalEventBtn').style.display = onCalendar ? '' : 'none';
   if($('newTodoBtn')) $('newTodoBtn').style.display = onTodos ? '' : 'none';
   const searchBox = $('searchInput');
@@ -3940,7 +3942,6 @@ document.addEventListener('click', e => {
   else if(a==='open-finance-settings'){
     $('settingsQuickExpensesBtn').style.display = currentTab==='personal' ? '' : 'none';
     $('settingsCleanupPaymentsBtn').style.display = currentTab==='finance' ? '' : 'none';
-    $('settingsSyncNowBtn').textContent = '🔄 Sync now';
     $('financeSettingsModal').showModal();
   }
   else if(a==='close-finance-settings') $('financeSettingsModal').close();
@@ -3978,7 +3979,6 @@ document.addEventListener('click', e => {
   else if(a==='expand-list'){ listLimits[el.dataset.list] = Infinity; render(); }
   else if(a==='collapse-list'){ listLimits[el.dataset.list] = TX_PAGE_SIZE; render(); }
   else if(a==='sync-now-header') performSyncNow($('syncNowBtn'));
-  else if(a==='settings-sync-now') performSyncNow($('settingsSyncNowBtn'));
   else if(a==='close-sess-modal') $('sessModal').close();
   else if(a==='new-expense') openFinanceModal();
   else if(a==='edit-tx') openFinanceModal(el.dataset.tx);
