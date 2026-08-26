@@ -1071,6 +1071,7 @@ let listLimits = { financeExp: TX_PAGE_SIZE, financeInc: TX_PAGE_SIZE, personalE
 /* ---------- cloud sync (optional Google Apps Script Web App as shared storage) ---------- */
 const SYNC_KEY = 'samisdiving-crm-sync-url';
 const DEFAULT_SYNC_URL = 'https://script.google.com/macros/s/AKfycbyULNw9UH0NRW1l88BtUYb2kqhQQyG71ZPCqSJ4CF6KLQ8vkaWBkKHX8FV04isLXDMt/exec';
+const FREESTEP_SYNC_URL = 'https://script.google.com/macros/s/AKfycbyZyLMsu78i3Y6Q8Az8-AAMqs4XdoPndB_MWjA9WwCbcfO4doqZJ_ZoPxcHXzVAaomCiw/exec';
 let syncUrl = '';
 try { syncUrl = localStorage.getItem(SYNC_KEY) || DEFAULT_SYNC_URL; } catch(e){ syncUrl = DEFAULT_SYNC_URL; }
 let syncing = false;
@@ -1202,6 +1203,118 @@ function jsonpFetch(url){
 async function fetchCloudData(){
   const data = await jsonpFetch(syncUrl);
   return { ok: !(data && data.error), status: (data && data.error) ? 500 : 200, json: async ()=>data };
+}
+
+/* ---------- Free Step integration (auto-pull sales in as income/expenses) ----------
+   Groups Free Step's flat sales list into one entry per transaction —
+   multi-item checkouts share a groupId; a standalone single-item sale has
+   no groupId and is its own group, keyed by its own id. Mirrors
+   freestep.html's own grouping logic (see its renderSalesTab / the
+   "Amount Paid only lives on the first item" comment there). */
+function groupFreestepSales(sales){
+  const groups = {};
+  (sales||[]).forEach(s=>{
+    if(!s) return;
+    const key = s.groupId || s.id;
+    if(!key) return;
+    if(!groups[key]) groups[key] = {key, date:null, customer:'', paid:0, hasPaid:false, shipCost:0, shipCostActual:null, hasShip:false};
+    const g = groups[key];
+    if(!g.date && s.date) g.date = s.date;
+    if(!g.customer && s.customer) g.customer = s.customer;
+    if(s.paid != null){ g.paid += s.paid; g.hasPaid = true; }
+    if(s.shipCost != null || s.shipCostActual != null){
+      g.shipCost = s.shipCost || 0;
+      g.shipCostActual = s.shipCostActual;
+      g.hasShip = true;
+    }
+  });
+  return Object.values(groups);
+}
+/* Pulls Free Step's sales in as Personal Finance entries automatically,
+   every time samisdiving syncs — income for the full amount paid, and an
+   expense for the actual shipping cost paid to the courier (falling back
+   to the quoted shipping cost when no actual figure has been entered
+   yet, same fallback Free Step's own UI uses).
+
+   Each entry's id is DERIVED from the Free Step sale-group's own key
+   ("freestep-income-<key>" / "freestep-expense-<key>") rather than a
+   random one — this is what keeps it safe across devices: your phone and
+   laptop each running this independently will always compute the exact
+   same id for the same Free Step sale, so samisdiving's normal by-id sync
+   sees them as the same entry and merges them instead of creating two.
+   That also makes this whole function idempotent — re-running it every
+   sync only ever creates, updates, or removes entries to match Free
+   Step's CURRENT sales; nothing is duplicated on repeated runs. Editing a
+   sale in Free Step (paid or shipping amount changing) updates the
+   matching entries here rather than adding a second copy, and a sale
+   deleted in Free Step removes its entries here too.
+
+   One thing worth knowing: this only ever looks at Free Step, never the
+   other direction — deleting or editing one of these entries FROM
+   INSIDE samisdiving doesn't touch Free Step, and since the sale still
+   exists there, the very next sync will simply recreate it here. To stop
+   tracking a particular sale, delete or adjust it in Free Step itself. */
+async function syncFreestepIncome(){
+  if(!FREESTEP_SYNC_URL) return;
+  let data;
+  try{
+    data = await jsonpFetch(FREESTEP_SYNC_URL);
+  } catch(e){
+    return; // Free Step unreachable this round — try again next sync, don't block samisdiving's own sync over it
+  }
+  if(!data || data.error || !Array.isArray(data.sales)) return;
+  if(!Array.isArray(db.personalFinance)) db.personalFinance = [];
+
+  const groups = groupFreestepSales(data.sales);
+  const validIds = new Set();
+  let changed = false;
+
+  groups.forEach(g=>{
+    const dateIso = (g.date||'').slice(0,10) || todayLocalIso();
+    const label = 'free step - ' + (g.customer || 'customer');
+    const incomeId = 'freestep-income-' + g.key;
+    const expenseId = 'freestep-expense-' + g.key;
+
+    if(g.hasPaid && g.paid > 0){
+      validIds.add(incomeId);
+      const entry = db.personalFinance.find(t=>t.id===incomeId);
+      if(!entry){
+        db.personalFinance.push({id:incomeId, type:'income', item:label, category:'', price:g.paid, date:dateIso});
+        changed = true;
+      } else if(entry.price !== g.paid || entry.date !== dateIso || entry.item !== label){
+        entry.price = g.paid; entry.date = dateIso; entry.item = label;
+        changed = true;
+      }
+    }
+
+    const actualExpense = g.hasShip ? (g.shipCostActual != null ? g.shipCostActual : g.shipCost) : 0;
+    if(actualExpense > 0){
+      validIds.add(expenseId);
+      const entry = db.personalFinance.find(t=>t.id===expenseId);
+      if(!entry){
+        db.personalFinance.push({id:expenseId, type:'expense', item:label+' shipping', category:'Shipping', price:actualExpense, date:dateIso});
+        changed = true;
+      } else if(entry.price !== actualExpense || entry.date !== dateIso){
+        entry.price = actualExpense; entry.date = dateIso;
+        changed = true;
+      }
+    }
+  });
+
+  // Anything previously imported that no longer qualifies — the Free Step
+  // sale was deleted there, or its paid/shipping amount dropped to
+  // zero/null — gets removed here too.
+  const before = db.personalFinance.length;
+  db.personalFinance = db.personalFinance.filter(t=>{
+    if(!t.id || !t.id.toString().startsWith('freestep-')) return true;
+    return validIds.has(t.id);
+  });
+  if(db.personalFinance.length !== before) changed = true;
+
+  if(changed){
+    save();
+    if(currentTab==='personal' || currentTab==='finance') render();
+  }
 }
 
 async function pullCloud(){
@@ -4276,6 +4389,7 @@ updateSyncNowBtnText();
 updateDiscreetBtn();
 render();
 if(syncUrl){ pullCloud().then(safeRender); }
+if(FREESTEP_SYNC_URL) syncFreestepIncome();
 
 // Auto-sync: keep other devices' changes flowing in without a manual tap.
 // Pushing on every add/edit already happens via save() -> pushCloud().
@@ -4284,12 +4398,14 @@ if(syncUrl){ pullCloud().then(safeRender); }
 //   1) every 20s while the tab is open and visible
 //   2) whenever the tab regains focus/visibility (e.g. switching back to it)
 // Skipped whenever a dialog is open, so an in-progress add/edit never gets
-// overwritten mid-typing by an incoming pull.
+// overwritten mid-typing by an incoming pull. Free Step's sales are
+// pulled in on the exact same schedule (see syncFreestepIncome above).
 function autoPullIfIdle(){
   if(!syncUrl || syncing) return;
   if(document.querySelector('dialog[open]')) return;
   if(document.hidden) return;
   pullCloud().then(safeRender);
+  if(FREESTEP_SYNC_URL) syncFreestepIncome();
 }
 
 setInterval(autoPullIfIdle, 20000);
