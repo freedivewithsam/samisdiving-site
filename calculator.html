@@ -1147,20 +1147,11 @@
     if (!isFinite(discountPct) || discountPct < 0) discountPct = 0;
     var clampedDiscountPct = Math.min(discountPct, 100);
     var rawDiscountPrice = price * (1 - clampedDiscountPct / 100);
-    // Round to a clean, easy-to-quote number — but rounding UP to the nearest
-    // Rp 100,000 (like the recommended price does) can round a small discount
-    // right back up to the original price on lower-priced courses (e.g. Rp
-    // 800,000 at 5% off -> 760,000 -> ceils back to 800,000, hiding the
-    // discount entirely). So round to the nearest Rp 10,000 instead, and if a
-    // nonzero discount would still land on the exact same number as the full
-    // price, round down instead so the discount is always visibly applied.
-    var discountPrice = 0;
-    if (rawDiscountPrice > 0) {
-      discountPrice = Math.round(rawDiscountPrice / 10000) * 10000;
-      if (clampedDiscountPct > 0 && discountPrice >= price) {
-        discountPrice = Math.floor(rawDiscountPrice / 10000) * 10000;
-      }
-    }
+    // Round up to the nearest Rp 100,000, same as every other price — note a
+    // small discount % on a lower-priced course can round back up to the
+    // same number as the full price (e.g. Rp 800,000 at 5% off rounds up to
+    // Rp 800,000), which is expected here.
+    var discountPrice = roundUpTo100k(rawDiscountPrice);
     var discountSalaryAmount = discountPrice * (clampedSalaryPct / 100);
     var discountExpTotal = fixedExpenses + discountSalaryAmount;
     var discountMargin = discountPrice - discountExpTotal;
@@ -1173,6 +1164,13 @@
       discountPct: discountPct, discountPrice: discountPrice,
       discountExpTotal: discountExpTotal, discountMargin: discountMargin, discountMarginPct: discountMarginPct
     };
+  }
+
+  // Round a price up to the nearest Rp 100,000 (e.g. 4,850,000 -> 4,900,000)
+  // so entered prices are always clean, easy-to-quote numbers.
+  function roundUpTo100k(n) {
+    n = Number(n) || 0;
+    return n > 0 ? Math.ceil(n / 100000) * 100000 : 0;
   }
 
   // Given a course and a desired margin %, back-solve the price that would
@@ -1294,7 +1292,7 @@
       updateSchoolDiffsFor(mc);
     });
     wireFormulaField(priceInput, function () { return mc.price; }, function (val) {
-      mc.price = val;
+      mc.price = roundUpTo100k(val);
       persist();
       renderAll();
     });
@@ -1735,7 +1733,7 @@
       if (mc) setSchoolDiff(diffEl, t, mc);
     });
     wireFormulaField(priceInput, function () { return t.price; }, function (val) {
-      t.price = val;
+      t.price = roundUpTo100k(val);
       persist();
       renderAll();
     });
@@ -1871,7 +1869,7 @@
         dmEl.classList.toggle("margin-negative", s2.discountMargin < 0);
       });
       wireFormulaField(priceEl, function () { return mc.price; }, function (val) {
-        mc.price = val;
+        mc.price = roundUpTo100k(val);
         persist();
         renderAll();
       });
