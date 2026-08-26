@@ -1,3 +1,4 @@
 User-agent: *
 Disallow: /freestep/
 Disallow: /samsamsam/
+Disallow: /nav.html
