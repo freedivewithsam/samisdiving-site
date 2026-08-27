@@ -1115,13 +1115,14 @@ function renderTax(){
           <input type="number" class="tax-income-input" data-kind="${kind}" data-month="${mk}"
             value="${data[mk] != null ? data[mk] : ''}" placeholder="0"
             style="width:100%;max-width:180px;text-align:right;padding:6px 8px;border:1.5px solid var(--rose-line);border-radius:8px;font-family:inherit;font-size:14px">
+          <div class="tax-income-preview" style="font-size:11.5px;color:var(--ink-soft);margin-top:2px">${data[mk] != null ? formatIDR(data[mk]) : ''}</div>
         </td>
       </tr>`).join('');
     return `
       <div class="card" style="margin-bottom:16px;cursor:default">
         <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px">
           <h3 style="margin:0">${title}</h3>
-          <div style="font-weight:700">${formatRp(total)}</div>
+          <div style="font-weight:700">${formatIDR(total)}</div>
         </div>
         <div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px">${hint}</div>
         <div style="overflow-x:auto">
@@ -1145,11 +1146,18 @@ function renderTax(){
 }
 
 function computeFreestepMonthIncome(mk){
+  // Mirrors the Sales dashboard's own income total: "paid" is the whole
+  // transaction's actual amount received, stored only on the first line item
+  // of a multi-item sale (everything else has paid:null), so summing it here
+  // is already deduplicated and doesn't depend on every line having a price.
   return db.sales.reduce((sum,s) => {
-    if(s.price == null) return sum; // no price on file — can't count it
     if(monthKey(s.date) !== mk) return sum;
-    return sum + (s.price||0) * (s.qty||0);
+    return sum + (s.paid||0);
   }, 0);
+}
+
+function formatIDR(n){
+  return 'IDR ' + Math.round(n||0).toLocaleString('id-ID');
 }
 
 // Fills in JUST July and August (the only months with real source data
