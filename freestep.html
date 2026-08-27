@@ -224,6 +224,7 @@
   <div class="tabs">
     <button type="button" class="tab-btn" data-action="show-tab" data-tab="sales">Sales</button>
     <button type="button" class="tab-btn" data-action="show-tab" data-tab="stock">Current stock</button>
+    <button type="button" class="tab-btn" data-action="show-tab" data-tab="tax">Tax</button>
   </div>
 
   <div class="searchbar-wrap" id="searchWrap">
@@ -446,6 +447,13 @@ if(!Array.isArray(db.products)) db.products = [];
 if(!Array.isArray(db.sales)) db.sales = [];
 if(!Array.isArray(db.stockLog)) db.stockLog = [];
 if(!db.pricesByName || typeof db.pricesByName !== 'object') db.pricesByName = {};
+// Tax tab: manually-editable monthly income figures, kept separate from
+// the auto-computed Sales data since some months (before this tab
+// existed) have no source data to pull and have to be typed in by hand.
+// { umkm: {'2026-01': 1234567, ...}, freelance: {'2026-01': 234567, ...} }
+if(!db.taxIncome || typeof db.taxIncome !== 'object') db.taxIncome = { umkm: {}, freelance: {} };
+if(!db.taxIncome.umkm || typeof db.taxIncome.umkm !== 'object') db.taxIncome.umkm = {};
+if(!db.taxIncome.freelance || typeof db.taxIncome.freelance !== 'object') db.taxIncome.freelance = {};
 
 // Prices are set once per product NAME (not per size/color/width variant)
 // and looked up by that name everywhere — the product modal's price field
@@ -593,6 +601,17 @@ function mergeStockLog(localArr, cloudArr){
   (cloudArr||[]).forEach(l => { if(l && l.id) map.set(l.id, l); });
   (localArr||[]).forEach(l => { if(l && l.id && !map.has(l.id)) map.set(l.id, l); });
   return Array.from(map.values());
+}
+
+// Tax tab figures: merged per month key rather than by id — this device's
+// own value for a given month wins on conflict (it's the most recent
+// thing typed here), any month it doesn't have an opinion on is filled
+// in from the cloud/other device. Same shape as pricesByName's merge.
+function mergeTaxIncome(local, cloud){
+  return {
+    umkm: Object.assign({}, (cloud && cloud.umkm) || {}, (local && local.umkm) || {}),
+    freelance: Object.assign({}, (cloud && cloud.freelance) || {}, (local && local.freelance) || {}),
+  };
 }
 
 /* Same real-world product (same name+color+size+width) can end up as two
@@ -744,6 +763,10 @@ function pullCloud(){
           // Local edits win on conflicting names since they're the most
           // recent thing the user did on this device; union otherwise.
           pricesByName: Object.assign({}, data.pricesByName || {}, db.pricesByName),
+          // Same "local wins per-key, union otherwise" merge as pricesByName
+          // above — each month's UMKM/Freelance figure independently keeps
+          // whichever save (this device or the cloud) mentions it.
+          taxIncome: mergeTaxIncome(db.taxIncome, data.taxIncome),
         };
         storage.set(JSON.stringify(db));
       }
@@ -784,6 +807,7 @@ function pushCloud(){
         deletedProductIds, deletedSaleIds,
         stockLog: mergedStockLog,
         pricesByName: Object.assign({}, cloud.pricesByName || {}, db.pricesByName),
+        taxIncome: mergeTaxIncome(db.taxIncome, cloud.taxIncome),
       };
       db = merged;
       storage.set(JSON.stringify(db));
@@ -792,6 +816,11 @@ function pushCloud(){
         setSyncStatus('Cloud error: ' + (data && data.error ? data.error : ('HTTP ' + res.status)));
         return;
       }
+      // The backend also merges TaxIncome by month key server-side and
+      // hands back the authoritative post-merge result — adopt it so this
+      // device immediately reflects any month another device just saved,
+      // instead of waiting for the next pull.
+      if(data && data.taxIncome){ db.taxIncome = mergeTaxIncome(db.taxIncome, data.taxIncome); storage.set(JSON.stringify(db)); }
       setSyncStatus('Connected — last synced ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
       lastSyncAt = new Date();
       updateSyncNowBtnText();
@@ -878,6 +907,7 @@ function render(){
   $('searchWrap').style.display = activeTab==='stock' ? 'flex' : 'none';
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===activeTab));
   if(activeTab==='sales'){ currentProduct = null; $('view').innerHTML = renderSales(); }
+  else if(activeTab==='tax'){ currentProduct = null; $('view').innerHTML = renderTax(); }
   else { $('view').innerHTML = currentProduct ? renderDetail() : renderDashboard(); }
   const si = $('searchInput');
   if(document.activeElement !== si) si.value = searchQuery;
@@ -1043,6 +1073,115 @@ function monthLabel(key){
   const [y,m] = key.split('-').map(Number);
   return new Date(y, m-1, 1).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
 }
+/* ---------- Tax tab ----------
+   Two yearly tables — "UMKM" (freestep's monthly income) and "Freelance"
+   (freediving's monthly income, pulled from samisdiving) — for 2026.
+   Every month is a manually-editable amount, since only July and August
+   currently have real numbers behind them (from before this tab
+   existed); "Pull July & August" fills those two in from the real data
+   (this device's own Sales for freestep, samisdiving's Web App for
+   freediving) without touching whatever's typed into any other month. */
+const TAX_YEAR = 2026;
+const TAX_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const SAMISDIVING_URL = 'https://script.google.com/macros/s/AKfycbyULNw9UH0NRW1l88BtUYb2kqhQQyG71ZPCqSJ4CF6KLQ8vkaWBkKHX8FV04isLXDMt/exec';
+
+// JSONP loader — samisdiving's Web App can't send the CORS header a
+// cross-origin fetch() needs, so a <script src="...?callback=fn"> tag is
+// used instead (see that backend's own comment on jsonpOut for why).
+function jsonpFetch(url, timeoutMs){
+  return new Promise((resolve, reject) => {
+    const cbName = 'freestepJsonp_' + Math.random().toString(36).slice(2);
+    const script = document.createElement('script');
+    let done = false;
+    function cleanup(){ delete window[cbName]; script.remove(); }
+    window[cbName] = (data) => { done = true; cleanup(); resolve(data); };
+    script.onerror = () => { if(!done){ cleanup(); reject(new Error('Network error')); } };
+    script.src = url + (url.indexOf('?')===-1?'?':'&') + 'callback=' + cbName;
+    document.body.appendChild(script);
+    setTimeout(() => { if(!done){ cleanup(); reject(new Error('Timed out')); } }, timeoutMs || 15000);
+  });
+}
+
+function renderTax(){
+  const months = Array.from({length:12}, (_,i) => String(TAX_YEAR) + '-' + String(i+1).padStart(2,'0'));
+
+  function table(kind, title, hint){
+    const data = db.taxIncome[kind] || {};
+    const total = months.reduce((a,mk) => a + (Number(data[mk]) || 0), 0);
+    const rows = months.map((mk, i) => `
+      <tr>
+        <td>${TAX_MONTH_NAMES[i]} ${TAX_YEAR}</td>
+        <td style="text-align:right">
+          <input type="number" class="tax-income-input" data-kind="${kind}" data-month="${mk}"
+            value="${data[mk] != null ? data[mk] : ''}" placeholder="0"
+            style="width:100%;max-width:180px;text-align:right;padding:6px 8px;border:1.5px solid var(--rose-line);border-radius:8px;font-family:inherit;font-size:14px">
+        </td>
+      </tr>`).join('');
+    return `
+      <div class="card" style="margin-bottom:16px;cursor:default">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px">
+          <h3 style="margin:0">${title}</h3>
+          <div style="font-weight:700">${formatRp(total)}</div>
+        </div>
+        <div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px">${hint}</div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:14px">
+            <thead><tr><th style="text-align:left;padding:6px 8px;color:var(--ink-soft);font-size:12px;text-transform:uppercase">Month</th><th style="text-align:right;padding:6px 8px;color:var(--ink-soft);font-size:12px;text-transform:uppercase">Income (IDR)</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <div class="section" style="margin:0">Tax — ${TAX_YEAR}</div>
+      <button type="button" class="btn btn-ghost btn-small" id="pullTaxBtn" data-action="pull-tax-data">Pull July &amp; August</button>
+    </div>
+    <div id="taxPullStatus" style="font-size:12.5px;color:var(--ink-soft);margin:-8px 0 14px"></div>
+    ${table('umkm', 'UMKM (freestep)', 'Monthly income from freestep sales. Type an amount into any month by hand, or pull real figures for July/August.')}
+    ${table('freelance', 'Freelance (freediving)', 'Monthly income from freediving, via samisdiving. Type an amount into any month by hand, or pull real figures for July/August.')}
+  `;
+}
+
+function computeFreestepMonthIncome(mk){
+  return db.sales.reduce((sum,s) => {
+    if(s.price == null) return sum; // no price on file — can't count it
+    if(monthKey(s.date) !== mk) return sum;
+    return sum + (s.price||0) * (s.qty||0);
+  }, 0);
+}
+
+// Fills in JUST July and August (the only months with real source data
+// behind them) from freestep's own local Sales and from samisdiving —
+// every other month is left exactly as typed, whatever that is.
+async function pullTaxJulyAugust(){
+  const statusEl = $('taxPullStatus');
+  const btn = $('pullTaxBtn');
+  if(btn) btn.disabled = true;
+  if(statusEl) statusEl.textContent = 'Pulling…';
+  const months = [TAX_YEAR + '-07', TAX_YEAR + '-08'];
+
+  months.forEach(mk => { db.taxIncome.umkm[mk] = computeFreestepMonthIncome(mk); });
+
+  try{
+    const data = await jsonpFetch(SAMISDIVING_URL);
+    const freediveByMonth = {};
+    (data.students || []).forEach(st => {
+      (st.sessionPayments || []).forEach(pmt => {
+        if(pmt.deposit){ const mk = (pmt.depositDate||'').slice(0,7); if(mk) freediveByMonth[mk] = (freediveByMonth[mk]||0) + pmt.deposit; }
+        if(pmt.balance){ const mk = (pmt.balanceDate||'').slice(0,7); if(mk) freediveByMonth[mk] = (freediveByMonth[mk]||0) + pmt.balance; }
+      });
+    });
+    months.forEach(mk => { db.taxIncome.freelance[mk] = freediveByMonth[mk] || 0; });
+    if(statusEl) statusEl.textContent = 'Pulled July & August from both freestep and samisdiving — last updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) + '.';
+  } catch(e){
+    if(statusEl) statusEl.textContent = "Pulled freestep's July & August, but couldn't reach samisdiving (" + e.message + ") — Freelance left as-is for those months.";
+  }
+
+  save(); render();
+}
+
 function renderSales(){
   const allSales = [...db.sales].sort((a,b)=> new Date(b.date) - new Date(a.date));
 
@@ -2857,13 +2996,21 @@ $('searchInput').addEventListener('input', ()=>{ searchQuery = $('searchInput').
 
 document.addEventListener('change', e=>{
   if(e.target.id === 'salesMonthSelect'){ salesMonth = e.target.value; render(); }
+  if(e.target.classList && e.target.classList.contains('tax-income-input')){
+    const kind = e.target.dataset.kind, mk = e.target.dataset.month;
+    const raw = e.target.value.trim();
+    if(raw === '') delete db.taxIncome[kind][mk];
+    else db.taxIncome[kind][mk] = Math.max(0, parseFloat(raw) || 0);
+    save(); render();
+  }
 });
 
 document.addEventListener('click', e=>{
   const el = e.target.closest('[data-action]');
   if(!el) return;
   const a = el.dataset.action, pid = el.dataset.product, sid = el.dataset.sale;
-  if(a==='new-product') openProductModal();
+  if(a==='pull-tax-data') pullTaxJulyAugust();
+  else if(a==='new-product') openProductModal();
   else if(a==='edit-product'){ e.stopPropagation(); openProductModal(pid); }
   else if(a==='close-product-modal') closeProductModal();
   else if(a==='delete-product'){
