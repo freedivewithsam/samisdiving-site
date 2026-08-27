@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1074,13 +1075,12 @@ function monthLabel(key){
   return new Date(y, m-1, 1).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
 }
 /* ---------- Tax tab ----------
-   Two yearly tables — "UMKM" (freestep's monthly income) and "Freelance"
-   (freediving's monthly income, pulled from samisdiving) — for 2026.
-   Every month is a manually-editable amount, since only July and August
-   currently have real numbers behind them (from before this tab
-   existed); "Pull July & August" fills those two in from the real data
-   (this device's own Sales for freestep, samisdiving's Web App for
-   freediving) without touching whatever's typed into any other month. */
+   Two yearly tables for 2026: "UMKM" (freestep's monthly income combined
+   with freediving income pulled from samisdiving) and "Freelance" (fully
+   manual — never touched by the pull). Every month is a manually-editable
+   amount; "Pull July & August" fills just those two months of UMKM from
+   real data (this device's own Sales for freestep, samisdiving's Web App
+   for freediving) without touching any other month or the Freelance table. */
 const TAX_YEAR = 2026;
 const TAX_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const SAMISDIVING_URL = 'https://script.google.com/macros/s/AKfycbyULNw9UH0NRW1l88BtUYb2kqhQQyG71ZPCqSJ4CF6KLQ8vkaWBkKHX8FV04isLXDMt/exec';
@@ -1140,8 +1140,8 @@ function renderTax(){
       <button type="button" class="btn btn-ghost btn-small" id="pullTaxBtn" data-action="pull-tax-data">Pull July &amp; August</button>
     </div>
     <div id="taxPullStatus" style="font-size:12.5px;color:var(--ink-soft);margin:-8px 0 14px"></div>
-    ${table('umkm', 'UMKM (freestep)', 'Monthly income from freestep sales. Type an amount into any month by hand, or pull real figures for July/August.')}
-    ${table('freelance', 'Freelance (freediving)', 'Monthly income from freediving, via samisdiving. Type an amount into any month by hand, or pull real figures for July/August.')}
+    ${table('umkm', 'UMKM (freestep + freediving)', 'Combined monthly income from freestep sales and freediving (via samisdiving). Type an amount into any month by hand, or pull real figures for July/August.')}
+    ${table('freelance', 'Freelance', 'Manually typed — not pulled automatically.')}
   `;
 }
 
@@ -1161,8 +1161,9 @@ function formatIDR(n){
 }
 
 // Fills in JUST July and August (the only months with real source data
-// behind them) from freestep's own local Sales and from samisdiving —
-// every other month is left exactly as typed, whatever that is.
+// behind them) into UMKM, combining freestep's own local Sales with
+// freediving income pulled from samisdiving — every other month, and the
+// whole Freelance table, is left exactly as typed, whatever that is.
 async function pullTaxJulyAugust(){
   const statusEl = $('taxPullStatus');
   const btn = $('pullTaxBtn');
@@ -1170,7 +1171,8 @@ async function pullTaxJulyAugust(){
   if(statusEl) statusEl.textContent = 'Pulling…';
   const months = [TAX_YEAR + '-07', TAX_YEAR + '-08'];
 
-  months.forEach(mk => { db.taxIncome.umkm[mk] = computeFreestepMonthIncome(mk); });
+  const freestepByMonth = {};
+  months.forEach(mk => { freestepByMonth[mk] = computeFreestepMonthIncome(mk); });
 
   try{
     const data = await jsonpFetch(SAMISDIVING_URL);
@@ -1181,10 +1183,11 @@ async function pullTaxJulyAugust(){
         if(pmt.balance){ const mk = (pmt.balanceDate||'').slice(0,7); if(mk) freediveByMonth[mk] = (freediveByMonth[mk]||0) + pmt.balance; }
       });
     });
-    months.forEach(mk => { db.taxIncome.freelance[mk] = freediveByMonth[mk] || 0; });
-    if(statusEl) statusEl.textContent = 'Pulled July & August from both freestep and samisdiving — last updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) + '.';
+    months.forEach(mk => { db.taxIncome.umkm[mk] = (freestepByMonth[mk]||0) + (freediveByMonth[mk]||0); });
+    if(statusEl) statusEl.textContent = 'Pulled July & August — UMKM combines freestep and samisdiving — last updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) + '.';
   } catch(e){
-    if(statusEl) statusEl.textContent = "Pulled freestep's July & August, but couldn't reach samisdiving (" + e.message + ") — Freelance left as-is for those months.";
+    months.forEach(mk => { db.taxIncome.umkm[mk] = freestepByMonth[mk]||0; });
+    if(statusEl) statusEl.textContent = "Pulled freestep's July & August, but couldn't reach samisdiving (" + e.message + ") — UMKM only reflects freestep for those months.";
   }
 
   save(); render();
