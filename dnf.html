@@ -139,6 +139,13 @@
   button.ghost{
     background:transparent; color:var(--text); border:1px solid var(--line);
   }
+  a.ghost{
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:14px;
+    background:transparent; color:var(--text); border:1px solid var(--line);
+    padding:11px 20px; border-radius:8px; cursor:pointer; transition:transform .12s, opacity .12s;
+  }
+  a.ghost:hover{transform:translateY(-1px);}
+  a.ghost:focus-visible{outline:2px solid var(--accent-2); outline-offset:2px;}
   button:focus-visible{outline:2px solid var(--accent-2); outline-offset:2px;}
 
   .add-row{display:flex; align-items:center; gap:12px; margin-top:8px;}
@@ -266,10 +273,11 @@
       <h1>Read the log,<br>not the screenshot.</h1>
     </div>
     <div class="header-actions">
+      <button class="ghost" id="nav-back-btn" onclick="location.href='https://samisdiving.com/nav'">Nav</button>
       <button id="add-open-modal-btn">Add session(s)</button>
       <button class="ghost" id="period-open-modal-btn">+ Log period</button>
       <button class="ghost" id="sheet-sync-now-btn">Sync now</button>
-      <button class="ghost" id="sheet-open-modal-btn">Connect sheet <span id="sheet-connected-dot" style="display:none; color:var(--accent);">●</span></button>
+      <a class="ghost" id="nav-back-btn" href="https://samisdiving.com/nav" style="display:inline-flex; align-items:center; text-decoration:none;">Nav</a>
     </div>
   </div>
 
@@ -318,19 +326,6 @@
       </div>
       <div id="calendar-grid"></div>
       <div id="calendar-legend" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; font-size:12px; color:var(--muted);"></div>
-    </div>
-  </div>
-
-  <div class="modal-overlay" id="sheet-modal-overlay">
-    <div class="modal-box">
-      <button class="modal-close" id="sheet-modal-close-btn" title="Close">×</button>
-      <h3>Connect Google Sheet</h3>
-      <label for="sheet-url-input">Apps Script web app URL</label>
-      <input type="text" id="sheet-url-input" placeholder="https://script.google.com/macros/s/.../exec">
-      <div class="modal-actions">
-        <button id="sheet-connect-btn">Save &amp; connect</button>
-      </div>
-      <span class="status" id="sheet-connect-status" style="display:block; margin-top:10px;"></span>
     </div>
   </div>
 
@@ -707,24 +702,11 @@
   }
 
   // ---------- Google Sheets sync ----------
-  // Same pattern as samisdiving.html: the connected URL is remembered in
-  // localStorage (so it survives closing the tab / reopening the file, not
-  // just a refresh), and a "Sync now" button lets you manually re-pull —
-  // handy after editing the sheet directly or syncing from another device.
-  const sheetUrlInput = document.getElementById('sheet-url-input');
-  const sheetConnectBtn = document.getElementById('sheet-connect-btn');
+  // The Apps Script URL is baked into CONFIG.SHEET_URL below, so the app
+  // auto-connects on load — no need to paste it in. "Sync now" lets you
+  // manually re-pull, handy after editing the sheet directly or syncing
+  // from another device.
   const sheetSyncNowBtn = document.getElementById('sheet-sync-now-btn');
-  const sheetConnectStatus = document.getElementById('sheet-connect-status');
-  const sheetDot = document.getElementById('sheet-connected-dot');
-  const sheetModalOverlay = document.getElementById('sheet-modal-overlay');
-  const sheetOpenModalBtn = document.getElementById('sheet-open-modal-btn');
-  const sheetModalCloseBtn = document.getElementById('sheet-modal-close-btn');
-
-  function openSheetModal(){ sheetModalOverlay.classList.add('open'); sheetUrlInput.focus(); }
-  function closeSheetModal(){ sheetModalOverlay.classList.remove('open'); }
-  sheetOpenModalBtn.addEventListener('click', openSheetModal);
-  sheetModalCloseBtn.addEventListener('click', closeSheetModal);
-  sheetModalOverlay.addEventListener('click', e=>{ if(e.target === sheetModalOverlay) closeSheetModal(); });
 
   const periodModalOverlay = document.getElementById('period-modal-overlay');
   const periodOpenModalBtn = document.getElementById('period-open-modal-btn');
@@ -849,10 +831,6 @@
     return 'Luteal';
   }
 
-  function setConnectStatus(msg, kind){
-    sheetConnectStatus.textContent = msg;
-    sheetConnectStatus.className = 'status' + (kind ? ' '+kind : '');
-  }
   function nowHHMM(){
     const d = new Date();
     return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
@@ -864,9 +842,8 @@
     setTimeout(()=>{ setSyncBtn(state.lastSyncTime ? ('Sync ' + state.lastSyncTime) : SYNC_BTN_DEFAULT); }, 2500);
   }
 
-  sheetConnectBtn.addEventListener('click', ()=> connectSheet(sheetUrlInput.value.trim()));
   sheetSyncNowBtn.addEventListener('click', ()=>{
-    if(!state.sheetUrl){ flashSyncBtn('Connect a sheet first'); return; }
+    if(!state.sheetUrl){ flashSyncBtn('No sheet configured'); return; }
     pullFromSheet(state.sheetUrl);
   });
 
@@ -881,25 +858,21 @@
   }
 
   async function connectSheet(url){
-    if(!url){ setConnectStatus('Paste your web app URL first.', 'err'); return; }
-    setConnectStatus('Connecting…');
+    if(!url) return;
+    setSyncBtn('Connecting…');
     try{
       const { sessions, periodDates } = await loadSessionsFromSheet(url);
       state.sheetUrl = url;
       state.sessions = sessions;
       if(periodDates) state.periodDates = periodDates;
       state.selectedSessionId = sessions.length ? sessions[sessions.length-1].id : null;
-      sheetUrlInput.value = url;
-      sheetDot.style.display = 'inline';
       if(LS) LS.setItem(PERIOD_KEY, JSON.stringify(state.periodDates));
-      setConnectStatus('Connected.', 'ok');
       state.lastSyncTime = nowHHMM();
       setSyncBtn('Sync ' + state.lastSyncTime);
-      closeSheetModal();
       renderAll();
     }catch(err){
       console.error(err);
-      setConnectStatus('Could not reach that sheet — check the URL and deployment access.', 'err');
+      flashSyncBtn('Could not connect');
     }
   }
 
