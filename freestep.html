@@ -1105,17 +1105,21 @@ function jsonpFetch(url, timeoutMs){
 function renderTax(){
   const months = Array.from({length:12}, (_,i) => String(TAX_YEAR) + '-' + String(i+1).padStart(2,'0'));
 
-  function table(kind, title, hint){
+  function table(kind, title, hint, editable){
     const data = db.taxIncome[kind] || {};
     const total = months.reduce((a,mk) => a + (Number(data[mk]) || 0), 0);
     const rows = months.map((mk, i) => `
       <tr>
         <td>${TAX_MONTH_NAMES[i]} ${TAX_YEAR}</td>
         <td style="text-align:right">
+          ${editable ? `
           <input type="number" class="tax-income-input" data-kind="${kind}" data-month="${mk}"
             value="${data[mk] != null ? data[mk] : ''}" placeholder="0"
             style="width:100%;max-width:180px;text-align:right;padding:6px 8px;border:1.5px solid var(--rose-line);border-radius:8px;font-family:inherit;font-size:14px">
           <div class="tax-income-preview" style="font-size:11.5px;color:var(--ink-soft);margin-top:2px">${data[mk] != null ? formatIDR(data[mk]) : ''}</div>
+          ` : `
+          <div style="padding:6px 8px;font-weight:600">${formatIDR(data[mk] || 0)}</div>
+          `}
         </td>
       </tr>`).join('');
     return `
@@ -1137,11 +1141,10 @@ function renderTax(){
   return `
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
       <div class="section" style="margin:0">Tax — ${TAX_YEAR}</div>
-      <button type="button" class="btn btn-ghost btn-small" id="pullTaxBtn" data-action="pull-tax-data">Pull July &amp; August</button>
     </div>
     <div id="taxPullStatus" style="font-size:12.5px;color:var(--ink-soft);margin:-8px 0 14px"></div>
-    ${table('umkm', 'UMKM (freestep + freediving)', 'Combined monthly income from freestep sales and freediving (via samisdiving). Type an amount into any month by hand, or pull real figures for July/August.')}
-    ${table('freelance', 'Freelance', 'Manually typed — not pulled automatically.')}
+    ${table('umkm', 'UMKM (freestep + freediving)', 'Calculated automatically each month from freestep sales and freediving income (via samisdiving) — not manually editable.', false)}
+    ${table('freelance', 'Freelance', 'Manually typed — not synced automatically.', true)}
   `;
 }
 
@@ -1160,16 +1163,17 @@ function formatIDR(n){
   return 'IDR ' + Math.round(n||0).toLocaleString('id-ID');
 }
 
-// Fills in JUST July and August (the only months with real source data
-// behind them) into UMKM, combining freestep's own local Sales with
-// freediving income pulled from samisdiving — every other month, and the
-// whole Freelance table, is left exactly as typed, whatever that is.
-async function pullTaxJulyAugust(){
+// UMKM is fully calculated, not typed — every month gets freestep's own
+// local Sales total plus freediving income pulled from samisdiving, added
+// together automatically whenever the Tax tab is opened. Freelance is never
+// touched here; it stays exactly what's typed into it by hand.
+let taxSyncInFlight = false;
+async function syncUmkmAutomatically(){
+  if(taxSyncInFlight) return;
+  taxSyncInFlight = true;
   const statusEl = $('taxPullStatus');
-  const btn = $('pullTaxBtn');
-  if(btn) btn.disabled = true;
-  if(statusEl) statusEl.textContent = 'Pulling…';
-  const months = [TAX_YEAR + '-07', TAX_YEAR + '-08'];
+  if(statusEl) statusEl.textContent = 'Syncing…';
+  const months = Array.from({length:12}, (_,i) => String(TAX_YEAR) + '-' + String(i+1).padStart(2,'0'));
 
   const freestepByMonth = {};
   months.forEach(mk => { freestepByMonth[mk] = computeFreestepMonthIncome(mk); });
@@ -1184,12 +1188,13 @@ async function pullTaxJulyAugust(){
       });
     });
     months.forEach(mk => { db.taxIncome.umkm[mk] = (freestepByMonth[mk]||0) + (freediveByMonth[mk]||0); });
-    if(statusEl) statusEl.textContent = 'Pulled July & August — UMKM combines freestep and samisdiving — last updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) + '.';
+    if(statusEl) statusEl.textContent = 'Synced — UMKM combines freestep and samisdiving — last updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) + '.';
   } catch(e){
     months.forEach(mk => { db.taxIncome.umkm[mk] = freestepByMonth[mk]||0; });
-    if(statusEl) statusEl.textContent = "Pulled freestep's July & August, but couldn't reach samisdiving (" + e.message + ") — UMKM only reflects freestep for those months.";
+    if(statusEl) statusEl.textContent = "Couldn't reach samisdiving (" + e.message + ") — UMKM only reflects freestep for now.";
   }
 
+  taxSyncInFlight = false;
   save(); render();
 }
 
@@ -3020,8 +3025,7 @@ document.addEventListener('click', e=>{
   const el = e.target.closest('[data-action]');
   if(!el) return;
   const a = el.dataset.action, pid = el.dataset.product, sid = el.dataset.sale;
-  if(a==='pull-tax-data') pullTaxJulyAugust();
-  else if(a==='new-product') openProductModal();
+  if(a==='new-product') openProductModal();
   else if(a==='edit-product'){ e.stopPropagation(); openProductModal(pid); }
   else if(a==='close-product-modal') closeProductModal();
   else if(a==='delete-product'){
@@ -3038,7 +3042,7 @@ document.addEventListener('click', e=>{
   else if(a==='toggle-sold-breakdown'){ showSoldBreakdown = !showSoldBreakdown; render(); }
   else if(a==='open-product'){ currentProduct = pid; render(); window.scrollTo(0,0); }
   else if(a==='go-home'){ currentProduct = null; render(); }
-  else if(a==='show-tab'){ activeTab = el.dataset.tab; currentProduct = null; stockFilter = null; showSoldBreakdown = false; render(); window.scrollTo(0,0); }
+  else if(a==='show-tab'){ activeTab = el.dataset.tab; currentProduct = null; stockFilter = null; showSoldBreakdown = false; render(); window.scrollTo(0,0); if(activeTab==='tax') syncUmkmAutomatically(); }
   else if(a==='new-sale') openSaleModal();
   else if(a==='close-sale-modal') closeSaleModal();
   else if(a==='add-sale-item') addSaleItemRow();
