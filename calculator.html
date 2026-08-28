@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -619,6 +620,9 @@
   .row-price-group label,
   .row-input-group label {
     display: block;
+    height: 16px;
+    line-height: 16px;
+    box-sizing: border-box;
     font-size: 0.64rem;
     text-transform: uppercase;
     color: var(--ink-faint);
@@ -663,23 +667,28 @@
     margin-top: 4px;
     font-family: "JetBrains Mono", monospace;
   }
-  .discount-group { display: flex; flex-direction: column; gap: 6px; }
+  .discount-group { display: flex; flex-direction: column; gap: 4px; }
   .discount-label-row {
     display: flex;
     align-items: center;
+    height: 16px;
     gap: 8px;
   }
   .discount-label-row label {
+    height: auto;
     margin-bottom: 0;
     white-space: nowrap;
   }
   .discount-pct-input {
-    width: 52px;
+    width: 40px;
+    height: 16px !important;
     flex: none;
-    padding: 3px 6px !important;
-    font-size: 0.85rem !important;
+    box-sizing: border-box !important;
+    padding: 0 5px !important;
+    font-size: 0.72rem !important;
+    line-height: 14px !important;
     text-align: center;
-    border-radius: 6px !important;
+    border-radius: 5px !important;
   }
   .discount-price-bar {
     background: var(--surface);
@@ -1147,11 +1156,19 @@
     if (!isFinite(discountPct) || discountPct < 0) discountPct = 0;
     var clampedDiscountPct = Math.min(discountPct, 100);
     var rawDiscountPrice = price * (1 - clampedDiscountPct / 100);
-    // Round up to the nearest Rp 100,000, same as every other price — note a
-    // small discount % on a lower-priced course can round back up to the
-    // same number as the full price (e.g. Rp 800,000 at 5% off rounds up to
-    // Rp 800,000), which is expected here.
-    var discountPrice = roundUpTo100k(rawDiscountPrice);
+    // Round to the nearest Rp 10,000 — rounding UP to 100,000 like other
+    // prices can round a discount right back up to the full price on
+    // lower-priced courses (e.g. Rp 600,000 at 5% off -> 570,000 -> ceils
+    // back to Rp 600,000), making the discount look broken. So use a finer
+    // step, and if a nonzero discount would still land on the same number as
+    // the full price, round down instead so it's always visibly applied.
+    var discountPrice = 0;
+    if (rawDiscountPrice > 0) {
+      discountPrice = Math.round(rawDiscountPrice / 10000) * 10000;
+      if (clampedDiscountPct > 0 && discountPrice >= price) {
+        discountPrice = Math.floor(rawDiscountPrice / 10000) * 10000;
+      }
+    }
     var discountSalaryAmount = discountPrice * (clampedSalaryPct / 100);
     var discountExpTotal = fixedExpenses + discountSalaryAmount;
     var discountMargin = discountPrice - discountExpTotal;
@@ -1301,7 +1318,7 @@
 
     var discountGroup = document.createElement("div");
     discountGroup.className = "row-price-group discount-group";
-    discountGroup.style.cssText = "width:168px;flex:none;display:flex;flex-direction:column;gap:6px;";
+    discountGroup.style.cssText = "width:168px;flex:none;display:flex;flex-direction:column;gap:4px;";
     var discountLabelRow = document.createElement("div");
     discountLabelRow.className = "discount-label-row";
     discountLabelRow.style.cssText = "display:flex;align-items:center;gap:8px;";
@@ -1314,7 +1331,7 @@
     discountInput.inputMode = "decimal";
     discountInput.className = "formula-input discount-pct-input";
     discountInput.placeholder = "0";
-    discountInput.style.cssText = "width:44px;flex:0 0 auto;padding:5px 6px;font-size:0.85rem;text-align:center;border-radius:6px;min-width:0;";
+    discountInput.style.cssText = "min-width:0;";
     discountInput.value = mc.discountPct === undefined || mc.discountPct === 0 ? "" : mc.discountPct;
     discountInput.addEventListener("input", function () {
       mc.discountPct = discountInput.value;
