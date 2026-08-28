@@ -1156,19 +1156,9 @@
     if (!isFinite(discountPct) || discountPct < 0) discountPct = 0;
     var clampedDiscountPct = Math.min(discountPct, 100);
     var rawDiscountPrice = price * (1 - clampedDiscountPct / 100);
-    // Round to the nearest Rp 10,000 — rounding UP to 100,000 like other
-    // prices can round a discount right back up to the full price on
-    // lower-priced courses (e.g. Rp 600,000 at 5% off -> 570,000 -> ceils
-    // back to Rp 600,000), making the discount look broken. So use a finer
-    // step, and if a nonzero discount would still land on the same number as
-    // the full price, round down instead so it's always visibly applied.
-    var discountPrice = 0;
-    if (rawDiscountPrice > 0) {
-      discountPrice = Math.round(rawDiscountPrice / 10000) * 10000;
-      if (clampedDiscountPct > 0 && discountPrice >= price) {
-        discountPrice = Math.floor(rawDiscountPrice / 10000) * 10000;
-      }
-    }
+    // Exact — no rounding — so the discounted price always reflects the
+    // percentage you typed, even when a rounding step would erase it.
+    var discountPrice = rawDiscountPrice > 0 ? Math.round(rawDiscountPrice) : 0;
     var discountSalaryAmount = discountPrice * (clampedSalaryPct / 100);
     var discountExpTotal = fixedExpenses + discountSalaryAmount;
     var discountMargin = discountPrice - discountExpTotal;
@@ -1309,7 +1299,7 @@
       updateSchoolDiffsFor(mc);
     });
     wireFormulaField(priceInput, function () { return mc.price; }, function (val) {
-      mc.price = roundUpTo100k(val);
+      mc.price = val;
       persist();
       renderAll();
     });
@@ -1750,7 +1740,7 @@
       if (mc) setSchoolDiff(diffEl, t, mc);
     });
     wireFormulaField(priceInput, function () { return t.price; }, function (val) {
-      t.price = roundUpTo100k(val);
+      t.price = val;
       persist();
       renderAll();
     });
@@ -1886,7 +1876,7 @@
         dmEl.classList.toggle("margin-negative", s2.discountMargin < 0);
       });
       wireFormulaField(priceEl, function () { return mc.price; }, function (val) {
-        mc.price = roundUpTo100k(val);
+        mc.price = val;
         persist();
         renderAll();
       });
