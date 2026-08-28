@@ -1150,15 +1150,24 @@
     // easy-to-quote number (e.g. 4,850,000 -> 4,900,000; 4,420,000 -> 4,500,000).
     var recommendedPrice = rawRecommendedPrice > 0 ? Math.ceil(rawRecommendedPrice / 100000) * 100000 : 0;
 
-    // Discount is a % off the regular price. Salary (if any) is still a cut
-    // of whatever price actually gets charged, so it scales with the discount too.
+    // Discount is normally a % off the regular price, rounded up to a clean
+    // Rp 100,000 like other prices. Salary (if any) is still a cut of
+    // whatever price actually gets charged, so it scales with the discount
+    // too. Below Rp 1,000,000 the % + rounding combo can erase small
+    // discounts entirely, so under that threshold the discounted price is
+    // typed in directly instead (see the "manualDiscountPrice" branch below).
+    var isLowPriceCourse = price > 0 && price < 1000000;
     var discountPct = mc.discountPct === undefined ? 0 : Number(mc.discountPct);
     if (!isFinite(discountPct) || discountPct < 0) discountPct = 0;
     var clampedDiscountPct = Math.min(discountPct, 100);
-    var rawDiscountPrice = price * (1 - clampedDiscountPct / 100);
-    // Exact — no rounding — so the discounted price always reflects the
-    // percentage you typed, even when a rounding step would erase it.
-    var discountPrice = rawDiscountPrice > 0 ? Math.round(rawDiscountPrice) : 0;
+    var discountPrice;
+    if (isLowPriceCourse) {
+      discountPrice = Number(mc.discountPriceOverride);
+      if (!isFinite(discountPrice) || discountPrice < 0) discountPrice = 0;
+    } else {
+      var rawDiscountPrice = price * (1 - clampedDiscountPct / 100);
+      discountPrice = roundUpTo100k(rawDiscountPrice);
+    }
     var discountSalaryAmount = discountPrice * (clampedSalaryPct / 100);
     var discountExpTotal = fixedExpenses + discountSalaryAmount;
     var discountMargin = discountPrice - discountExpTotal;
@@ -1168,7 +1177,8 @@
       price: price, fixedExpenses: fixedExpenses, salaryPct: salaryPct, salaryAmount: salaryAmount,
       expTotal: expTotal, margin: margin, marginPct: marginPct,
       targetMarginPct: targetMarginPct, recommendedPrice: recommendedPrice,
-      discountPct: discountPct, discountPrice: discountPrice,
+      discountPct: discountPct, discountPrice: discountPrice, isLowPriceCourse: isLowPriceCourse,
+      hasDiscount: isLowPriceCourse ? discountPrice > 0 : discountPct > 0,
       discountExpTotal: discountExpTotal, discountMargin: discountMargin, discountMarginPct: discountMarginPct
     };
   }
@@ -1213,9 +1223,9 @@
 
     var discMarginChip = chips[3];
     if (discMarginChip) {
-      discMarginChip.querySelector(".value").textContent = s.discountPct > 0 ? fmtPct(s.discountMarginPct) : "—";
-      discMarginChip.classList.toggle("margin-positive", s.discountPct > 0 && s.discountMargin >= 0);
-      discMarginChip.classList.toggle("margin-negative", s.discountPct > 0 && s.discountMargin < 0);
+      discMarginChip.querySelector(".value").textContent = s.hasDiscount ? fmtPct(s.discountMarginPct) : "—";
+      discMarginChip.classList.toggle("margin-positive", s.hasDiscount && s.discountMargin >= 0);
+      discMarginChip.classList.toggle("margin-negative", s.hasDiscount && s.discountMargin < 0);
     }
 
     var recoEl = document.querySelector('[data-reco-for="' + mc.id + '"]');
@@ -1225,14 +1235,23 @@
     if (salaryHintEl) salaryHintEl.textContent = "= " + fmt(s.salaryAmount);
 
     var discountHintEl = document.querySelector('[data-discount-for="' + mc.id + '"]');
-    if (discountHintEl) discountHintEl.textContent = fmt(s.discountPrice);
+    if (discountHintEl) {
+      if (discountHintEl.tagName === "INPUT") {
+        // manual discount-price mode — don't clobber the field while typing
+        if (document.activeElement !== discountHintEl) {
+          discountHintEl.value = s.discountPrice === 0 ? "" : s.discountPrice;
+        }
+      } else {
+        discountHintEl.textContent = fmt(s.discountPrice);
+      }
+    }
 
     var summaryRow = document.querySelector('[data-summary-for="' + mc.id + '"]');
     if (summaryRow) {
       var summaryPriceEl = summaryRow.querySelector(".summary-price");
       if (summaryPriceEl && document.activeElement !== summaryPriceEl) summaryPriceEl.value = s.price;
       var summaryDiscount = summaryRow.querySelector(".summary-discount");
-      if (summaryDiscount) summaryDiscount.textContent = s.discountPct > 0 ? fmt(s.discountPrice) : "—";
+      if (summaryDiscount) summaryDiscount.textContent = s.hasDiscount ? fmt(s.discountPrice) : "—";
       summaryRow.querySelector(".summary-reco").textContent =
         fmt(s.recommendedPrice) + " (" + fmtPct(s.targetMarginPct >= 0 ? s.targetMarginPct : 0).replace("+", "") + ")";
       var summaryMargin = summaryRow.querySelector(".summary-margin");
@@ -1241,7 +1260,7 @@
       summaryMargin.classList.toggle("margin-negative", s.margin < 0);
       var summaryDiscMargin = summaryRow.querySelector(".summary-disc-margin");
       if (summaryDiscMargin) {
-        summaryDiscMargin.textContent = s.discountPct > 0 ? fmtPct(s.discountMarginPct) : "—";
+        summaryDiscMargin.textContent = s.hasDiscount ? fmtPct(s.discountMarginPct) : "—";
         summaryDiscMargin.classList.toggle("margin-positive", s.discountMargin >= 0);
         summaryDiscMargin.classList.toggle("margin-negative", s.discountMargin < 0);
       }
@@ -1306,40 +1325,68 @@
     priceGroup.appendChild(priceInput);
     top.appendChild(priceGroup);
 
+    var discountSnapshot = computeMine(mc);
     var discountGroup = document.createElement("div");
     discountGroup.className = "row-price-group discount-group";
     discountGroup.style.cssText = "width:168px;flex:none;display:flex;flex-direction:column;gap:4px;";
-    var discountLabelRow = document.createElement("div");
-    discountLabelRow.className = "discount-label-row";
-    discountLabelRow.style.cssText = "display:flex;align-items:center;gap:8px;";
-    var discountLabel = document.createElement("label");
-    discountLabel.textContent = "Discount %";
-    discountLabel.style.cssText = "margin-bottom:0;white-space:nowrap;";
-    discountLabelRow.appendChild(discountLabel);
-    var discountInput = document.createElement("input");
-    discountInput.type = "text";
-    discountInput.inputMode = "decimal";
-    discountInput.className = "formula-input discount-pct-input";
-    discountInput.placeholder = "0";
-    discountInput.style.cssText = "min-width:0;";
-    discountInput.value = mc.discountPct === undefined || mc.discountPct === 0 ? "" : mc.discountPct;
-    discountInput.addEventListener("input", function () {
-      mc.discountPct = discountInput.value;
-      persist();
-      renderMineStats(mc, statsRow);
-    });
-    wireFormulaField(discountInput, function () { return mc.discountPct === undefined ? 0 : mc.discountPct; }, function (val) {
-      mc.discountPct = Math.min(Math.max(val, 0), 100);
-      persist();
-      renderAll();
-    });
-    discountLabelRow.appendChild(discountInput);
-    discountGroup.appendChild(discountLabelRow);
-    var discountHint = document.createElement("div");
-    discountHint.className = "discount-price-bar";
-    discountHint.dataset.discountFor = mc.id;
-    discountHint.textContent = fmt(computeMine(mc).discountPrice);
-    discountGroup.appendChild(discountHint);
+
+    if (discountSnapshot.isLowPriceCourse) {
+      // Under Rp 1,000,000, a % discount rounded to a clean number can land
+      // right back on the full price, so type the discounted price directly.
+      var discountPriceLabel = document.createElement("label");
+      discountPriceLabel.textContent = "Discount price (Rp)";
+      discountGroup.appendChild(discountPriceLabel);
+      var discountPriceInput = document.createElement("input");
+      discountPriceInput.type = "text";
+      discountPriceInput.inputMode = "decimal";
+      discountPriceInput.className = "formula-input";
+      discountPriceInput.placeholder = "optional";
+      discountPriceInput.dataset.discountFor = mc.id;
+      discountPriceInput.value = mc.discountPriceOverride === undefined || mc.discountPriceOverride === 0 ? "" : mc.discountPriceOverride;
+      discountPriceInput.addEventListener("input", function () {
+        mc.discountPriceOverride = discountPriceInput.value;
+        persist();
+        renderMineStats(mc, statsRow);
+      });
+      wireFormulaField(discountPriceInput, function () { return mc.discountPriceOverride === undefined ? 0 : mc.discountPriceOverride; }, function (val) {
+        mc.discountPriceOverride = Math.max(val, 0);
+        persist();
+        renderAll();
+      });
+      discountGroup.appendChild(discountPriceInput);
+    } else {
+      var discountLabelRow = document.createElement("div");
+      discountLabelRow.className = "discount-label-row";
+      discountLabelRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+      var discountLabel = document.createElement("label");
+      discountLabel.textContent = "Discount %";
+      discountLabel.style.cssText = "margin-bottom:0;white-space:nowrap;";
+      discountLabelRow.appendChild(discountLabel);
+      var discountInput = document.createElement("input");
+      discountInput.type = "text";
+      discountInput.inputMode = "decimal";
+      discountInput.className = "formula-input discount-pct-input";
+      discountInput.placeholder = "0";
+      discountInput.style.cssText = "min-width:0;";
+      discountInput.value = mc.discountPct === undefined || mc.discountPct === 0 ? "" : mc.discountPct;
+      discountInput.addEventListener("input", function () {
+        mc.discountPct = discountInput.value;
+        persist();
+        renderMineStats(mc, statsRow);
+      });
+      wireFormulaField(discountInput, function () { return mc.discountPct === undefined ? 0 : mc.discountPct; }, function (val) {
+        mc.discountPct = Math.min(Math.max(val, 0), 100);
+        persist();
+        renderAll();
+      });
+      discountLabelRow.appendChild(discountInput);
+      discountGroup.appendChild(discountLabelRow);
+      var discountHint = document.createElement("div");
+      discountHint.className = "discount-price-bar";
+      discountHint.dataset.discountFor = mc.id;
+      discountHint.textContent = fmt(discountSnapshot.discountPrice);
+      discountGroup.appendChild(discountHint);
+    }
     top.appendChild(discountGroup);
 
     el.appendChild(top);
@@ -1863,7 +1910,7 @@
         updateSchoolDiffsFor(mc);
         // keep the row's own price/discount/margin cells in sync while typing
         var s2 = computeMine(mc);
-        row.querySelector(".summary-discount").textContent = s2.discountPct > 0 ? fmt(s2.discountPrice) : "—";
+        row.querySelector(".summary-discount").textContent = s2.hasDiscount ? fmt(s2.discountPrice) : "—";
         row.querySelector(".summary-reco").textContent =
           fmt(s2.recommendedPrice) + " (" + fmtPct(s2.targetMarginPct >= 0 ? s2.targetMarginPct : 0).replace("+", "") + ")";
         var mEl = row.querySelector(".summary-margin:not(.summary-disc-margin)");
@@ -1871,7 +1918,7 @@
         mEl.classList.toggle("margin-positive", s2.margin >= 0);
         mEl.classList.toggle("margin-negative", s2.margin < 0);
         var dmEl = row.querySelector(".summary-disc-margin");
-        dmEl.textContent = s2.discountPct > 0 ? fmtPct(s2.discountMarginPct) : "—";
+        dmEl.textContent = s2.hasDiscount ? fmtPct(s2.discountMarginPct) : "—";
         dmEl.classList.toggle("margin-positive", s2.discountMargin >= 0);
         dmEl.classList.toggle("margin-negative", s2.discountMargin < 0);
       });
@@ -1884,7 +1931,7 @@
 
       var discountEl = document.createElement("div");
       discountEl.className = "summary-val summary-discount";
-      discountEl.textContent = s.discountPct > 0 ? fmt(s.discountPrice) : "—";
+      discountEl.textContent = s.hasDiscount ? fmt(s.discountPrice) : "—";
       row.appendChild(discountEl);
 
       var recoEl = document.createElement("div");
@@ -1899,7 +1946,7 @@
 
       var discMarginEl = document.createElement("div");
       discMarginEl.className = "summary-margin summary-disc-margin" + (s.discountMargin >= 0 ? " margin-positive" : " margin-negative");
-      discMarginEl.textContent = s.discountPct > 0 ? fmtPct(s.discountMarginPct) : "—";
+      discMarginEl.textContent = s.hasDiscount ? fmtPct(s.discountMarginPct) : "—";
       row.appendChild(discMarginEl);
 
       table.appendChild(row);
@@ -1991,7 +2038,7 @@
       ctx.textAlign = "left";
       ctx.fillText(mc.name || "Untitled course", padding + 24, midY);
 
-      var shownPrice = (pngPriceMode === "discount" && s.discountPct > 0) ? s.discountPrice : s.price;
+      var shownPrice = (pngPriceMode === "discount" && s.hasDiscount) ? s.discountPrice : s.price;
 
       ctx.fillStyle = ink;
       ctx.font = "600 18px 'JetBrains Mono', monospace";
@@ -2184,7 +2231,7 @@
       name: "Course " + (mine.length + 1),
       color: color,
       price: 4200000,
-      discountPct: 0,
+      discountPct: 0, discountPriceOverride: 0,
       salaryPct: 0,
       expenses: [
         { id: "e" + (nextId++), label: "Equipment & tanks", qty: 1, unitPrice: 400000 },
@@ -2540,7 +2587,7 @@
   if (!hadState) {
     mine = [
       {
-        id: "m" + (nextId++), name: "Freediver — 2 day", color: "cyan", price: 4200000, discountPct: 0, salaryPct: 0,
+        id: "m" + (nextId++), name: "Freediver — 2 day", color: "cyan", price: 4200000, discountPct: 0, discountPriceOverride: 0, salaryPct: 0,
         expenses: [
           { id: "e" + (nextId++), label: "Tank rental", qty: 2, unitPrice: 75000 },
           { id: "e" + (nextId++), label: "Boat / venue fee", qty: 1, unitPrice: 500000 },
@@ -2549,7 +2596,7 @@
         ]
       },
       {
-        id: "m" + (nextId++), name: "Advanced Freediver", color: "aqua", price: 6800000, discountPct: 0, salaryPct: 0,
+        id: "m" + (nextId++), name: "Advanced Freediver", color: "aqua", price: 6800000, discountPct: 0, discountPriceOverride: 0, salaryPct: 0,
         expenses: [
           { id: "e" + (nextId++), label: "Tank rental", qty: 3, unitPrice: 75000 },
           { id: "e" + (nextId++), label: "Boat / venue fee", qty: 2, unitPrice: 500000 },
