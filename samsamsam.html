@@ -4147,7 +4147,12 @@ $('studentForm').addEventListener('submit', ()=>{
     const st = db.students.find(s=>s.id===editingStudent);
     Object.assign(st, data);
   } else {
-    db.students.push({id:uid(), sessions:[], payments:[], total:5, ...data});
+    const newId = uid();
+    db.students.push({id:newId, sessions:[], payments:[], total:5, ...data});
+    // Jump straight to the new student's own page instead of leaving them
+    // on the dashboard to search for the name they just typed.
+    currentStudent = newId;
+    currentTab = 'students';
   }
   save(); render();
 });
