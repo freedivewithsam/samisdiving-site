@@ -452,18 +452,18 @@
   .move-btn:hover:not(:disabled) { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .move-btn:disabled { opacity: 0.35; cursor: default; }
 
-  .level-title-input {
+  .level-title-label {
     font-family: "Fraunces", Georgia, serif;
     font-weight: 600;
     font-size: 1.18rem;
-    background: transparent;
-    border: none;
     padding: 2px 0;
     flex: 1;
     min-width: 0;
     color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .level-title-input:focus { outline: none; border-bottom: 1px solid var(--accent); }
 
   .level-remove {
     background: transparent;
@@ -1290,6 +1290,8 @@
     nameInput.addEventListener("input", function () {
       mc.name = nameInput.value;
       persist();
+      var titleLabelEl = document.querySelector('[data-title-for="' + mc.id + '"]');
+      if (titleLabelEl) titleLabelEl.textContent = nameInput.value || "Untitled course";
     });
     nameInput.addEventListener("change", function () { renderAll(); });
     nameWrap.appendChild(nameInput);
@@ -1357,17 +1359,17 @@
     } else {
       var discountLabelRow = document.createElement("div");
       discountLabelRow.className = "discount-label-row";
-      discountLabelRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+      discountLabelRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:6px;width:168px;box-sizing:border-box;overflow:hidden;";
       var discountLabel = document.createElement("label");
       discountLabel.textContent = "Discount %";
-      discountLabel.style.cssText = "margin-bottom:0;white-space:nowrap;";
+      discountLabel.style.cssText = "margin-bottom:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
       discountLabelRow.appendChild(discountLabel);
       var discountInput = document.createElement("input");
       discountInput.type = "text";
       discountInput.inputMode = "decimal";
       discountInput.className = "formula-input discount-pct-input";
       discountInput.placeholder = "0";
-      discountInput.style.cssText = "min-width:0;";
+      discountInput.style.cssText = "width:36px;min-width:36px;max-width:36px;flex:0 0 36px;box-sizing:border-box;";
       discountInput.value = mc.discountPct === undefined || mc.discountPct === 0 ? "" : mc.discountPct;
       discountInput.addEventListener("input", function () {
         mc.discountPct = discountInput.value;
@@ -2170,14 +2172,11 @@
       moveGroup.appendChild(downBtn);
       header.appendChild(moveGroup);
 
-      var titleInput = document.createElement("input");
-      titleInput.type = "text";
-      titleInput.className = "level-title-input";
-      titleInput.value = mc.name;
-      titleInput.placeholder = "Course name";
-      titleInput.addEventListener("input", function () { mc.name = titleInput.value; persist(); });
-      titleInput.addEventListener("change", function () { renderAll(); });
-      header.appendChild(titleInput);
+      var titleLabel = document.createElement("div");
+      titleLabel.className = "level-title-label";
+      titleLabel.dataset.titleFor = mc.id;
+      titleLabel.textContent = mc.name || "Untitled course";
+      header.appendChild(titleLabel);
 
       card.appendChild(header);
 
