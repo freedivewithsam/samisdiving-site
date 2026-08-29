@@ -1064,6 +1064,10 @@ let categoryFilter = null; // when set, the Personal Finance expense list only s
 let financeMonth = 'all';
 let confirmCb = null;
 const TX_PAGE_SIZE = 10;
+// What percentage of income you pay yourself as salary — used only in
+// the Freediving Finance summary to also show Profit margin as
+// Income − Expenses − Salary, rather than just Income − Expenses.
+const SALARY_MARGIN_PCT = 35;
 let listLimits = { financeExp: TX_PAGE_SIZE, financeInc: TX_PAGE_SIZE, personalExp: TX_PAGE_SIZE, personalInc: TX_PAGE_SIZE };
 
 /* ---------- cloud sync (optional Google Apps Script Web App as shared storage) ---------- */
@@ -3253,7 +3257,9 @@ function renderFinance(){
   const income = payments.reduce((a,p)=>a+p.amount,0);
   const expense = expenses.reduce((a,t)=>a+t.price,0);
   const balance = income - expense;
-  const profitMargin = income > 0 ? (balance / income * 100) : 0;
+  const salary = income * (SALARY_MARGIN_PCT / 100);
+  const profit = income - expense - salary;
+  const profitMargin = income > 0 ? (profit / income * 100) : 0;
 
   const filteredExpenses = searchQuery ? expenses.filter(t=>(t.item||'').toLowerCase().includes(searchQuery) || matchesAmount(t.price, searchQuery)) : expenses;
   const filteredPaid = searchQuery ? payments.filter(p=>
@@ -3265,6 +3271,7 @@ function renderFinance(){
     <div class="stat"><div class="num" style="color:var(--income)">${moneyStat(income)}</div><div class="lbl">Total income</div></div>
     <div class="stat"><div class="num" style="color:var(--expense)">${moneyStat(expense)}</div><div class="lbl">Total expenses</div></div>
     <div class="stat"><div class="num" style="${balance<0?'color:var(--expense)':''}">${moneyStat(balance)}</div><div class="lbl">Balance</div></div>
+    <div class="stat"><div class="num">${moneyStat(salary)}</div><div class="lbl">Salary (${SALARY_MARGIN_PCT}%)</div></div>
     <div class="stat"><div class="num" style="${profitMargin<0?'color:var(--expense)':'color:var(--income)'}">${pctStat(profitMargin)}</div><div class="lbl">Profit margin</div></div>
   </div>
 
