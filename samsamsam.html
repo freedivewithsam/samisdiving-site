@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1339,14 +1340,49 @@ async function pullCloud(){
       // moment this pull lands (this was the "deleted an event and it
       // kept reappearing" bug).
       const deletedStudentSet = new Set(deletedStudentIds);
-      const cloudStudentsArr = data.students.filter(s=>!s || !deletedStudentSet.has(s.id));
+      // Also strip any individually-deleted session/payment out of each
+      // remaining cloud student, not just whole deleted students — a
+      // student that ISN'T itself deleted can still have had one of its
+      // own sessions deleted; without this, a cloud copy of that same
+      // student that hasn't caught up to the deletion yet could still
+      // carry the old session, and if the "local wins" merge below ever
+      // has to fall back to it (e.g. this device's own local copy of
+      // that student is temporarily missing for any reason), the
+      // deleted session would be right back — this closes that gap on
+      // top of the whole-student protection already in place.
+      const deletedSessionSet = new Set(deletedSessionIds);
+      const deletedSessionPaymentSet = new Set(deletedSessionPaymentIds);
+      const cloudStudentsArr = data.students.filter(s=>!s || !deletedStudentSet.has(s.id)).map(s=>{
+        if(!s) return s;
+        return Object.assign({}, s, {
+          sessions: (s.sessions||[]).filter(sess=>!deletedSessionSet.has(sess.id)),
+          sessionPayments: (s.sessionPayments||[]).filter(p=>!deletedSessionPaymentSet.has(p.id))
+        });
+      });
       const localStudentsArr = db.students || [];
       const stMap = new Map();
       cloudStudentsArr.forEach(s=>{ if(s && s.id) stMap.set(s.id, s); });
       localStudentsArr.forEach(s=>{ if(s && s.id) stMap.set(s.id, s); }); // local wins
       const keepStudents = Array.from(stMap.values());
-      const keepFinance = Array.isArray(data.finance) ? data.finance : (db.finance || []);
-      const keepPersonal = Array.isArray(data.personalFinance) ? data.personalFinance : (db.personalFinance || []);
+      // Expenses/income entries: merge by id, local wins on conflicts —
+      // this was the actual bug behind "had to enter it twice for it to
+      // show up." Unlike every other entity here, these two were still
+      // being blindly replaced with whatever the cloud had, with no
+      // protection at all — a background sync landing in the few seconds
+      // after adding something (before that save had fully confirmed)
+      // would silently wipe it back out.
+      const cloudFinance = (Array.isArray(data.finance) ? data.finance : []).filter(t=>!t || !deletedExpenseIds.includes(t.id));
+      const localFinance = db.finance || [];
+      const financeMap = new Map();
+      cloudFinance.forEach(t=>{ if(t && t.id) financeMap.set(t.id, t); });
+      localFinance.forEach(t=>{ if(t && t.id) financeMap.set(t.id, t); }); // local wins on id conflicts
+      const keepFinance = Array.from(financeMap.values());
+      const cloudPersonal = (Array.isArray(data.personalFinance) ? data.personalFinance : []).filter(t=>!t || !deletedPersonalIds.includes(t.id));
+      const localPersonal = db.personalFinance || [];
+      const personalMap = new Map();
+      cloudPersonal.forEach(t=>{ if(t && t.id) personalMap.set(t.id, t); });
+      localPersonal.forEach(t=>{ if(t && t.id) personalMap.set(t.id, t); }); // local wins on id conflicts
+      const keepPersonal = Array.from(personalMap.values());
       // Calendar events and to-dos are merged rather than replaced: if one
       // was added on this device but the push to the cloud hadn't landed
       // yet (closed the tab too soon, flaky connection, etc.), a plain
@@ -1415,7 +1451,7 @@ async function pullCloud(){
       // If the merge pulled in a local student/event/to-do/quick-expense
       // the cloud didn't have, push the merged result back up so it isn't
       // lost again on the next pull.
-      if(keepStudents.length > cloudStudentsArr.length || keepCalEvents.length > cloudCalEvents.length || keepTodos.length > cloudTodos.length || keepTodoChecks.length > cloudTodoChecks.length || keepQuickExpenses.length > cloudQuickExpenses.length || Object.keys(keepProgramLabels).length > Object.keys(cloudProgramLabels).length || keepCustomPrograms.length > cloudCustomPrograms.length || Object.keys(keepProgramPrices).length > Object.keys(cloudProgramPrices).length) pushCloud();
+      if(keepStudents.length > cloudStudentsArr.length || keepFinance.length > cloudFinance.length || keepPersonal.length > cloudPersonal.length || keepCalEvents.length > cloudCalEvents.length || keepTodos.length > cloudTodos.length || keepTodoChecks.length > cloudTodoChecks.length || keepQuickExpenses.length > cloudQuickExpenses.length || Object.keys(keepProgramLabels).length > Object.keys(cloudProgramLabels).length || keepCustomPrograms.length > cloudCustomPrograms.length || Object.keys(keepProgramPrices).length > Object.keys(cloudProgramPrices).length) pushCloud();
     }
     setSyncStatus('Connected — last synced ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
     lastSyncAt = new Date();
