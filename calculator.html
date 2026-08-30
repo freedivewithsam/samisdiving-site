@@ -279,6 +279,43 @@
     border-radius: 8px;
   }
   .png-preview-x:hover { background: var(--surface-2); color: var(--warn); }
+  .png-preview-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    padding: 10px 4px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-2);
+    max-height: 120px;
+    overflow: auto;
+  }
+  .png-preview-list-label {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    width: 100%;
+    padding: 0 6px;
+  }
+  .png-preview-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 0.86rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+    user-select: none;
+    padding: 2px 6px;
+  }
+  .png-preview-check input {
+    cursor: pointer;
+    accent-color: var(--accent);
+  }
+  .png-preview-check.checked { color: var(--ink); }
   .png-preview-imgwrap {
     overflow: auto;
     border: 1px solid var(--line);
@@ -991,6 +1028,9 @@
     <div class="png-preview-head">
       <h3>Preview</h3>
       <button class="png-preview-x" id="pngPreviewCloseX" type="button" title="Close">&#10005;</button>
+    </div>
+    <div class="png-preview-list" id="pngPreviewList">
+      <div class="png-preview-list-label">Courses to include</div>
     </div>
     <div class="png-preview-imgwrap">
       <img id="pngPreviewImg" alt="Course price summary preview" />
@@ -1969,7 +2009,8 @@
     var rowHeight = 90;
     var headerHeight = 130;
     var footerHeight = 30;
-    var height = headerHeight + Math.max(mine.length, 1) * rowHeight + footerHeight;
+    var rows = mine.filter(function (mc) { return pngSelectedIds.has(mc.id); });
+    var height = headerHeight + Math.max(rows.length, 1) * rowHeight + footerHeight;
 
     var canvas = document.createElement("canvas");
     canvas.width = width * scale;
@@ -2012,14 +2053,14 @@
     ctx.lineTo(width - padding, tableTop - 4);
     ctx.stroke();
 
-    if (!mine.length) {
+    if (!rows.length) {
       ctx.fillStyle = inkFaint;
       ctx.textAlign = "left";
       ctx.font = "400 15px 'Space Grotesk', sans-serif";
-      ctx.fillText("No courses added yet.", padding, tableTop + 40);
+      ctx.fillText(mine.length ? "No courses selected." : "No courses added yet.", padding, tableTop + 40);
     }
 
-    mine.forEach(function (mc, i) {
+    rows.forEach(function (mc, i) {
       var y = tableTop + i * rowHeight;
       var rowBoxH = rowHeight - 10;
       if (i % 2 === 1) {
@@ -2069,6 +2110,7 @@
   }
 
   var pngPriceMode = "full"; // "full" or "discount" — which price the exported image shows
+  var pngSelectedIds = new Set(); // which course ids to include in the exported image
 
   var pngPreviewBlob = null;
   var pngPreviewUrl = null;
@@ -2080,6 +2122,46 @@
     document.getElementById("pngPreviewNote").style.display = "none";
   }
 
+  function renderPngChecklist() {
+    var list = document.getElementById("pngPreviewList");
+    list.querySelectorAll(".png-preview-check").forEach(function (el) { el.remove(); });
+    mine.forEach(function (mc) {
+      var label = document.createElement("label");
+      label.className = "png-preview-check" + (pngSelectedIds.has(mc.id) ? " checked" : "");
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = pngSelectedIds.has(mc.id);
+      cb.addEventListener("change", function () {
+        if (cb.checked) pngSelectedIds.add(mc.id); else pngSelectedIds.delete(mc.id);
+        label.classList.toggle("checked", cb.checked);
+        regeneratePngPreview();
+      });
+      label.appendChild(cb);
+      var span = document.createElement("span");
+      span.textContent = mc.name || "Untitled course";
+      label.appendChild(span);
+      list.appendChild(label);
+    });
+  }
+
+  function regeneratePngPreview() {
+    var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+    return fontsReady.then(function () {
+      var canvas = buildSummaryCanvas();
+      return new Promise(function (resolve) {
+        canvas.toBlob(function (blob) {
+          if (!blob) { showPngNote("Couldn't generate the image — try again."); resolve(); return; }
+          if (pngPreviewUrl) URL.revokeObjectURL(pngPreviewUrl);
+          pngPreviewBlob = blob;
+          pngPreviewUrl = URL.createObjectURL(blob);
+          document.getElementById("pngPreviewImg").src = pngPreviewUrl;
+          document.getElementById("pngPreviewNote").style.display = "none";
+          resolve();
+        }, "image/png");
+      });
+    });
+  }
+
   function exportSummaryPng() {
     var btn = document.getElementById("exportPngBtn");
     if (!mine.length) return;
@@ -2088,21 +2170,13 @@
     var originalLabel = btn.innerHTML;
     btn.innerHTML = "Rendering…";
 
-    var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+    pngSelectedIds = new Set(mine.map(function (mc) { return mc.id; }));
+    renderPngChecklist();
 
-    fontsReady.then(function () {
-      var canvas = buildSummaryCanvas();
-      canvas.toBlob(function (blob) {
-        btn.disabled = false;
-        btn.innerHTML = originalLabel;
-        if (!blob) { showPngNote("Couldn't generate the image — try again."); return; }
-
-        pngPreviewBlob = blob;
-        pngPreviewUrl = URL.createObjectURL(blob);
-        document.getElementById("pngPreviewImg").src = pngPreviewUrl;
-        document.getElementById("pngPreviewNote").style.display = "none";
-        document.getElementById("pngPreviewOverlay").style.display = "flex";
-      }, "image/png");
+    regeneratePngPreview().then(function () {
+      btn.disabled = false;
+      btn.innerHTML = originalLabel;
+      if (pngPreviewBlob) document.getElementById("pngPreviewOverlay").style.display = "flex";
     }).catch(function () {
       btn.disabled = false;
       btn.innerHTML = originalLabel;
