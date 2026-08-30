@@ -433,8 +433,10 @@
       grid-template-areas: "name name" "price discount" "reco reco" "margin discmargin";
       row-gap: 4px;
       border-bottom: 1px solid var(--line);
+      min-width: 0;
     }
     .summary-name { grid-area: name; }
+    .summary-name span { white-space: normal; overflow-wrap: break-word; text-overflow: clip; }
     .summary-price { grid-area: price; text-align: left; }
     .summary-discount { grid-area: discount; }
     .summary-reco { grid-area: reco; text-align: left; }
@@ -500,6 +502,16 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  @media (max-width: 640px) {
+    .level-header { flex-wrap: wrap; }
+    .level-title-label {
+      white-space: normal;
+      overflow-wrap: break-word;
+      text-overflow: clip;
+      flex-basis: 100%;
+      order: -1;
+    }
   }
 
   .level-remove {
