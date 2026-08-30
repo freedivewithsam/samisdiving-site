@@ -3267,7 +3267,7 @@ function renderFinance(){
   ) : payments;
 
   let html = `
-  <div class="stats">
+  <div class="stats stats-3col">
     <div class="stat"><div class="num" style="color:var(--income)">${moneyStat(income)}</div><div class="lbl">Total income</div></div>
     <div class="stat"><div class="num" style="color:var(--expense)">${moneyStat(expense)}</div><div class="lbl">Total expenses</div></div>
     <div class="stat"><div class="num" style="${balance<0?'color:var(--expense)':''}">${moneyStat(balance)}</div><div class="lbl">Balance</div></div>
