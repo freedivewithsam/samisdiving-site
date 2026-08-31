@@ -965,9 +965,9 @@ function renderDashboard(){
 
   let html = `
   <div class="stats" style="grid-template-columns:repeat(3,1fr)">
-    <div class="stat"><div class="num">${s.units}</div><div class="lbl">${q ? 'Matching units in stock' : 'Units in stock'}</div></div>
-    <div class="stat stat-click${stockFilter==='low'?' stat-active':''}" tabindex="0" role="button" data-action="filter-stock" data-filter="low"><div class="num">${s.low}</div><div class="lbl">${q ? 'Matching low stock' : 'Low stock'}</div></div>
-    <div class="stat stat-click${stockFilter==='out'?' stat-active':''}" tabindex="0" role="button" data-action="filter-stock" data-filter="out"><div class="num">${s.out}</div><div class="lbl">${q ? 'Matching out of stock' : 'Out of stock'}</div></div>
+    <div class="stat"><div class="num" style="color:var(--accent-dark)">${s.units}</div><div class="lbl">${q ? 'Matching units in stock' : 'Units in stock'}</div></div>
+    <div class="stat stat-click${stockFilter==='low'?' stat-active':''}" tabindex="0" role="button" data-action="filter-stock" data-filter="low"><div class="num" style="color:var(--warn)">${s.low}</div><div class="lbl">${q ? 'Matching low stock' : 'Low stock'}</div></div>
+    <div class="stat stat-click${stockFilter==='out'?' stat-active':''}" tabindex="0" role="button" data-action="filter-stock" data-filter="out"><div class="num" style="color:#D64545">${s.out}</div><div class="lbl">${q ? 'Matching out of stock' : 'Out of stock'}</div></div>
   </div>`;
 
   if(!products.length){
@@ -1397,11 +1397,11 @@ function renderSales(){
     </select>
   </div>
   <div class="stats" style="grid-template-columns:repeat(3,1fr)">
-    <div class="stat"><div class="num">${groups.length}</div><div class="lbl">Sales logged</div></div>
-    <div class="stat stat-click${showSoldBreakdown?' stat-active':''}" tabindex="0" role="button" data-action="toggle-sold-breakdown"><div class="num">${totalSold}</div><div class="lbl">Units sold</div></div>
-    <div class="stat"><div class="num">${totalIncome.toLocaleString()}</div><div class="lbl">Total income</div></div>
-    <div class="stat"><div class="num">${totalShipping.toLocaleString()}</div><div class="lbl">Shipping expense</div></div>
-    <div class="stat"><div class="num">${(totalIncome-totalShipping).toLocaleString()}</div><div class="lbl">Balance</div></div>
+    <div class="stat"><div class="num" style="color:var(--accent-dark)">${groups.length}</div><div class="lbl">Sales logged</div></div>
+    <div class="stat stat-click${showSoldBreakdown?' stat-active':''}" tabindex="0" role="button" data-action="toggle-sold-breakdown"><div class="num" style="color:var(--sw-olive)">${totalSold}</div><div class="lbl">Units sold</div></div>
+    <div class="stat"><div class="num" style="color:var(--ok)">${totalIncome.toLocaleString()}</div><div class="lbl">Total income</div></div>
+    <div class="stat"><div class="num" style="color:var(--warn)">${totalShipping.toLocaleString()}</div><div class="lbl">Shipping expense</div></div>
+    <div class="stat"><div class="num" style="color:var(--sw-brown)">${(totalIncome-totalShipping).toLocaleString()}</div><div class="lbl">Balance</div></div>
   </div>`;
 
   if(showSoldBreakdown){
