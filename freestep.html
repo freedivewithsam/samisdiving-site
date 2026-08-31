@@ -416,10 +416,10 @@
 </dialog>
 
 <dialog id="taxPreviewModal">
-  <div class="modal-in">
+  <div class="modal-in" style="max-width:760px">
     <h3>Tax summary</h3>
-    <div style="display:flex;justify-content:center;background:#f3f1ee;border-radius:12px;padding:14px;overflow:auto;max-height:60vh">
-      <img id="taxPreviewImg" style="max-width:100%;height:auto;box-shadow:0 2px 10px rgba(0,0,0,.15)">
+    <div style="display:flex;justify-content:center;background:#f3f1ee;border-radius:12px;padding:14px;overflow:auto;max-height:80vh">
+      <img id="taxPreviewImg" style="width:100%;max-width:680px;height:auto;box-shadow:0 2px 10px rgba(0,0,0,.15)">
     </div>
     <div class="modal-btns">
       <button type="button" class="btn btn-ghost" data-action="close-tax-preview">Close</button>
@@ -1883,8 +1883,22 @@ async function rajaOngkirPostForm(path, fields){
    destination search used for shipping cost, which fills in the full
    province name and — as a bonus — the shipping destination too. */
 function parseCustomerPaste(raw){
-  const lines = (raw||'').split('\n').map(l=>l.trim()).filter(Boolean);
+  let lines = (raw||'').split('\n').map(l=>l.trim()).filter(Boolean);
   if(!lines.length) return null;
+
+  // A courier label sometimes puts the phone number on its own line (often
+  // last, after the address) instead of attached to the name. Pull any
+  // line that's nothing but a phone number out up front — before either
+  // format below even looks at line order — so it's never mistaken for
+  // part of the name or the address.
+  const PURE_PHONE = /^\+?\d[\d\s-]{7,}\d$/;
+  let loosePhone = '';
+  const phoneLineIdx = lines.findIndex(l => PURE_PHONE.test(l));
+  if(phoneLineIdx !== -1){
+    loosePhone = lines[phoneLineIdx].replace(/[\s-]/g,'');
+    lines = lines.slice(0, phoneLineIdx).concat(lines.slice(phoneLineIdx+1));
+  }
+  if(!lines.length) return { name:'', phone:loosePhone, address:'', kecamatan:'', kabupaten:'', kelurahan:'', postal:'' };
 
   // Labeled format, e.g.:
   //   Ahmad Husni
@@ -1925,6 +1939,7 @@ function parseCustomerPaste(raw){
       const pm = address.match(/\b(\d{5})\b/);
       if(pm) postal = pm[1];
     }
+    if(!phone) phone = loosePhone;
     // Courier notes (e.g. "house is blue, past the bend") fold into the
     // full address so they travel with it instead of being dropped.
     if(catatan) address = address ? `${address} (Catatan: ${catatan})` : `(Catatan: ${catatan})`;
@@ -1940,6 +1955,7 @@ function parseCustomerPaste(raw){
     phone = phoneMatch[1].replace(/[\s-]/g,'');
     name = first.slice(0, phoneMatch.index).trim();
   }
+  if(!phone) phone = loosePhone;
   // Courier labels are often shouty caps — title-case the name for display.
   if(name && name === name.toUpperCase()){
     name = name.toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase());
@@ -1955,10 +1971,13 @@ function parseCustomerPaste(raw){
 
   let kecamatan = '', kabupaten = '', kelurahan = '', postal = '';
   let postalIdx = -1;
-  tokens.forEach((tok, i) => { if(/^\d{5}$/.test(tok)) postalIdx = i; });
+  // Trailing punctuation (a period ending the whole pasted address, e.g.
+  // "...Surabaya, 60296.") shouldn't stop the postal code from matching.
+  const POSTAL_TOK = /^\d{5}\.?$/;
+  tokens.forEach((tok, i) => { if(POSTAL_TOK.test(tok)) postalIdx = i; });
   const remainder = [];
   tokens.forEach((tok, i) => {
-    if(/^\d{5}$/.test(tok)){ postal = tok; return; }
+    if(POSTAL_TOK.test(tok)){ postal = tok.replace(/\.$/,''); return; }
     const kecM = tok.match(/^kec\.?\s*(.+)$/i);
     if(kecM){ kecamatan = kecM[1].trim(); return; }
     const kelM = tok.match(/^kel(?:urahan)?\.?\s*(.+)$/i);
