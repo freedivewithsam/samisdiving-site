@@ -191,7 +191,7 @@
   .todo-row .mid{min-width:0}
   .todo-row .item{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .todo-row .acts{flex-shrink:0;margin-left:auto}
-  .todo-cell{display:flex;flex-direction:column;gap:6px}
+  .todo-cell{display:flex;flex-direction:column;gap:6px;min-height:96px}
   .todo-group-head{
     font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
     color:var(--ink-soft);margin:18px 0 8px;
@@ -2657,15 +2657,21 @@ function renderTodos(){
     return html;
   }
 
-  // Grouped by frequency (Daily / Weekly / Monthly / One-time), same as
-  // the live list's own sections — within each group, unchecked items
-  // float to the top and sink down once checked off.
+  // Grouped by frequency (Daily / Weekly / Monthly / One-time) — except
+  // undone one-time to-dos, which show at the very top of Daily instead
+  // of sitting in their own section at the bottom. One-time tasks tend to
+  // be more front-of-mind/urgent than routine dailies, so this keeps them
+  // somewhere they'll actually be seen rather than scrolled past. Once
+  // checked off, a one-time to-do settles back into its own "One-time"
+  // section as normal.
+  const undoneOnce = todos.filter(t=>t.freq==='once' && !isTodoChecked(t)).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
   FREQ_ORDER.forEach(freq=>{
-    const group = todos.filter(t=>t.freq===freq);
-    if(!group.length) return;
+    let group = todos.filter(t=>t.freq===freq);
+    if(freq === 'once') group = group.filter(t=>isTodoChecked(t)); // undone ones already shown under Daily
+    if(!group.length && !(freq==='daily' && undoneOnce.length)) return;
     const notDone = group.filter(t=>!isTodoChecked(t)).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
     const done = group.filter(t=>isTodoChecked(t)).sort((a,b)=>(b.doneAt||0)-(a.doneAt||0)||(b.createdAt||0)-(a.createdAt||0));
-    const ordered = [...notDone, ...done];
+    const ordered = freq==='daily' ? [...undoneOnce, ...notDone, ...done] : [...notDone, ...done];
     html += `<h3 class="todo-group-head">${FREQ_LABELS[freq]}</h3>`;
     html += `<div class="todos-grid">${ordered.map(row).join('')}</div>`;
   });
@@ -4178,6 +4184,16 @@ $('sessForm').addEventListener('submit', ()=>{
     Object.assign(existing, data);
   } else {
     st.sessions.push({id:uid(), status:'scheduled', ...data});
+    // A price set while creating a brand-new session automatically gets
+    // its own matching payment entry too (price set, nothing paid yet) —
+    // so what she owes for this session is already reflected without a
+    // separate trip to the Payments tab. Only on creation, not on every
+    // edit, so adjusting an existing session's price later doesn't keep
+    // spawning new payment entries alongside whatever's already there.
+    if(data.price > 0){
+      if(!Array.isArray(st.sessionPayments)) st.sessionPayments = [];
+      st.sessionPayments.push({id: uid(), name: typeLabel(data.type), price: data.price, deposit: 0, depositDate: null, balance: 0, balanceDate: null});
+    }
   }
   save(); render();
 });
@@ -4191,13 +4207,21 @@ $('programSessionForm').addEventListener('submit', ()=>{
     st = {id: uid(), name: resolved, pkg: '', total: 5, focus: '', phone: '', sessions: [], sessionPayments: []};
     db.students.push(st);
   }
+  const programLbl = programLabel(programSessionKey);
+  const price = parseFloat($('fProgSessPrice').value) || 0;
   st.sessions.push({
     id: uid(),
     status: 'scheduled',
-    type: programLabel(programSessionKey).toLowerCase(),
+    type: programLbl.toLowerCase(),
     date: sessPartsToIso($('fProgSessDate').value, $('fProgSessTime').value),
-    price: parseFloat($('fProgSessPrice').value) || 0,
+    price,
   });
+  // Same auto-created matching payment entry as the regular "New session"
+  // form above — see the comment there.
+  if(price > 0){
+    if(!Array.isArray(st.sessionPayments)) st.sessionPayments = [];
+    st.sessionPayments.push({id: uid(), name: programLbl, price, deposit: 0, depositDate: null, balance: 0, balanceDate: null});
+  }
   save(); render();
 });
 
