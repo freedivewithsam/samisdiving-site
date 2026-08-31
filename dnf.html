@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -275,9 +274,9 @@
       <h1>Read the log,<br>not the screenshot.</h1>
     </div>
     <div class="header-actions">
-      <button class="ghost" id="nav-back-btn" onclick="location.href='https://samisdiving.com/nav'">Nav</button>
       <button id="add-open-modal-btn">Add session(s)</button>
       <button class="ghost" id="period-open-modal-btn">+ Log period</button>
+      <button class="ghost" id="sheet-open-modal-btn">Connect sheet <span id="sheet-connected-dot" style="display:none; color:var(--accent);">●</span></button>
       <button class="ghost" id="sheet-sync-now-btn">Sync now</button>
       <a class="ghost" id="nav-back-btn" href="https://samisdiving.com/nav" style="display:inline-flex; align-items:center; text-decoration:none;">Nav</a>
     </div>
@@ -305,6 +304,30 @@
         <div class="hint" style="margin-top:6px;">In the Health app: Browse → Cycle Tracking → Period → the share icon → Export PDF. Upload that file here and we'll pull out the period start dates.</div>
         <span class="status" id="period-pdf-status" style="display:block; margin-top:8px;"></span>
         <div id="period-pdf-preview" class="queue" style="margin-top:10px; max-height:200px; overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="sheet-modal-overlay">
+    <div class="modal-box" style="max-width:560px;">
+      <button class="modal-close" id="sheet-modal-close-btn" title="Close">×</button>
+      <h3>Connect Google Sheet</h3>
+      <label for="sheet-url-input">Apps Script web app URL</label>
+      <input type="text" id="sheet-url-input" placeholder="https://script.google.com/macros/s/.../exec">
+      <div class="modal-actions">
+        <button id="sheet-connect-btn">Save &amp; connect</button>
+      </div>
+      <span class="status" id="sheet-connect-status" style="display:block; margin-top:10px;"></span>
+
+      <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--line);">
+        <label>Setting this up for the first time?</label>
+        <div class="hint" style="margin-top:0;">
+          Make a copy of a Google Sheet, open <strong>Extensions → Apps Script</strong>, paste the script below in as <code>Code.gs</code>, then <strong>Deploy → New deployment → Web app</strong> (execute as yourself, access "Anyone"). Paste the resulting URL above.
+        </div>
+        <div class="modal-actions" style="margin-top:10px; margin-bottom:8px;">
+          <button class="ghost" type="button" id="copy-gscript-btn">Copy Code.gs</button>
+        </div>
+        <pre id="gscript-code" style="max-height:260px; overflow:auto; background:rgba(0,0,0,0.25); border:1px solid var(--line); border-radius:8px; padding:12px; font-family:'IBM Plex Mono', monospace; font-size:11.5px; line-height:1.5; white-space:pre; margin:0;"></pre>
       </div>
     </div>
   </div>
@@ -377,6 +400,7 @@
       <div class="detail-head">
         <select id="session-select"></select>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="ghost" id="merge-session-btn" style="display:none;">Merge same-date sessions</button>
           <button class="ghost" id="remove-session-btn">Remove session</button>
           <button class="ghost" id="csv-btn">Export all as CSV</button>
         </div>
@@ -404,7 +428,7 @@
   // Paste your deployed Apps Script web app URL here once (see apps-script.gs for setup)
   // and this page will auto-connect to your sheet on every load — no need to paste it
   // into the UI again. Leave it as '' to keep using the manual "Connect" field instead.
-  const CONFIG = { SHEET_URL: 'https://script.google.com/macros/s/AKfycbzekF6ZYMVjEZcG2J46pBtrPhzBksqSy_rE9725KByKBa34aF0HE4tSJ9QONcEDram3/exec' };
+  const CONFIG = { SHEET_URL: '' };
 
   const PALETTE = ['#33D6C0','#FF8C52','#FFD166','#9D8CFF','#FF6B8B','#6BCB77','#5AB9EA'];
   const SWATCHES = ['var(--pal-1)','var(--pal-2)','var(--pal-3)','var(--pal-4)','var(--pal-5)','var(--pal-6)','var(--pal-7)','var(--pal-8)','var(--pal-9)','var(--pal-10)'];
@@ -683,6 +707,7 @@
         : (lap.avgSpeed ?? null);
 
       return {
+        start_time: startMs,
         time_seconds: time_seconds != null ? Math.round(time_seconds) : null,
         distance_m: distance_m != null ? Math.round(distance_m*10)/10 : null,
         avg_velocity,
@@ -715,11 +740,167 @@
   }
 
   // ---------- Google Sheets sync ----------
-  // The Apps Script URL is baked into CONFIG.SHEET_URL below, so the app
-  // auto-connects on load — no need to paste it in. "Sync now" lets you
-  // manually re-pull, handy after editing the sheet directly or syncing
-  // from another device.
+  // Nothing is baked in — everyone connects their own Google Sheet, so
+  // the URL is entered manually here and remembered in this browser's
+  // localStorage (see SYNC_KEY below). "Sync now" manually re-pulls,
+  // handy after editing the sheet directly or syncing from another device.
+  const sheetUrlInput = document.getElementById('sheet-url-input');
+  const sheetConnectBtn = document.getElementById('sheet-connect-btn');
   const sheetSyncNowBtn = document.getElementById('sheet-sync-now-btn');
+  const sheetConnectStatus = document.getElementById('sheet-connect-status');
+  const sheetDot = document.getElementById('sheet-connected-dot');
+  const sheetModalOverlay = document.getElementById('sheet-modal-overlay');
+  const sheetOpenModalBtn = document.getElementById('sheet-open-modal-btn');
+  const sheetModalCloseBtn = document.getElementById('sheet-modal-close-btn');
+
+  function openSheetModal(){
+    sheetModalOverlay.classList.add('open');
+    if(state.sheetUrl) sheetUrlInput.value = state.sheetUrl;
+    sheetUrlInput.focus();
+  }
+  function closeSheetModal(){ sheetModalOverlay.classList.remove('open'); }
+  sheetOpenModalBtn.addEventListener('click', openSheetModal);
+  sheetModalCloseBtn.addEventListener('click', closeSheetModal);
+  sheetModalOverlay.addEventListener('click', e=>{ if(e.target === sheetModalOverlay) closeSheetModal(); });
+
+  // The Apps Script backend, shown in the modal so a new user can copy it
+  // into their own Google Sheet and deploy it as a web app. Keeps the same
+  // request/response contract this page already speaks (see
+  // loadSessionsFromSheet / pushSessionToSheet / deleteSessionFromSheet
+  // below): GET returns {sessions, periodDates}; POST upserts a session
+  // keyed by date+pool_length, or handles {action:'save_periods'} /
+  // {action:'delete'}.
+  const GSCRIPT_CODE = `// === DNF Dive Log — Google Apps Script backend ===
+// 1. Create a new Google Sheet (or reuse one). Extensions -> Apps Script.
+// 2. Paste this whole file in as Code.gs (replacing the default content).
+// 3. Deploy -> New deployment -> type "Web app".
+//      Execute as: Me
+//      Who has access: Anyone
+// 4. Copy the Web app URL it gives you and paste it into "Connect sheet"
+//    in the dive log. The Sessions/Periods tabs are created automatically.
+
+const SESSIONS_SHEET = 'Sessions';
+const PERIODS_SHEET = 'Periods';
+const SESSION_HEADERS = ['date','pool_length','attempt','time_seconds','distance_m','avg_velocity','min_hr','avg_hr','max_hr'];
+
+function getSheet_(name, headers){
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(name);
+  if(!sheet){
+    sheet = ss.insertSheet(name);
+    if(headers) sheet.appendRow(headers);
+  }
+  return sheet;
+}
+
+function doGet(e){
+  const sheet = getSheet_(SESSIONS_SHEET, SESSION_HEADERS);
+  const rows = sheet.getDataRange().getValues();
+  const sessionsMap = {};
+  for(let i = 1; i < rows.length; i++){
+    const row = rows[i];
+    const date = row[0], pool_length = row[1], attempt = row[2],
+      time_seconds = row[3], distance_m = row[4], avg_velocity = row[5],
+      min_hr = row[6], avg_hr = row[7], max_hr = row[8];
+    if(!date) continue;
+    const key = date + '|' + pool_length;
+    if(!sessionsMap[key]){
+      sessionsMap[key] = { date: String(date), pool_length: pool_length || null, attempts: [] };
+    }
+    sessionsMap[key].attempts.push({
+      attempt: attempt,
+      time_seconds: time_seconds === '' ? null : time_seconds,
+      distance_m: distance_m === '' ? null : distance_m,
+      avg_velocity: avg_velocity === '' ? null : avg_velocity,
+      min_hr: min_hr === '' ? null : min_hr,
+      avg_hr: avg_hr === '' ? null : avg_hr,
+      max_hr: max_hr === '' ? null : max_hr
+    });
+  }
+  const sessions = Object.keys(sessionsMap).map(k => sessionsMap[k]);
+  sessions.forEach(function(s){
+    s.attempts.sort(function(a,b){ return (a.attempt||0) - (b.attempt||0); });
+  });
+
+  const periodsSheet = getSheet_(PERIODS_SHEET);
+  const periodRows = periodsSheet.getDataRange().getValues();
+  const periodDates = periodRows
+    .map(function(r){ return r[0]; })
+    .filter(function(v){ return v !== '' && v != null; })
+    .map(function(v){ return String(v); });
+
+  return ContentService.createTextOutput(JSON.stringify({
+    sessions: sessions,
+    periodDates: periodDates
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e){
+  const body = JSON.parse(e.postData.contents);
+
+  if(body.action === 'save_periods'){
+    const sheet = getSheet_(PERIODS_SHEET);
+    sheet.clearContents();
+    (body.periodDates || []).forEach(function(d){ sheet.appendRow([d]); });
+    return jsonResponse_({ ok: true });
+  }
+
+  if(body.action === 'delete'){
+    deleteSessionRows_(body.date, body.pool_length);
+    return jsonResponse_({ ok: true });
+  }
+
+  // Upsert: clear out any existing rows for this date + pool length, then
+  // append the fresh attempt rows.
+  deleteSessionRows_(body.date, body.pool_length);
+  const sheet = getSheet_(SESSIONS_SHEET, SESSION_HEADERS);
+  (body.attempts || []).forEach(function(a){
+    sheet.appendRow([
+      body.date,
+      body.pool_length || '',
+      a.attempt || '',
+      (a.time_seconds === undefined || a.time_seconds === null) ? '' : a.time_seconds,
+      (a.distance_m === undefined || a.distance_m === null) ? '' : a.distance_m,
+      (a.avg_velocity === undefined || a.avg_velocity === null) ? '' : a.avg_velocity,
+      (a.min_hr === undefined || a.min_hr === null) ? '' : a.min_hr,
+      (a.avg_hr === undefined || a.avg_hr === null) ? '' : a.avg_hr,
+      (a.max_hr === undefined || a.max_hr === null) ? '' : a.max_hr
+    ]);
+  });
+  return jsonResponse_({ ok: true });
+}
+
+function deleteSessionRows_(date, poolLength){
+  const sheet = getSheet_(SESSIONS_SHEET, SESSION_HEADERS);
+  const rows = sheet.getDataRange().getValues();
+  // Walk bottom-up so deleting a row doesn't shift the index of rows still to check.
+  for(let i = rows.length - 1; i >= 1; i--){
+    const rowDate = rows[i][0];
+    const rowPool = rows[i][1];
+    const poolMatches = (poolLength || '') === (rowPool || '');
+    if(String(rowDate) === String(date) && poolMatches){
+      sheet.deleteRow(i + 1);
+    }
+  }
+}
+
+function jsonResponse_(obj){
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+`;
+  document.getElementById('gscript-code').textContent = GSCRIPT_CODE;
+  document.getElementById('copy-gscript-btn').addEventListener('click', async (e)=>{
+    const btn = e.currentTarget;
+    try{
+      await navigator.clipboard.writeText(GSCRIPT_CODE);
+      const original = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(()=>{ btn.textContent = original; }, 1800);
+    }catch(err){
+      console.error(err);
+      btn.textContent = 'Copy failed — select the text manually';
+    }
+  });
 
   const periodModalOverlay = document.getElementById('period-modal-overlay');
   const periodOpenModalBtn = document.getElementById('period-open-modal-btn');
@@ -871,23 +1052,36 @@
   }
 
   async function connectSheet(url){
-    if(!url) return;
-    setSyncBtn('Connecting…');
+    if(!url){ setConnectStatus('Paste your web app URL first.', 'err'); return; }
+    setConnectStatus('Connecting…');
     try{
       const { sessions, periodDates } = await loadSessionsFromSheet(url);
       state.sheetUrl = url;
       state.sessions = sessions;
       if(periodDates) state.periodDates = periodDates;
       state.selectedSessionId = sessions.length ? sessions[sessions.length-1].id : null;
+      sheetUrlInput.value = url;
+      sheetDot.style.display = 'inline';
+      if(LS) LS.setItem(SYNC_KEY, url);
       if(LS) LS.setItem(PERIOD_KEY, JSON.stringify(state.periodDates));
+      setConnectStatus('Connected.', 'ok');
       state.lastSyncTime = nowHHMM();
       setSyncBtn('Sync ' + state.lastSyncTime);
+      closeSheetModal();
       renderAll();
     }catch(err){
       console.error(err);
-      flashSyncBtn('Could not connect');
+      setConnectStatus('Could not reach that sheet — check the URL and deployment access.', 'err');
     }
   }
+  function setConnectStatus(msg, kind){
+    sheetConnectStatus.textContent = msg;
+    sheetConnectStatus.className = 'status' + (kind ? ' '+kind : '');
+  }
+  sheetConnectBtn.addEventListener('click', ()=> connectSheet(sheetUrlInput.value.trim()));
+  sheetUrlInput.addEventListener('keydown', e=>{
+    if(e.key === 'Enter'){ e.preventDefault(); connectSheet(sheetUrlInput.value.trim()); }
+  });
 
   async function pullFromSheet(url){
     setSyncBtn('Syncing…');
@@ -932,8 +1126,9 @@
   }
 
   // Auto-connect on load: a saved URL in this browser's localStorage wins
-  // (it persists across visits, same as samisdiving.html), then a ?sheet=
-  // link in the address bar, then the CONFIG.SHEET_URL baked into this file.
+  // (so once you connect, it stays connected on this device), otherwise a
+  // ?sheet= link in the address bar. There's no URL baked into the file —
+  // each person connects their own sheet via "Connect sheet" above.
   (function initSheetConnection(){
     const params = new URLSearchParams(location.search);
     const fromParam = params.get('sheet');
@@ -1432,10 +1627,73 @@
       state.selectedSessionId = vis.length ? vis[vis.length-1].id : null;
     }
     sel.value = state.selectedSessionId;
+    updateMergeBtn();
   }
   document.getElementById('session-select').addEventListener('change', e=>{
     state.selectedSessionId = e.target.value;
     renderDetailTable();
+    updateMergeBtn();
+  });
+
+  // Two sessions count as "the same session, split apart" if they share a
+  // date and either agree on pool length or one of them has no pool length
+  // recorded. This is what happens when a watch's stop button gets hit by
+  // accident mid-session and you end up re-starting several times.
+  function findSameDaySessions(date, poolLength, excludeId){
+    return state.sessions.filter(s =>
+      s.id !== excludeId && s.date === date &&
+      (s.poolLength === poolLength || s.poolLength == null || poolLength == null)
+    );
+  }
+  // Combines attempts from several sessions, keeping every attempt (nothing
+  // is overwritten or dropped). If every attempt carries a real clock
+  // timestamp (from a FIT file's lap start time), sorts by that so the
+  // merged session reflects when each dive actually happened — sorting by
+  // dive duration would just scramble the attempts, not put them in
+  // chronological order. Without timestamps (e.g. photo-extracted rows)
+  // there's no real clock time to sort by, so the original session order
+  // is kept instead. Either way, attempts are renumbered 1..n after.
+  function mergeAttemptsSorted(...attemptArrays){
+    const combined = [].concat(...attemptArrays);
+    const allHaveTimestamps = combined.length > 0 && combined.every(a => a.start_time != null);
+    if(allHaveTimestamps){
+      combined.sort((a, b)=> a.start_time - b.start_time);
+    }
+    return combined.map((a, idx)=> ({ ...a, attempt: idx + 1 }));
+  }
+
+  function updateMergeBtn(){
+    const btn = document.getElementById('merge-session-btn');
+    const session = state.sessions.find(s=>s.id===state.selectedSessionId);
+    const candidates = session ? findSameDaySessions(session.date, session.poolLength, session.id) : [];
+    btn.style.display = candidates.length ? 'inline-block' : 'none';
+  }
+  document.getElementById('merge-session-btn').addEventListener('click', ()=>{
+    const session = state.sessions.find(s=>s.id===state.selectedSessionId);
+    if(!session) return;
+    const candidates = findSameDaySessions(session.date, session.poolLength, session.id);
+    if(!candidates.length) return;
+    // Merge in the order the sessions naturally sit in state.sessions
+    // (i.e. the order they were added), not with the selected one forced
+    // first — that order is the best fallback signal for which happened
+    // first in the day when there's no per-attempt clock time to sort by.
+    const group = state.sessions.filter(s => s.id === session.id || candidates.some(c=>c.id === s.id));
+    session.attempts = mergeAttemptsSorted(...group.map(s=>s.attempts));
+    if(session.poolLength == null){
+      const withPool = candidates.find(c=>c.poolLength != null);
+      if(withPool) session.poolLength = withPool.poolLength;
+    }
+    const droppedPoolLengths = candidates.map(c=>c.poolLength).filter(pl => pl !== session.poolLength);
+    const candidateIds = new Set(candidates.map(c=>c.id));
+    state.sessions = state.sessions.filter(s=> !candidateIds.has(s.id));
+    state.selectedSessionId = session.id;
+    renderAll();
+    if(state.sheetUrl){
+      const uniqueDropped = Array.from(new Set(droppedPoolLengths));
+      Promise.all(uniqueDropped.map(pl=> deleteSessionFromSheet(session.date, pl).catch(()=>{})))
+        .then(()=> pushSessionToSheet(session))
+        .catch(()=>{ flashSyncBtn('Merge not synced'); });
+    }
   });
 
   document.getElementById('remove-session-btn').addEventListener('click', ()=>{
@@ -1496,7 +1754,7 @@
       <tr>
         <td>${a.attempt}</td>
         <td contenteditable="true" data-i="${i}" data-field="time">${secToMMSS(a.time_seconds)}</td>
-        <td contenteditable="true" data-i="${i}" data-field="distance_m">${a.distance_m ?? ''}</td>
+        <td contenteditable="true" data-i="${i}" data-field="distance_m">${a.distance_m ? a.distance_m : ''}</td>
         <td contenteditable="true" data-i="${i}" data-field="avg_velocity">${a.avg_velocity ?? ''}</td>
         <td contenteditable="true" data-i="${i}" data-field="min_hr">${a.min_hr ?? ''}</td>
         <td contenteditable="true" data-i="${i}" data-field="avg_hr">${a.avg_hr ?? ''}</td>
@@ -1515,6 +1773,17 @@
       });
     });
     tbody.querySelectorAll('td[contenteditable]').forEach(td=>{
+      // Select the whole cell's contents as soon as it's focused, so typing
+      // a number replaces the existing value directly instead of inserting
+      // at wherever the cursor lands (which was leaving a stray leading
+      // digit, e.g. a leftover "0" at the front).
+      td.addEventListener('focus', ()=>{
+        const range = document.createRange();
+        range.selectNodeContents(td);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      });
       td.addEventListener('blur', ()=>{
         const i = +td.dataset.i, field = td.dataset.field;
         const val = td.textContent.trim();
