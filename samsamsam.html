@@ -1088,6 +1088,7 @@ try { syncUrl = localStorage.getItem(SYNC_KEY) || DEFAULT_SYNC_URL; } catch(e){ 
 let syncing = false;
 let lastSyncAt = null;
 let lastBillTxns = null;
+let lastBillPageCount = null;
 if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 function setSyncStatus(msg){ const el = $('syncStatus'); if(el) el.textContent = msg; }
@@ -3103,7 +3104,8 @@ async function checkBillPdf(file){
       return;
     }
     lastBillTxns = txns;
-    renderBillCheckResult(matchAgainstLog(txns));
+    lastBillPageCount = pdf.numPages;
+    renderBillCheckResult(matchAgainstLog(txns), pdf.numPages);
   } catch(e){
     $('billCheckContent').innerHTML = `<h3>Check credit card bill</h3>
       <div class="empty"><div class="big">Couldn't read that PDF</div>${esc(e.message||'Unknown error')}</div>
@@ -3159,28 +3161,27 @@ function matchAgainstLog(txns){
     // that was the actual bug: the amount-only fallback still fired even
     // when nothing else supported it, so a completely unrelated Rp 10,000
     // expense could still "use up" and hide a real Rp 10,000 charge like
-    // a monthly notification fee. Now at least ONE real signal is
-    // required — the logged item's name sharing a word with the
-    // statement's description, OR its date falling reasonably close to
-    // the statement transaction's date — before an amount match counts
-    // as a genuine match at all; a same-amount candidate with neither
-    // signal is treated as no match, and the charge stays in "missing"
-    // where it belongs.
+    // a monthly notification fee. Now a candidate must fall within 10
+    // days of the statement transaction's own date to even be eligible —
+    // description similarity is only used to prefer between multiple
+    // date-eligible candidates, never as a substitute for date proximity
+    // on its own. That distinction matters specifically for recurring
+    // monthly expenses: last month's "notification fee" entry has the
+    // exact same wording as this month's charge, so if description alone
+    // were enough, it would permanently "cover" every future month's
+    // occurrence of the same recurring expense — hiding the fact that
+    // each month is really its own separate transaction needing its own
+    // entry. Requiring date proximity as a hard gate is what correctly
+    // treats each month's occurrence as distinct.
     const descWords = (t.desc||'').toLowerCase().split(/\s+/).filter(w=>w.length>2);
     const txnIso = ddmmyyyyToIso(statementDateToDdmmyyyy(t.date));
-    let bestIdx = -1, bestScore = 0;
+    let bestIdx = -1, bestScore = -1;
     pool.forEach((p, idx)=>{
       if(p.amt !== amt) return;
-      let score = 0;
-      if(descWords.some(w=>p.item.includes(w))) score += 2;
       const days = daysBetween(txnIso, p.date);
-      if(days <= 3) score += 2;
-      else if(days <= 10) score += 1;
-      // Weak fallback band covering roughly a full statement period —
-      // still requires SOME temporal relationship rather than none at
-      // all, but doesn't unfairly penalize logging things in a batch
-      // days or weeks after the actual purchase, which is normal.
-      else if(days <= 35) score += 0.5;
+      if(days > 10) return; // not date-eligible at all, regardless of name
+      let score = days <= 3 ? 2 : 1;
+      if(descWords.some(w=>p.item.includes(w))) score += 1;
       if(score > bestScore){ bestScore = score; bestIdx = idx; }
     });
     if(bestIdx > -1){ pool.splice(bestIdx,1); matched.push(t); }
@@ -3189,14 +3190,15 @@ function matchAgainstLog(txns){
   return { matched, missing, total: purchases.length };
 }
 
-function renderBillCheckResult({matched, missing, total}){
+function renderBillCheckResult({matched, missing, total}, pageCount){
   let html = `<h3>Check credit card bill</h3>
   <p style="font-size:13px;color:var(--ink-soft,#888)">
-    ${matched.length} of ${total} statement charges matched something already logged — primarily by
-    amount, with a same-named or similarly-dated logged expense preferred when more than one candidate
-    shares the exact same amount. Still not foolproof: two genuinely unrelated expenses that cost the exact
-    same round number AND happen to land on nearby dates (recurring monthly fees are the classic case)
-    can still match each other. Worth spot-checking the matched list too, not just what's flagged as missing.
+    ${pageCount ? `Read all ${pageCount} page${pageCount===1?'':'s'} of the statement. ` : ''}${matched.length} of ${total} statement charges matched something already logged — an amount alone
+    isn't enough; the logged expense also has to be dated within about 10 days of the statement charge, so
+    a recurring monthly expense (a subscription, a notification fee, etc.) always needs its own entry each
+    month rather than one month's entry silently covering every future occurrence. Still not foolproof —
+    two unrelated expenses can occasionally land on the same amount and a close-enough date — so it's
+    worth spot-checking the matched list too, not just what's flagged as missing.
   </p>`;
 
   if(!missing.length){
@@ -4446,7 +4448,7 @@ $('personalForm').addEventListener('submit', ()=>{
     db.personalFinance.push({id:uid(), ...data});
   }
   save(); render();
-  if(lastBillTxns && $('billCheckModal').open) renderBillCheckResult(matchAgainstLog(lastBillTxns));
+  if(lastBillTxns && $('billCheckModal').open) renderBillCheckResult(matchAgainstLog(lastBillTxns), lastBillPageCount);
 });
 
 $('quickExpenseForm').addEventListener('submit', ()=>{
