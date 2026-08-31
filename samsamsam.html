@@ -3101,7 +3101,10 @@ async function checkBillPdf(file){
 }
 
 function statementDateToDdmmyyyy(str){
-  const months = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',mei:'05',jun:'06',jul:'07',aug:'08',agu:'08',ags:'08',sep:'09',oct:'10',okt:'10',nov:'11',dec:'12',des:'12'};
+  // "agt" added specifically for Jenius's own statements (confirmed from
+  // an actual bill: "20 Agt 2026") — without it every August transaction
+  // silently fell back to January when its "+ Add" date got pre-filled.
+  const months = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',mei:'05',jun:'06',jul:'07',aug:'08',agu:'08',agt:'08',ags:'08',sep:'09',oct:'10',okt:'10',nov:'11',dec:'12',des:'12'};
   const m = (str||'').trim().match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/);
   if(!m) return '';
   return `${m[1].padStart(2,'0')}-${months[m[2].toLowerCase()] || '01'}-${m[3]}`;
@@ -3122,17 +3125,53 @@ function parseStatementRows(rows){
   return out;
 }
 
+/* Absolute day difference between two "YYYY-MM-DD" dates — Infinity if
+   either is missing/unparseable, so a missing date just contributes zero
+   scoring weight rather than accidentally comparing as "close." */
+function daysBetween(iso1, iso2){
+  if(!iso1 || !iso2) return Infinity;
+  const d1 = new Date(iso1), d2 = new Date(iso2);
+  if(isNaN(d1.getTime()) || isNaN(d2.getTime())) return Infinity;
+  return Math.abs((d1 - d2) / 86400000);
+}
+
 function matchAgainstLog(txns){
   const pool = [];
-  (db.finance||[]).filter(f=>f.type!=='income').forEach(f=> pool.push(Math.round(f.price||0)));
-  (db.personalFinance||[]).filter(f=>f.type==='expense').forEach(f=> pool.push(Math.round(f.price||0)));
+  (db.finance||[]).filter(f=>f.type!=='income').forEach(f=> pool.push({amt: Math.round(f.price||0), item: (f.item||'').toLowerCase(), date: (f.date||'').slice(0,10)}));
+  (db.personalFinance||[]).filter(f=>f.type==='expense').forEach(f=> pool.push({amt: Math.round(f.price||0), item: (f.item||'').toLowerCase(), date: (f.date||'').slice(0,10)}));
 
   const purchases = txns.filter(t=>!t.isCredit);
   const matched = [], missing = [];
   purchases.forEach(t=>{
     const amt = Math.round(t.amount);
-    const idx = pool.indexOf(amt);
-    if(idx > -1){ pool.splice(idx,1); matched.push(t); }
+    // When several logged expenses share the exact same amount (very
+    // common for round figures like Rp 10,000/20,000 — bank fees,
+    // parking, snacks, etc. all tend to land on the same numbers, and a
+    // RECURRING monthly fee is exactly this problem every single month),
+    // score candidates by two signals instead of just grabbing the first
+    // same-amount entry in the pool: whether the logged item's name
+    // shares a word with the statement's description, and whether its
+    // date falls close to the statement transaction's date (a logged
+    // expense from a completely different month is much less likely to
+    // be the real match for this month's charge, even at the identical
+    // amount). This is still fundamentally amount-based matching — it
+    // can't perfectly tell apart two truly unrelated expenses that cost
+    // the exact same round number AND happen to land on nearby dates —
+    // but between the two signals together, that's now a much narrower
+    // case than a bare amount collision alone.
+    const descWords = (t.desc||'').toLowerCase().split(/\s+/).filter(w=>w.length>2);
+    const txnIso = ddmmyyyyToIso(statementDateToDdmmyyyy(t.date));
+    let bestIdx = -1, bestScore = -1;
+    pool.forEach((p, idx)=>{
+      if(p.amt !== amt) return;
+      let score = 0;
+      if(descWords.some(w=>p.item.includes(w))) score += 2;
+      const days = daysBetween(txnIso, p.date);
+      if(days <= 3) score += 2;
+      else if(days <= 10) score += 1;
+      if(score > bestScore){ bestScore = score; bestIdx = idx; }
+    });
+    if(bestIdx > -1){ pool.splice(bestIdx,1); matched.push(t); }
     else missing.push(t);
   });
   return { matched, missing, total: purchases.length };
@@ -3141,8 +3180,11 @@ function matchAgainstLog(txns){
 function renderBillCheckResult({matched, missing, total}){
   let html = `<h3>Check credit card bill</h3>
   <p style="font-size:13px;color:var(--ink-soft,#888)">
-    ${matched.length} of ${total} statement charges matched something already logged (by amount).
-    Matching ignores item names and dates, since those rarely line up exactly with the statement.
+    ${matched.length} of ${total} statement charges matched something already logged — primarily by
+    amount, with a same-named or similarly-dated logged expense preferred when more than one candidate
+    shares the exact same amount. Still not foolproof: two genuinely unrelated expenses that cost the exact
+    same round number AND happen to land on nearby dates (recurring monthly fees are the classic case)
+    can still match each other. Worth spot-checking the matched list too, not just what's flagged as missing.
   </p>`;
 
   if(!missing.length){
