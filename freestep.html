@@ -415,6 +415,20 @@
   </div>
 </dialog>
 
+<dialog id="taxPreviewModal">
+  <div class="modal-in">
+    <h3>Tax summary</h3>
+    <div style="display:flex;justify-content:center;background:#f3f1ee;border-radius:12px;padding:14px;overflow:auto;max-height:60vh">
+      <img id="taxPreviewImg" style="max-width:100%;height:auto;box-shadow:0 2px 10px rgba(0,0,0,.15)">
+    </div>
+    <div class="modal-btns">
+      <button type="button" class="btn btn-ghost" data-action="close-tax-preview">Close</button>
+      <button type="button" class="btn btn-ghost" data-action="download-tax-preview">Save to device</button>
+      <button type="button" class="btn btn-primary" id="shareTaxBtn" data-action="share-tax-preview" style="display:none">Share</button>
+    </div>
+  </div>
+</dialog>
+
 <script>
 /* ---------- storage ---------- */
 const LS_KEY = 'freestep-db-v1';
@@ -452,8 +466,9 @@ if(!db.pricesByName || typeof db.pricesByName !== 'object') db.pricesByName = {}
 // the auto-computed Sales data since some months (before this tab
 // existed) have no source data to pull and have to be typed in by hand.
 // { umkm: {'2026-01': 1234567, ...}, freelance: {'2026-01': 234567, ...} }
-if(!db.taxIncome || typeof db.taxIncome !== 'object') db.taxIncome = { umkm: {}, freelance: {} };
+if(!db.taxIncome || typeof db.taxIncome !== 'object') db.taxIncome = { umkm: {}, freediving: {}, freelance: {} };
 if(!db.taxIncome.umkm || typeof db.taxIncome.umkm !== 'object') db.taxIncome.umkm = {};
+if(!db.taxIncome.freediving || typeof db.taxIncome.freediving !== 'object') db.taxIncome.freediving = {};
 if(!db.taxIncome.freelance || typeof db.taxIncome.freelance !== 'object') db.taxIncome.freelance = {};
 
 // Prices are set once per product NAME (not per size/color/width variant)
@@ -611,6 +626,7 @@ function mergeStockLog(localArr, cloudArr){
 function mergeTaxIncome(local, cloud){
   return {
     umkm: Object.assign({}, (cloud && cloud.umkm) || {}, (local && local.umkm) || {}),
+    freediving: Object.assign({}, (cloud && cloud.freediving) || {}, (local && local.freediving) || {}),
     freelance: Object.assign({}, (cloud && cloud.freelance) || {}, (local && local.freelance) || {}),
   };
 }
@@ -1138,14 +1154,160 @@ function renderTax(){
       </div>`;
   }
 
+  // UMKM breakdown table — shows the freestep and freediving figures that
+  // are added together to make each month's UMKM total, side by side.
+  function umkmBreakdownTable(){
+    const freediving = db.taxIncome.freediving || {};
+    const total = months.reduce((a,mk) => a + computeFreestepMonthIncome(mk) + (Number(freediving[mk])||0), 0);
+    const rows = months.map((mk, i) => {
+      const fs = computeFreestepMonthIncome(mk);
+      const fd = Number(freediving[mk]) || 0;
+      return `
+      <tr>
+        <td>${TAX_MONTH_NAMES[i]} ${TAX_YEAR}</td>
+        <td style="text-align:right;padding:6px 8px">${formatIDR(fs)}</td>
+        <td style="text-align:right;padding:6px 8px">${formatIDR(fd)}</td>
+        <td style="text-align:right;padding:6px 8px;font-weight:600">${formatIDR(fs+fd)}</td>
+      </tr>`;
+    }).join('');
+    return `
+      <div class="card" style="margin-bottom:16px;cursor:default">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px">
+          <h3 style="margin:0">UMKM (freestep + freediving)</h3>
+          <div style="font-weight:700">${formatIDR(total)}</div>
+        </div>
+        <div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px">Calculated automatically each month from freestep sales and freediving income (via samisdiving) — not manually editable.</div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:14px">
+            <thead><tr>
+              <th style="text-align:left;padding:6px 8px;color:var(--ink-soft);font-size:12px;text-transform:uppercase">Month</th>
+              <th style="text-align:right;padding:6px 8px;color:var(--ink-soft);font-size:12px;text-transform:uppercase">FreeStep</th>
+              <th style="text-align:right;padding:6px 8px;color:var(--ink-soft);font-size:12px;text-transform:uppercase">Freediving</th>
+              <th style="text-align:right;padding:6px 8px;color:var(--ink-soft);font-size:12px;text-transform:uppercase">Total</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
   return `
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
       <div class="section" style="margin:0">Tax — ${TAX_YEAR}</div>
+      <button type="button" class="btn btn-ghost btn-small" data-action="preview-tax-pdf">Preview PDF</button>
     </div>
     <div id="taxPullStatus" style="font-size:12.5px;color:var(--ink-soft);margin:-8px 0 14px"></div>
-    ${table('umkm', 'UMKM (freestep + freediving)', 'Calculated automatically each month from freestep sales and freediving income (via samisdiving) — not manually editable.', false)}
+    ${umkmBreakdownTable()}
     ${table('freelance', 'Freelance', 'Manually typed — not synced automatically.', true)}
   `;
+}
+
+/* ---------- Tax summary PDF preview ----------
+   Same canvas-to-PDF pattern as the invoice/label/sticker generators: draw
+   a true A4 page onto a canvas, embed it as an image in a jsPDF document,
+   then show it in a preview modal with Save/Share buttons — nothing is
+   downloaded until the user taps one of those. Deliberately shows only
+   Title / Month / Total income for each table, leaving out the
+   freestep/freediving breakdown that's shown on-screen. */
+let currentTaxPreviewUrl = null;
+let currentTaxFileName = '';
+let currentTaxFile = null;
+
+function generateTaxPDF(){
+  const months = Array.from({length:12}, (_,i) => String(TAX_YEAR) + '-' + String(i+1).padStart(2,'0'));
+  const freediving = db.taxIncome.freediving || {};
+  const umkmTotals = {};
+  months.forEach(mk => { umkmTotals[mk] = computeFreestepMonthIncome(mk) + (Number(freediving[mk])||0); });
+  const freelanceTotals = db.taxIncome.freelance || {};
+
+  // ~300dpi canvas for a true A4 (210mm x 297mm) page.
+  const DPMM = 11.81;
+  const W = Math.round(210 * DPMM), H = Math.round(297 * DPMM);
+  const pad = Math.round(18 * DPMM);
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textBaseline = 'top';
+  const contentW = W - pad * 2;
+  const col2X = pad + contentW * 0.62;
+
+  function hLine(yy, color){
+    ctx.strokeStyle = color || '#ddd';
+    ctx.lineWidth = Math.round(0.35 * DPMM);
+    ctx.beginPath(); ctx.moveTo(pad, yy); ctx.lineTo(W - pad, yy); ctx.stroke();
+  }
+
+  let y = pad;
+  ctx.fillStyle = '#1a1a1a';
+  ctx.font = `bold ${Math.round(6.5 * DPMM)}px Arial`;
+  ctx.fillText(`Tax Summary — ${TAX_YEAR}`, pad, y);
+  y += Math.round(11 * DPMM);
+  hLine(y, '#1a1a1a');
+  y += Math.round(6 * DPMM);
+
+  function section(title, data){
+    ctx.fillStyle = '#1a1a1a';
+    ctx.font = `bold ${Math.round(4.6 * DPMM)}px Arial`;
+    ctx.fillText(title, pad, y);
+    y += Math.round(7 * DPMM);
+
+    ctx.font = `bold ${Math.round(3.2 * DPMM)}px Arial`;
+    ctx.fillStyle = '#888';
+    ctx.fillText('MONTH', pad, y);
+    ctx.fillText('TOTAL INCOME (IDR)', col2X, y);
+    y += Math.round(4.5 * DPMM);
+    hLine(y);
+    y += Math.round(3 * DPMM);
+
+    const rowFont = `${Math.round(3.8 * DPMM)}px Arial`;
+    months.forEach((mk, i) => {
+      ctx.font = rowFont;
+      ctx.fillStyle = '#222';
+      ctx.fillText(`${TAX_MONTH_NAMES[i]} ${TAX_YEAR}`, pad, y);
+      ctx.fillText(formatIDR(Number(data[mk])||0), col2X, y);
+      y += Math.round(5.6 * DPMM);
+    });
+
+    y += Math.round(1 * DPMM);
+    hLine(y, '#333');
+    y += Math.round(3 * DPMM);
+    const total = months.reduce((a,mk)=>a+(Number(data[mk])||0),0);
+    ctx.font = `bold ${Math.round(4 * DPMM)}px Arial`;
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillText('Total', pad, y);
+    ctx.fillText(formatIDR(total), col2X, y);
+    y += Math.round(11 * DPMM);
+  }
+
+  section('UMKM', umkmTotals);
+  section('Freelance', freelanceTotals);
+
+  canvas.toBlob(blob => {
+    if(!blob){ askAlert('Could not generate the tax summary.'); return; }
+    if(!window.jspdf || !window.jspdf.jsPDF){
+      askAlert('Could not generate the PDF (jsPDF failed to load). Check your internet connection and try again.');
+      return;
+    }
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pngDataUrl = canvas.toDataURL('image/png');
+    pdf.addImage(pngDataUrl, 'PNG', 0, 0, 210, 297);
+    const pdfBlob = pdf.output('blob');
+    const url = URL.createObjectURL(pdfBlob);
+    if(currentTaxPreviewUrl) URL.revokeObjectURL(currentTaxPreviewUrl);
+    currentTaxPreviewUrl = url;
+    currentTaxFileName = `tax-summary-${TAX_YEAR}.pdf`;
+    currentTaxFile = new File([pdfBlob], currentTaxFileName, { type: 'application/pdf' });
+    // <img> can't render a PDF, so the preview keeps showing the canvas
+    // snapshot — only the saved/shared file is the actual PDF.
+    $('taxPreviewImg').src = pngDataUrl;
+    const shareBtn = $('shareTaxBtn');
+    const canShareFile = !!(navigator.canShare && navigator.canShare({ files: [currentTaxFile] }));
+    shareBtn.style.display = canShareFile ? '' : 'none';
+    $('taxPreviewModal').showModal();
+  }, 'image/png');
 }
 
 function computeFreestepMonthIncome(mk){
@@ -1187,7 +1349,7 @@ async function syncUmkmAutomatically(){
         if(pmt.balance){ const mk = (pmt.balanceDate||'').slice(0,7); if(mk) freediveByMonth[mk] = (freediveByMonth[mk]||0) + pmt.balance; }
       });
     });
-    months.forEach(mk => { db.taxIncome.umkm[mk] = (freestepByMonth[mk]||0) + (freediveByMonth[mk]||0); });
+    months.forEach(mk => { db.taxIncome.freediving[mk] = freediveByMonth[mk]||0; db.taxIncome.umkm[mk] = (freestepByMonth[mk]||0) + (freediveByMonth[mk]||0); });
     if(statusEl) statusEl.textContent = 'Synced — UMKM combines freestep and samisdiving — last updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) + '.';
   } catch(e){
     months.forEach(mk => { db.taxIncome.umkm[mk] = freestepByMonth[mk]||0; });
@@ -1234,7 +1396,7 @@ function renderSales(){
       ${months.map(m=>`<option value="${m}" ${m===salesMonth?'selected':''}>${monthLabel(m)}</option>`).join('')}
     </select>
   </div>
-  <div class="stats" style="grid-template-columns:repeat(5,1fr)">
+  <div class="stats" style="grid-template-columns:repeat(3,1fr)">
     <div class="stat"><div class="num">${groups.length}</div><div class="lbl">Sales logged</div></div>
     <div class="stat stat-click${showSoldBreakdown?' stat-active':''}" tabindex="0" role="button" data-action="toggle-sold-breakdown"><div class="num">${totalSold}</div><div class="lbl">Units sold</div></div>
     <div class="stat"><div class="num">${totalIncome.toLocaleString()}</div><div class="lbl">Total income</div></div>
@@ -3025,7 +3187,24 @@ document.addEventListener('click', e=>{
   const el = e.target.closest('[data-action]');
   if(!el) return;
   const a = el.dataset.action, pid = el.dataset.product, sid = el.dataset.sale;
-  if(a==='new-product') openProductModal();
+  if(a==='preview-tax-pdf') generateTaxPDF();
+  else if(a==='close-tax-preview'){ $('taxPreviewModal').close(); }
+  else if(a==='download-tax-preview'){
+    if(!currentTaxPreviewUrl) return;
+    const a4 = document.createElement('a');
+    a4.href = currentTaxPreviewUrl;
+    a4.download = currentTaxFileName || 'tax-summary.pdf';
+    document.body.appendChild(a4);
+    a4.click();
+    a4.remove();
+  }
+  else if(a==='share-tax-preview'){
+    if(!currentTaxFile) return;
+    navigator.share({ files: [currentTaxFile], title: currentTaxFileName }).catch(err => {
+      if(err && err.name !== 'AbortError') askAlert('Could not open the share sheet: ' + err.message);
+    });
+  }
+  else if(a==='new-product') openProductModal();
   else if(a==='edit-product'){ e.stopPropagation(); openProductModal(pid); }
   else if(a==='close-product-modal') closeProductModal();
   else if(a==='delete-product'){
