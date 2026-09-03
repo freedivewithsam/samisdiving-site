@@ -1316,19 +1316,40 @@ async function attemptPinLogin(){
   }
 }
 
+function addPinDigit(digit){
+  if(pinBuffer.length >= 8) return;
+  pinBuffer += digit;
+  updatePinDots();
+  setPinError('');
+  if(pinBuffer.length >= 4) attemptPinLogin();
+}
 document.querySelectorAll('.pin-key').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    if(pinBuffer.length >= 8) return;
-    pinBuffer += btn.dataset.key;
-    updatePinDots();
-    setPinError('');
-    if(pinBuffer.length >= 4) attemptPinLogin();
-  });
+  btn.addEventListener('click', ()=> addPinDigit(btn.dataset.key));
 });
 if($('pinBackspace')) $('pinBackspace').addEventListener('click', ()=>{
   pinBuffer = pinBuffer.slice(0,-1);
   updatePinDots();
   setPinError('');
+});
+/* Physical keyboard support — the PIN screen has no real <input> (it's
+   just dots + on-screen buttons), so digit keys wouldn't otherwise do
+   anything on desktop. Only acts while the lock screen is actually
+   visible, so this can't interfere with typing anywhere else in the app. */
+document.addEventListener('keydown', e=>{
+  const lock = $('pinLockScreen');
+  if(!lock || lock.style.display === 'none') return;
+  if(/^[0-9]$/.test(e.key)){
+    e.preventDefault();
+    addPinDigit(e.key);
+  } else if(e.key === 'Backspace'){
+    e.preventDefault();
+    pinBuffer = pinBuffer.slice(0,-1);
+    updatePinDots();
+    setPinError('');
+  } else if(e.key === 'Enter'){
+    e.preventDefault();
+    attemptPinLogin();
+  }
 });
 if($('pinResetBtn')) $('pinResetBtn').addEventListener('click', ()=>{
   clearPinBuffer();
