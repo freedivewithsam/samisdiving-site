@@ -3482,6 +3482,25 @@ if($('pinBackspace')) $('pinBackspace').addEventListener('click', ()=>{
   updatePinDots();
   setPinError('');
 });
+// The on-screen keypad above only wires up click handlers, so on a
+// device with a physical/hardware keyboard typing the digits did
+// nothing. Mirror the same digit/backspace handling for keydown,
+// but only while the lock screen is actually showing.
+document.addEventListener('keydown', function(e){
+  if ($('pinLockScreen') == null || $('pinLockScreen').style.display === 'none') return;
+  if (e.key >= '0' && e.key <= '9') {
+    if (pinBuffer.length < 8) {
+      pinBuffer += e.key;
+      updatePinDots();
+      setPinError('');
+      if (pinBuffer.length >= 4) attemptPinLogin();
+    }
+  } else if (e.key === 'Backspace') {
+    pinBuffer = pinBuffer.slice(0, -1);
+    updatePinDots();
+    setPinError('');
+  }
+});
 if($('pinResetBtn')) $('pinResetBtn').addEventListener('click', ()=>{
   clearPinBuffer();
   $('fRecoveryPw').value = '';
