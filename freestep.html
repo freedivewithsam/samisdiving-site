@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -205,9 +206,58 @@
 
   /* Prevent iOS Safari auto-zoom on form focus: inputs must be >=16px on all screen sizes */
   input, select, textarea{ font-size:16px !important; }
+
+  #pinLockScreen{touch-action:manipulation}
+  .pin-key,#pinBackspace{touch-action:manipulation}
+  .pin-key:active{background:var(--rose)}
+  .pin-dot{background:transparent}
+  .pin-dot.filled{background:var(--accent-dark);border-color:var(--accent-dark)}
+  .wrap.pin-locked{display:none}
 </style>
 
-<div class="wrap">
+<div id="pinLockScreen" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px;text-align:center">
+  <div style="font-family:'Poppins',serif;font-weight:600;font-size:22px">freestep</div>
+  <div id="pinLockTitle" style="font-size:14px;color:var(--ink-soft)">Enter PIN</div>
+  <div id="pinDots" style="display:flex;gap:14px">
+    <div class="pin-dot" style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rose-line)"></div>
+    <div class="pin-dot" style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rose-line)"></div>
+    <div class="pin-dot" style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rose-line)"></div>
+    <div class="pin-dot" style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rose-line)"></div>
+  </div>
+  <div id="pinError" style="color:#c0392b;font-size:12.5px;height:16px"></div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:min(80vw,260px)">
+    <button type="button" class="btn btn-ghost pin-key" data-key="1" style="height:64px;font-size:20px">1</button>
+    <button type="button" class="btn btn-ghost pin-key" data-key="2" style="height:64px;font-size:20px">2</button>
+    <button type="button" class="btn btn-ghost pin-key" data-key="3" style="height:64px;font-size:20px">3</button>
+    <button type="button" class="btn btn-ghost pin-key" data-key="4" style="height:64px;font-size:20px">4</button>
+    <button type="button" class="btn btn-ghost pin-key" data-key="5" style="height:64px;font-size:20px">5</button>
+    <button type="button" class="btn btn-ghost pin-key" data-key="6" style="height:64px;font-size:20px">6</button>
+    <button type="button" class="btn btn-ghost pin-key" data-key="7" style="height:64px;font-size:20px">7</button>
+    <button type="button" class="btn btn-ghost pin-key" data-key="8" style="height:64px;font-size:20px">8</button>
+    <button type="button" class="btn btn-ghost pin-key" data-key="9" style="height:64px;font-size:20px">9</button>
+    <span></span>
+    <button type="button" class="btn btn-ghost pin-key" data-key="0" style="height:64px;font-size:20px">0</button>
+    <button type="button" id="pinBackspace" style="height:64px;font-size:18px;border:none;background:none;color:var(--ink-soft)">⌫</button>
+  </div>
+  <button type="button" id="pinResetBtn" style="display:none;background:none;border:none;color:var(--ink-soft);font-size:12.5px;text-decoration:underline;margin-top:6px">Forgot PIN? Reset app lock</button>
+</div>
+
+<dialog id="recoveryModal">
+  <div class="modal-in">
+    <h3>Reset app lock</h3>
+    <form id="recoveryForm" method="dialog">
+      <div class="field"><label for="fRecoveryPw">Recovery password</label><input id="fRecoveryPw" type="password" autocomplete="off" required></div>
+      <div class="field"><label for="fNewPin">New PIN (4 digits)</label><input id="fNewPin" type="password" inputmode="numeric" pattern="\d{4,8}" maxlength="8" autocomplete="off" required></div>
+      <div id="recoveryError" style="color:#c0392b;font-size:12.5px;margin-bottom:6px"></div>
+      <div class="modal-btns">
+        <button type="button" class="btn btn-ghost" data-action="close-recovery-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Reset &amp; unlock</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<div class="wrap pin-locked" id="mainWrap">
   <header class="app">
     <div class="brand">
       <h1>freestep <span class="wave">·</span></h1>
@@ -3341,11 +3391,137 @@ document.addEventListener('click', e=>{
   }
 });
 
-if(!storage.persistent) $('storageNote').classList.add('show');
-dedupeLocalProducts();
-updateSyncNowBtnText();
-render();
-if(syncUrl) pushCloud().then(render);
+/* ---------- PIN lock (server-side auth) ----------
+   Same pattern as samisdiving.html: the PIN itself is only ever checked
+   on the server (see backend.gs's handleLoginRaw) — this file never
+   stores or computes a hash, it just sends the plain PIN and gets back a
+   session token, kept in localStorage so re-opening the app doesn't ask
+   again until that token actually expires (30 days) or the server
+   rejects it. Login/reset both go through the same GET+JSONP path
+   everything else in this app already uses to talk to the backend (see
+   jsonpFetch above) rather than a fetch()-based POST, since that's the
+   only reliably readable path (cross-origin fetch() to an Apps Script
+   Web App can't read the response — see the JSONP comment near
+   jsonpFetch). The rest of the app (render(), pushCloud(), the 20s
+   auto-sync loop, etc.) doesn't start until startAppAfterUnlock() runs. */
+const AUTH_KEY = 'freestep-auth-token';
+let authToken = null;
+try { authToken = localStorage.getItem(AUTH_KEY) || null; } catch(e){}
+let pinAttempts = 0;
+let pinBuffer = '';
+
+function pinDots(){ return Array.from(document.querySelectorAll('#pinDots .pin-dot')); }
+function updatePinDots(){ pinDots().forEach((d,i)=> d.classList.toggle('filled', i < pinBuffer.length)); }
+function setPinError(msg){ const el = $('pinError'); if(el) el.textContent = msg || ''; }
+function clearPinBuffer(){ pinBuffer=''; updatePinDots(); }
+function setPinTitle(t){ const el = $('pinLockTitle'); if(el) el.textContent = t; }
+
+function startAppAfterUnlock(){
+  if(!storage.persistent) $('storageNote').classList.add('show');
+  dedupeLocalProducts();
+  updateSyncNowBtnText();
+  render();
+  if(syncUrl) pushCloud().then(render);
+}
+
+function unlockApp(token){
+  authToken = token;
+  try { localStorage.setItem(AUTH_KEY, token); } catch(e){}
+  const lock = $('pinLockScreen'); if(lock) lock.style.display = 'none';
+  const wrap = $('mainWrap'); if(wrap) wrap.classList.remove('pin-locked');
+  setPinError(''); clearPinBuffer();
+  startAppAfterUnlock();
+}
+/* Called whenever the server rejects our token (expired, or the PIN was
+   reset from another device) — forces re-entry rather than silently
+   failing every subsequent sync. Not currently wired to any specific
+   error response (the data endpoints aren't token-gated — see backend.gs),
+   kept here so it's ready to call if that's tightened later. */
+function handleAuthExpired(){
+  authToken = null;
+  try { localStorage.removeItem(AUTH_KEY); } catch(e){}
+  const lock = $('pinLockScreen');
+  const wrap = $('mainWrap');
+  if(lock) lock.style.display = 'flex';
+  if(wrap) wrap.classList.add('pin-locked');
+  setPinTitle('Session expired — enter PIN');
+  clearPinBuffer();
+}
+
+async function attemptPinLogin(){
+  if(pinBuffer.length < 4) return;
+  setPinError('Checking…');
+  try{
+    const url = syncUrl + (syncUrl.indexOf('?')===-1?'?':'&') + 'action=login&pin=' + encodeURIComponent(pinBuffer);
+    const data = await jsonpFetch(url);
+    if(data && data.ok && data.token){
+      unlockApp(data.token);
+    } else {
+      pinAttempts++;
+      clearPinBuffer();
+      setPinError((data && data.error) || 'Incorrect PIN.');
+      if(pinAttempts >= 2){ const btn = $('pinResetBtn'); if(btn) btn.style.display = ''; }
+    }
+  } catch(e){
+    clearPinBuffer();
+    setPinError('Could not reach the server — check your connection.');
+  }
+}
+
+document.querySelectorAll('.pin-key').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    if(pinBuffer.length >= 8) return;
+    pinBuffer += btn.dataset.key;
+    updatePinDots();
+    setPinError('');
+    if(pinBuffer.length >= 4) attemptPinLogin();
+  });
+});
+if($('pinBackspace')) $('pinBackspace').addEventListener('click', ()=>{
+  pinBuffer = pinBuffer.slice(0,-1);
+  updatePinDots();
+  setPinError('');
+});
+if($('pinResetBtn')) $('pinResetBtn').addEventListener('click', ()=>{
+  clearPinBuffer();
+  $('fRecoveryPw').value = '';
+  $('fNewPin').value = '';
+  $('recoveryError').textContent = '';
+  $('recoveryModal').showModal();
+});
+document.addEventListener('click', e=>{
+  if(e.target && e.target.closest && e.target.closest('[data-action="close-recovery-modal"]')) $('recoveryModal').close();
+});
+if($('recoveryForm')) $('recoveryForm').addEventListener('submit', async (e)=>{
+  e.preventDefault(); // this form is async (checks the recovery password server-side) — the dialog must stay open until we know the result, not auto-close the instant Submit is tapped like every other (synchronous) form here does
+  const recoveryPassword = $('fRecoveryPw').value;
+  const newPin = $('fNewPin').value.trim();
+  $('recoveryError').textContent = 'Checking…';
+  try{
+    const url = syncUrl + (syncUrl.indexOf('?')===-1?'?':'&') + 'action=resetPin&recoveryPassword=' + encodeURIComponent(recoveryPassword) + '&newPin=' + encodeURIComponent(newPin);
+    const data = await jsonpFetch(url);
+    if(data && data.ok && data.token){
+      $('recoveryModal').close();
+      pinAttempts = 0;
+      if($('pinResetBtn')) $('pinResetBtn').style.display = 'none';
+      unlockApp(data.token);
+    } else {
+      $('recoveryError').textContent = (data && data.error) || 'Could not reset the PIN.';
+    }
+  } catch(e){
+    $('recoveryError').textContent = 'Could not reach the server — check your connection.';
+  }
+});
+setPinTitle('Enter PIN');
+
+if(authToken){
+  // Already have a cached session token from a previous unlock on this
+  // device/browser — skip straight to the app rather than asking again.
+  // (The data endpoints don't currently validate this token server-side,
+  // so this is "don't re-prompt", not a server-verified fast path — see
+  // the note on handleAuthExpired above.)
+  unlockApp(authToken);
+}
 
 // Auto-sync: keep every device in agreement without a manual tap.
 // pushCloud() already does a full GET -> merge -> POST round trip, so
