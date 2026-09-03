@@ -1035,6 +1035,7 @@ function programLabel(key){
 }
 let currentStudent = null;
 let currentTab = 'personal';
+let previousTab = null; // for Esc-to-go-back — see the global keydown handler near the bottom
 let currentProgram = null; // null = program list view, else a PROGRAM_OPTIONS key
 let searchQuery = '';
 let editingStudent = null;
@@ -1852,11 +1853,22 @@ function migrateToStudentLevel(db){
     if(!Array.isArray(st.sessionPayments)) st.sessionPayments = [];
     let priceSum = 0;
     (st.sessions||[]).forEach(s=>{
-      priceSum += (s.price||0);
+      // Only truly legacy sessions — the old layout where a session's
+      // price/deposit/balance lived directly on it, before creating a
+      // session auto-created its own matching payment entry — get folded
+      // into a "Package" payment here. That's identified by the session
+      // still carrying old-style depositPaid/balancePaid fields.
+      // A modern session's bare price (no deposit/balance fields) is left
+      // completely alone: it already got its own dedicated payment entry
+      // the moment it was created, so folding it in AGAIN here on every
+      // subsequent load/sync was creating a duplicate "Package" payment
+      // for the exact same amount every time.
       if((s.depositPaid||0) > 0 || (s.balancePaid||0) > 0){
+        priceSum += (s.price||0);
         st.sessionPayments.push({id: uid(), name: s.type ? typeLabel(s.type) : 'Session', price: s.price||0, deposit: s.depositPaid||0, depositDate: s.depositDate||null, balance: s.balancePaid||0, balanceDate: s.balanceDate||null});
+        delete s.price;
       }
-      delete s.price; delete s.depositPaid; delete s.depositDate; delete s.balancePaid; delete s.balanceDate;
+      delete s.depositPaid; delete s.depositDate; delete s.balancePaid; delete s.balanceDate;
     });
     if((st.depositPaid||0) > 0 || (st.balancePaid||0) > 0){
       st.sessionPayments.push({id: uid(), name: 'Package', price: (st.price||0) + priceSum, deposit: st.depositPaid||0, depositDate: st.depositDate||null, balance: st.balancePaid||0, balanceDate: st.balanceDate||null});
@@ -3905,7 +3917,7 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-action]');
   if(!el) return;
   const a = el.dataset.action, sid = el.dataset.student, xid = el.dataset.sess;
-  if(a==='go-tab'){ currentTab = el.dataset.tab; currentStudent = null; searchQuery=''; personalMonth='all'; financeMonth='all'; categoryFilter=null; currentProgram = null; if($('searchInput')) $('searchInput').value=''; render(); window.scrollTo(0,0); }
+  if(a==='go-tab'){ if(el.dataset.tab !== currentTab) previousTab = currentTab; currentTab = el.dataset.tab; currentStudent = null; searchQuery=''; personalMonth='all'; financeMonth='all'; categoryFilter=null; currentProgram = null; if($('searchInput')) $('searchInput').value=''; render(); window.scrollTo(0,0); }
   else if(a==='toggle-discreet'){ discreetMode = !discreetMode; saveDiscreetMode(); updateDiscreetBtn(); render(); }
   else if(a==='filter-category'){ categoryFilter = (categoryFilter === el.dataset.cat) ? null : el.dataset.cat; render(); }
   else if(a==='clear-category-filter'){ categoryFilter = null; render(); }
@@ -4194,6 +4206,34 @@ document.addEventListener('keydown', e => {
   if(e.key !== 'Enter') return;
   const el = e.target.closest('.card[data-action="open-student"]');
   if(el){ currentStudent = el.dataset.student; render(); window.scrollTo(0,0); }
+});
+
+/* Esc: closes whatever popup is open (reusing that dialog's own Close/
+   Cancel button so its usual cleanup still runs, rather than a bare
+   .close() that would skip it), or — with nothing open — steps back to
+   wherever you were before: out of a student/program detail page, or
+   back to the previously-viewed tab. */
+document.addEventListener('keydown', e => {
+  if(e.key !== 'Escape') return;
+  const openDialog = document.querySelector('dialog[open]');
+  if(openDialog){
+    e.preventDefault(); // suppress the browser's own native Esc-close so only this runs, not both
+    const closeBtn = openDialog.querySelector('[data-action^="close-"]');
+    if(closeBtn){ closeBtn.click(); }
+    else if(typeof openDialog.close === 'function'){ openDialog.close(); }
+    return;
+  }
+  if(currentStudent){ currentStudent = null; render(); return; }
+  if(currentProgram){ currentProgram = null; render(); return; }
+  if(previousTab && previousTab !== currentTab){
+    const target = previousTab;
+    previousTab = currentTab;
+    currentTab = target;
+    currentStudent = null; searchQuery=''; personalMonth='all'; financeMonth='all'; categoryFilter=null; currentProgram = null;
+    if($('searchInput')) $('searchInput').value='';
+    render();
+    window.scrollTo(0,0);
+  }
 });
 
 $('studentForm').addEventListener('submit', ()=>{
