@@ -3939,13 +3939,11 @@ document.addEventListener('click', e => {
   else if(a==='delete-cal-event'){
     const id = editingCalEvent;
     if(!id) return;
-    askConfirm('Delete this calendar event?', ()=>{
-      db.calendarEvents = (db.calendarEvents||[]).filter(x=>x.id!==id);
-      deletedCalendarEventIds.push(id);
-      editingCalEvent = null;
-      $('calEventModal').close();
-      save(); render();
-    });
+    db.calendarEvents = (db.calendarEvents||[]).filter(x=>x.id!==id);
+    deletedCalendarEventIds.push(id);
+    editingCalEvent = null;
+    $('calEventModal').close();
+    save(); render();
   }
   else if(a==='new-student') openStudentModal();
   else if(a==='edit-student'){ e.stopPropagation(); openStudentModal(sid); }
@@ -3978,14 +3976,12 @@ document.addEventListener('click', e => {
   else if(a==='close-add-program') $('addProgramModal').close();
   else if(a==='delete-program'){
     const key = el.dataset.program;
-    askConfirm('Delete this program? Its sessions aren\'t deleted — they\'ll just no longer be grouped under it unless their Type is changed.', ()=>{
-      db.customPrograms = (db.customPrograms||[]).filter(p=>p.id!==key);
-      deletedCustomProgramIds.push(key);
-      if(db.programLabels) delete db.programLabels[key];
-      save();
-      currentProgram = null;
-      render();
-    });
+    db.customPrograms = (db.customPrograms||[]).filter(p=>p.id!==key);
+    deletedCustomProgramIds.push(key);
+    if(db.programLabels) delete db.programLabels[key];
+    save();
+    currentProgram = null;
+    render();
   }
   else if(a==='close-program-session-modal') $('programSessionModal').close();
   else if(a==='go-home'){ currentStudent = null; render(); }
@@ -4060,15 +4056,13 @@ document.addEventListener('click', e => {
     if(!emptyIds.length){
       askAlert('No empty payment entries found — nothing to clean up.', 'All clean');
     } else {
-      askConfirm(`Found ${emptyIds.length} payment ${emptyIds.length===1?'entry':'entries'} with no price, deposit, or balance set. Delete ${emptyIds.length===1?'it':'them'}?`, ()=>{
-        const emptySet = new Set(emptyIds);
-        (db.students||[]).forEach(st=>{
-          st.sessionPayments = (st.sessionPayments||[]).filter(p=>!emptySet.has(p.id));
-        });
-        deletedSessionPaymentIds.push(...emptyIds);
-        save(); render();
-        askAlert(`Removed ${emptyIds.length} empty payment ${emptyIds.length===1?'entry':'entries'}.`, '🧹 Cleaned up');
-      }, 'Delete');
+      const emptySet = new Set(emptyIds);
+      (db.students||[]).forEach(st=>{
+        st.sessionPayments = (st.sessionPayments||[]).filter(p=>!emptySet.has(p.id));
+      });
+      deletedSessionPaymentIds.push(...emptyIds);
+      save(); render();
+      askAlert(`Removed ${emptyIds.length} empty payment ${emptyIds.length===1?'entry':'entries'}.`, '🧹 Cleaned up');
     }
   }
   else if(a==='settings-check-bill'){
@@ -4086,11 +4080,9 @@ document.addEventListener('click', e => {
   else if(a==='new-expense') openFinanceModal();
   else if(a==='edit-tx') openFinanceModal(el.dataset.tx);
   else if(a==='delete-tx'){
-    askConfirm('Delete this expense entry?', ()=>{
-      db.finance = db.finance.filter(x=>x.id!==el.dataset.tx);
-      deletedExpenseIds.push(el.dataset.tx);
-      save(); render();
-    });
+    db.finance = db.finance.filter(x=>x.id!==el.dataset.tx);
+    deletedExpenseIds.push(el.dataset.tx);
+    save(); render();
   }
   else if(a==='close-finance-modal') $('financeModal').close();
   else if(a==='move-finance-to-personal'){
@@ -4125,11 +4117,9 @@ document.addEventListener('click', e => {
   }
   else if(a==='edit-personal-tx') openPersonalModal(null, el.dataset.tx);
   else if(a==='delete-personal-tx'){
-    askConfirm('Delete this entry?', ()=>{
-      db.personalFinance = db.personalFinance.filter(x=>x.id!==el.dataset.tx);
-      deletedPersonalIds.push(el.dataset.tx);
-      save(); render();
-    });
+    db.personalFinance = db.personalFinance.filter(x=>x.id!==el.dataset.tx);
+    deletedPersonalIds.push(el.dataset.tx);
+    save(); render();
   }
   else if(a==='close-personal-modal') $('personalModal').close();
   else if(a==='move-personal-to-finance'){
@@ -4161,23 +4151,19 @@ document.addEventListener('click', e => {
   else if(a==='edit-quick-expense') openQuickExpenseModal(el.dataset.id);
   else if(a==='delete-quick-expense'){
     const id = el.dataset.id;
-    askConfirm('Delete this quick expense?', ()=>{
-      db.quickExpenses = (db.quickExpenses||[]).filter(x=>x.id!==id);
-      deletedQuickExpenseIds.push(id);
-      save(); renderQuickExpenseSettingsList(); render();
-    });
+    db.quickExpenses = (db.quickExpenses||[]).filter(x=>x.id!==id);
+    deletedQuickExpenseIds.push(id);
+    save(); renderQuickExpenseSettingsList(); render();
   }
   else if(a==='delete-quick-expense-modal'){
     const id = editingQuickExpense;
     if(!id) return;
-    askConfirm('Delete this quick expense?', ()=>{
-      db.quickExpenses = (db.quickExpenses||[]).filter(x=>x.id!==id);
-      deletedQuickExpenseIds.push(id);
-      save();
-      $('quickExpenseModal').close();
-      openQuickExpenseSettings();
-      render();
-    });
+    db.quickExpenses = (db.quickExpenses||[]).filter(x=>x.id!==id);
+    deletedQuickExpenseIds.push(id);
+    save();
+    $('quickExpenseModal').close();
+    openQuickExpenseSettings();
+    render();
   }
   else if(a==='close-quick-expense-modal'){
     $('quickExpenseModal').close();
@@ -4187,16 +4173,14 @@ document.addEventListener('click', e => {
   else if(a==='edit-todo') openTodoModal(el.dataset.todo);
   else if(a==='delete-todo'){
     const id = el.dataset.todo;
-    askConfirm('Delete this to-do?', ()=>{
-      db.todos = (db.todos||[]).filter(x=>x.id!==id);
-      deletedTodoIds.push(id);
-      // Clean up its check history too, both locally and on the backend
-      // — otherwise TodoChecks would keep orphaned rows nothing will
-      // ever reference again.
-      (db.todoChecks||[]).filter(c=>c.todoId===id).forEach(c=>deletedTodoChecks.push(c.todoId + '|' + c.date));
-      db.todoChecks = (db.todoChecks||[]).filter(c=>c.todoId!==id);
-      save(); render();
-    });
+    db.todos = (db.todos||[]).filter(x=>x.id!==id);
+    deletedTodoIds.push(id);
+    // Clean up its check history too, both locally and on the backend
+    // — otherwise TodoChecks would keep orphaned rows nothing will
+    // ever reference again.
+    (db.todoChecks||[]).filter(c=>c.todoId===id).forEach(c=>deletedTodoChecks.push(c.todoId + '|' + c.date));
+    db.todoChecks = (db.todoChecks||[]).filter(c=>c.todoId!==id);
+    save(); render();
   }
   else if(a==='toggle-todo') toggleTodo(el.dataset.todo);
   else if(a==='set-todo-freq') setTodoFreqUI(el.dataset.freq);
