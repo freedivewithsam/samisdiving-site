@@ -3330,27 +3330,102 @@ async function checkBillPdf(file){
   }
 }
 
+/* Shared month lookup for statement parsing — covers English and the
+   Indonesian abbreviations different banks use ("Agt"/"Agu"/"Ags" all
+   mean August depending on the issuer). */
+const STATEMENT_MONTHS = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',mei:'05',jun:'06',jul:'07',aug:'08',agu:'08',agt:'08',ags:'08',sep:'09',oct:'10',okt:'10',nov:'11',dec:'12',des:'12'};
+const STATEMENT_MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
 function statementDateToDdmmyyyy(str){
-  // "agt" added specifically for Jenius's own statements (confirmed from
-  // an actual bill: "20 Agt 2026") — without it every August transaction
-  // silently fell back to January when its "+ Add" date got pre-filled.
-  const months = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',mei:'05',jun:'06',jul:'07',aug:'08',agu:'08',agt:'08',ags:'08',sep:'09',oct:'10',okt:'10',nov:'11',dec:'12',des:'12'};
   const m = (str||'').trim().match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/);
   if(!m) return '';
-  return `${m[1].padStart(2,'0')}-${months[m[2].toLowerCase()] || '01'}-${m[3]}`;
+  return `${m[1].padStart(2,'0')}-${STATEMENT_MONTHS[m[2].toLowerCase()] || '01'}-${m[3]}`;
+}
+
+/* Handles both statement number conventions seen so far: comma-thousands
+   with a period decimal ("30,000.00" — Jenius/international-style), and
+   period-thousands with no decimal at all ("1.462.798" — BCA/Indonesian
+   bank-style). Mirrors the same disambiguation the backend's own
+   parseAmount() uses for hand-typed IDR amounts. */
+function parseStatementAmount(str){
+  const cleaned = (str||'').replace(/[^\d.,]/g,'');
+  if(!cleaned) return NaN;
+  const lastDot = cleaned.lastIndexOf('.');
+  const lastComma = cleaned.lastIndexOf(',');
+  let normalized;
+  if(lastDot > -1 && lastComma > -1){
+    normalized = lastDot > lastComma ? cleaned.replace(/,/g,'') : cleaned.replace(/\./g,'').replace(',','.');
+  } else if(lastComma > -1){
+    const onlyOneComma = cleaned.indexOf(',') === lastComma;
+    normalized = (onlyOneComma && /,\d{1,2}$/.test(cleaned)) ? cleaned.replace(',','.') : cleaned.replace(/,/g,'');
+  } else if(lastDot > -1){
+    const parts = cleaned.split('.');
+    const looksLikeThousands = parts.length > 2 || parts[parts.length-1].length === 3;
+    normalized = looksLikeThousands ? cleaned.replace(/\./g,'') : cleaned;
+  } else {
+    normalized = cleaned;
+  }
+  return parseFloat(normalized);
+}
+
+/* Some statements (BCA and similar) give each transaction only a day and
+   month, no year — this scans the statement's text for any full
+   "DD Month YYYY"-style date (its own header/summary text always has
+   one, e.g. "TANGGAL REKENING : 03 SEPTEMBER 2026") to use as the
+   reference point for reconstructing full dates on those rows. */
+function findStatementYearContext(rows){
+  const fullDateRe = /(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/;
+  for(const line of rows){
+    const m = line.match(fullDateRe);
+    if(m){
+      const monKey = m[2].slice(0,3).toLowerCase();
+      if(STATEMENT_MONTHS[monKey]) return { month: Number(STATEMENT_MONTHS[monKey]), year: Number(m[3]) };
+    }
+  }
+  return null;
 }
 
 function parseStatementRows(rows){
-  const re = /^(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\s+(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\s+(.+?)\s+([\d.,]+)(\s*CR)?$/;
   const out = [];
+  // Format A: full "DD Mon YYYY ... DD Mon YYYY desc amount" rows —
+  // Jenius and similar statements that include the year on every row.
+  const reFullDate = /^(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\s+(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\s+(.+?)\s+([\d.,]+)(\s*CR)?$/;
+  // Format B: "DD-MMM DD-MMM desc amount" rows with no year at all — BCA
+  // and similar Indonesian bank statements.
+  const reNoYear = /^(\d{1,2}-[A-Za-z]{3})\s+(\d{1,2}-[A-Za-z]{3})\s+(.+?)\s+([\d.]+)(\s*CR)?$/;
+  const yearCtx = findStatementYearContext(rows);
+
   rows.forEach(line=>{
-    const m = line.match(re);
-    if(!m) return;
-    const desc = m[3].trim();
-    if(/pembayaran kartu kredit/i.test(desc)) return; // card payment, not a purchase
-    const amount = parseFloat(m[4].replace(/,/g,''));
-    if(isNaN(amount)) return;
-    out.push({ date: m[1], desc, amount, isCredit: !!m[5] });
+    let m = line.match(reFullDate);
+    if(m){
+      const desc = m[3].trim();
+      if(/pembayaran kartu kredit/i.test(desc)) return; // card payment, not a purchase
+      const amount = parseStatementAmount(m[4]);
+      if(isNaN(amount)) return;
+      out.push({ date: m[1], desc, amount, isCredit: !!m[5] });
+      return;
+    }
+
+    m = line.match(reNoYear);
+    if(m && yearCtx){
+      const desc = m[3].trim();
+      const amount = parseStatementAmount(m[4]);
+      if(isNaN(amount)) return;
+      const [dd, monAbbr] = m[1].split('-');
+      const monNum = STATEMENT_MONTHS[monAbbr.slice(0,3).toLowerCase()];
+      if(!monNum) return;
+      // A transaction dated LATER in the year than the statement's own
+      // month means it's actually from the PREVIOUS year (a billing
+      // cycle spanning a year boundary — e.g. a January statement still
+      // listing a few December transactions).
+      let year = yearCtx.year;
+      if(Number(monNum) > yearCtx.month) year -= 1;
+      // Reconstructed into the same "DD Mon YYYY" shape Format A already
+      // produces, so nothing downstream needs to know which bank this
+      // statement came from.
+      const dateStr = `${dd.padStart(2,'0')} ${STATEMENT_MONTH_NAMES[Number(monNum)-1]} ${year}`;
+      out.push({ date: dateStr, desc, amount, isCredit: !!m[5] });
+    }
   });
   return out;
 }
