@@ -1257,7 +1257,7 @@ async function fetchCloudData(){
    handleLoginRaw) — this file never stores or computes a hash, it just
    sends the plain PIN and gets back a session token, kept in
    localStorage so re-opening the app doesn't ask again until that token
-   actually expires (30 days) or the server rejects it. Login/reset both
+   actually expires (30 minutes) or the server rejects it. Login/reset both
    go through the same GET+JSONP path everything else in this app already
    uses to talk to the backend (see jsonpFetch above) rather than a
    fetch()-based POST, since that's the only reliably readable path. */
@@ -1539,37 +1539,34 @@ async function pullCloud(){
         });
       });
       const localStudentsArr = db.students || [];
-      // Students merge properly at the session/payment level now, not as
-      // whole objects — THIS WAS THE ACTUAL BUG behind "added sessions on
-      // my laptop, synced my phone, they still don't show up": when the
-      // SAME student exists on both sides, blindly letting "local wins"
-      // replace the entire student object meant this device's own
-      // (older) copy of that student — sessions it didn't know about
-      // yet included — completely overwrote the cloud's newer version,
-      // discarding whatever the other device had just added. Every
-      // other entity in this app (calendar events, to-dos, etc.) is a
-      // flat, individually-keyed record, so plain "local wins" was
-      // always safe for them — students are the one case with a nested
-      // array of children (sessions, sessionPayments) that also need
-      // their own by-id merge, not a wholesale swap.
+      // Students merge at the session/payment level, trusting the CLOUD's
+      // session/payment lists as authoritative rather than unioning with
+      // whatever's cached locally. A plain union (local ∪ cloud) was
+      // tried here first and fixed the "added sessions on my laptop,
+      // synced my phone, they still don't show up" bug — but it
+      // introduced a WORSE one: a session properly deleted from one
+      // device would get silently revived the moment ANY other device
+      // with an older, stale local cache of that same session happened
+      // to sync afterward, since a union has no way to tell "genuinely
+      // new, not pushed yet" apart from "deleted elsewhere, this device
+      // just hasn't heard about it." Trusting the cloud's list avoids
+      // that: a session this device just added and hasn't pushed yet
+      // might not show for the few seconds until its own pending push
+      // lands (pushCloud() already has it queued and sends it
+      // regardless of what a pull does to the in-memory state
+      // meanwhile), which is a far smaller, self-correcting cost than
+      // deleted sessions permanently reappearing. The student's own
+      // top-level fields (name/phone/notes/etc.) still follow local-wins
+      // as before — only the nested session/payment arrays changed.
       const stMap = new Map();
       cloudStudentsArr.forEach(s=>{ if(s && s.id) stMap.set(s.id, s); });
       localStudentsArr.forEach(local=>{
         if(!local || !local.id) return;
         const cloudMatch = stMap.get(local.id);
         if(!cloudMatch){ stMap.set(local.id, local); return; } // purely local (not yet on cloud) — keep as-is
-        const sessMap = new Map();
-        (cloudMatch.sessions||[]).forEach(sess=>{ if(sess && sess.id) sessMap.set(sess.id, sess); });
-        (local.sessions||[]).forEach(sess=>{ if(sess && sess.id) sessMap.set(sess.id, sess); }); // local wins only on an actual id conflict
-        const payMap = new Map();
-        (cloudMatch.sessionPayments||[]).forEach(p=>{ if(p && p.id) payMap.set(p.id, p); });
-        (local.sessionPayments||[]).forEach(p=>{ if(p && p.id) payMap.set(p.id, p); });
-        // The student's own top-level fields (name/phone/notes/etc.)
-        // still follow local-wins, same as before — it's specifically
-        // the nested arrays that needed a real merge instead.
         stMap.set(local.id, Object.assign({}, cloudMatch, local, {
-          sessions: Array.from(sessMap.values()),
-          sessionPayments: Array.from(payMap.values())
+          sessions: cloudMatch.sessions || [],
+          sessionPayments: cloudMatch.sessionPayments || []
         }));
       });
       const keepStudents = Array.from(stMap.values());
@@ -1825,15 +1822,13 @@ async function pushCloud(){
         if(!local || !local.id) return;
         const remoteMatch = stMap.get(local.id);
         if(!remoteMatch){ stMap.set(local.id, local); return; }
-        const sessMap = new Map();
-        (remoteMatch.sessions||[]).forEach(sess=>{ if(sess && sess.id) sessMap.set(sess.id, sess); });
-        (local.sessions||[]).forEach(sess=>{ if(sess && sess.id) sessMap.set(sess.id, sess); });
-        const payMap = new Map();
-        (remoteMatch.sessionPayments||[]).forEach(p=>{ if(p && p.id) payMap.set(p.id, p); });
-        (local.sessionPayments||[]).forEach(p=>{ if(p && p.id) payMap.set(p.id, p); });
+        // Trusts the server's session/payment lists rather than unioning
+        // with local — see the matching note in pullCloud() above for why
+        // (a union revives anything deleted elsewhere that this device's
+        // local cache still happens to have).
         stMap.set(local.id, Object.assign({}, remoteMatch, local, {
-          sessions: Array.from(sessMap.values()),
-          sessionPayments: Array.from(payMap.values())
+          sessions: remoteMatch.sessions || [],
+          sessionPayments: remoteMatch.sessionPayments || []
         }));
       });
       db.students = Array.from(stMap.values());
