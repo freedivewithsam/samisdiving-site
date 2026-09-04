@@ -1149,7 +1149,11 @@ function monthLabel(key){
    for freediving) without touching any other month or the Freelance table. */
 const TAX_YEAR = 2026;
 const TAX_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const SAMISDIVING_URL = 'https://script.google.com/macros/s/AKfycbyULNw9UH0NRW1l88BtUYb2kqhQQyG71ZPCqSJ4CF6KLQ8vkaWBkKHX8FV04isLXDMt/exec';
+// (Freediving income is now pulled through freestep's own backend —
+// ?action=freedivingIncome, see syncUmkmAutomatically below — rather than
+// hitting samisdiving's Web App directly from the browser, since
+// samisdiving's backend now requires a signed-in session token this page
+// has no way to obtain.)
 
 // JSONP loader — samisdiving's Web App can't send the CORS header a
 // cross-origin fetch() needs, so a <script src="...?callback=fn"> tag is
@@ -1391,7 +1395,17 @@ async function syncUmkmAutomatically(){
   months.forEach(mk => { freestepByMonth[mk] = computeFreestepMonthIncome(mk); });
 
   try{
-    const data = await jsonpFetch(SAMISDIVING_URL);
+    if(!syncUrl) throw new Error('no sync URL configured');
+    // Goes through freestep's own backend (?action=freedivingIncome) rather
+    // than hitting samisdiving's Web App directly — samisdiving's backend
+    // now requires a signed-in session token for its plain data reads, which
+    // this browser-side code has no way to obtain (that token is for a
+    // human logged into samisdiving.html, not freestep). freestep's backend
+    // authenticates the pull itself with a separate service-only credential.
+    const url = syncUrl + (syncUrl.indexOf('?')===-1?'?':'&') + 'action=freedivingIncome';
+    const resp = await jsonpFetch(url);
+    if(resp && resp.error) throw new Error(resp.error);
+    const data = (resp && resp.data) || {};
     const freediveByMonth = {};
     (data.students || []).forEach(st => {
       (st.sessionPayments || []).forEach(pmt => {
