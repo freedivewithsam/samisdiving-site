@@ -277,9 +277,8 @@
     }).then(function(html){
       // Prefer the larger apple-touch-icon (usually 180x180) for a crisp image;
       // fall back to the small favicon <link rel="icon"> if that's all there is.
-      var appleMatch = html.match(/<link rel="apple-touch-icon"[^>]*href="(data:image\/[^"]+)"/i);
       var iconMatch = html.match(/<link rel="icon"[^>]*href="(data:image\/[^"]+)"/i);
-      var src = (appleMatch && appleMatch[1]) || (iconMatch && iconMatch[1]);
+      var src = iconMatch && iconMatch[1];
       if (src) {
         var img = document.createElement('img');
         img.src = src;
