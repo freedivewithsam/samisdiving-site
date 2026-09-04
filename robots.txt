@@ -1,4 +1,7 @@
 User-agent: *
 Disallow: /freestep/
 Disallow: /samsamsam/
+Disallow: /dnf/
+Disallow: /dnfonline/
+Disallow: /calculator/
 Disallow: /nav.html
