@@ -3,6 +3,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta name="robots" content="noindex, nofollow, noarchive">
+<style>html,body{overscroll-behavior-y:contain}button{touch-action:manipulation}</style>
+
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
@@ -15,6 +18,127 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
+<div id="__passcodeGate" style="position:fixed;inset:0;z-index:999999;background:var(--bg,#FFF7F5);display:flex;align-items:center;justify-content:center;font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <div id="__gateCard" style="background:var(--card,#fff);border-radius:var(--radius,14px);box-shadow:var(--shadow,0 1px 3px rgba(0,0,0,.08),0 6px 18px rgba(0,0,0,.06));padding:28px 26px 22px;width:min(90vw,300px);text-align:center;">
+    <div style="font-size:14px;color:var(--ink-soft,#888);margin-bottom:16px;font-weight:500;">Enter passcode</div>
+    <div id="__gateDots" style="display:flex;justify-content:center;gap:12px;margin-bottom:22px;">
+      <span class="__gdot" style="width:12px;height:12px;border-radius:50%;background:var(--rose,#eee);border:1.5px solid var(--accent-dark,#ccc);display:inline-block;transition:background .1s;"></span>
+      <span class="__gdot" style="width:12px;height:12px;border-radius:50%;background:var(--rose,#eee);border:1.5px solid var(--accent-dark,#ccc);display:inline-block;transition:background .1s;"></span>
+      <span class="__gdot" style="width:12px;height:12px;border-radius:50%;background:var(--rose,#eee);border:1.5px solid var(--accent-dark,#ccc);display:inline-block;transition:background .1s;"></span>
+      <span class="__gdot" style="width:12px;height:12px;border-radius:50%;background:var(--rose,#eee);border:1.5px solid var(--accent-dark,#ccc);display:inline-block;transition:background .1s;"></span>
+    </div>
+    <div id="__gateKeys" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+      <button type="button" class="__gkey" data-d="1" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">1</button>
+      <button type="button" class="__gkey" data-d="2" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">2</button>
+      <button type="button" class="__gkey" data-d="3" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">3</button>
+      <button type="button" class="__gkey" data-d="4" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">4</button>
+      <button type="button" class="__gkey" data-d="5" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">5</button>
+      <button type="button" class="__gkey" data-d="6" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">6</button>
+      <button type="button" class="__gkey" data-d="7" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">7</button>
+      <button type="button" class="__gkey" data-d="8" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">8</button>
+      <button type="button" class="__gkey" data-d="9" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">9</button>
+      <span></span>
+      <button type="button" class="__gkey" data-d="0" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">0</button>
+      <button type="button" id="__gateBack" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;background:transparent;box-shadow:none;font-size:16px;">⌫</button>
+    </div>
+    <div id="__gateError" style="color:#c0392b;font-size:12.5px;height:16px;margin-top:16px;"></div>
+  </div>
+</div>
+<script>
+(function(){
+  var HASH = "6c94e35ccc352d4e9ef0b99562cff995a5741ce8de8ad11b568892934daee366";
+  var LEN = 4;
+  var SESSION_KEY = "__gateOk_" + HASH.slice(0,8);
+  var entered = "";
+  var dots = null, keys = null, backBtn = null, errEl = null, card = null;
+
+  function sha256(text){
+    var enc = new TextEncoder().encode(text);
+    return crypto.subtle.digest("SHA-256", enc).then(function(buf){
+      return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,"0");}).join("");
+    });
+  }
+  function unlock(){
+    var g = document.getElementById("__passcodeGate");
+    if (g) g.remove();
+  }
+  function renderDots(){
+    dots.forEach(function(d, i){
+      d.style.background = i < entered.length ? "var(--accent-dark,#888)" : "var(--rose,#eee)";
+    });
+  }
+  function shake(){
+    card.style.animation = "none";
+    void card.offsetWidth;
+    card.style.animation = "__gshake .35s";
+  }
+  function reset(msg){
+    entered = "";
+    renderDots();
+    if (msg) errEl.textContent = msg;
+    shake();
+  }
+  function tryUnlock(){
+    sha256(entered).then(function(h){
+      if (h === HASH) {
+        sessionStorage.setItem(SESSION_KEY, "1");
+        unlock();
+      } else {
+        reset("Incorrect passcode");
+      }
+    });
+  }
+
+  if (sessionStorage.getItem(SESSION_KEY) === "1") {
+    unlock();
+    return;
+  }
+
+  var styleTag = document.createElement("style");
+  styleTag.textContent = "@keyframes __gshake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-4px)}40%,60%{transform:translateX(4px)}}";
+  document.head.appendChild(styleTag);
+
+  dots = Array.prototype.slice.call(document.querySelectorAll(".__gdot"));
+  keys = Array.prototype.slice.call(document.querySelectorAll(".__gkey"));
+  backBtn = document.getElementById("__gateBack");
+  errEl = document.getElementById("__gateError");
+  card = document.getElementById("__gateCard");
+
+  keys.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      if (entered.length >= LEN) return;
+      errEl.textContent = "";
+      entered += btn.getAttribute("data-d");
+      renderDots();
+      if (entered.length === LEN) {
+        setTimeout(tryUnlock, 120);
+      }
+    });
+  });
+  backBtn.addEventListener("click", function(){
+    errEl.textContent = "";
+    entered = entered.slice(0, -1);
+    renderDots();
+  });
+
+  document.addEventListener("keydown", function(e){
+    if (document.getElementById("__passcodeGate") == null) return;
+    if (e.key >= "0" && e.key <= "9") {
+      if (entered.length < LEN) {
+        errEl.textContent = "";
+        entered += e.key;
+        renderDots();
+        if (entered.length === LEN) setTimeout(tryUnlock, 120);
+      }
+    } else if (e.key === "Backspace") {
+      errEl.textContent = "";
+      entered = entered.slice(0, -1);
+      renderDots();
+    }
+  });
+})();
+</script>
+
 <title>freestep</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
