@@ -4,4 +4,5 @@ Disallow: /samsamsam/
 Disallow: /dnf/
 Disallow: /dnfonline/
 Disallow: /calculator/
+Disallow: /prussianblue/
 Disallow: /nav.html
