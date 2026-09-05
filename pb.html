@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,9 +30,12 @@
   .brand h1{font-family:"Poppins",serif;font-weight:600;font-size:26px;margin:0;letter-spacing:.2px}
   .brand p{margin:2px 0 0;color:var(--ink-soft);font-size:13px}
 
+  .header-actions{display:flex;align-items:center;gap:8px;flex:none}
   .btn{border:none;border-radius:999px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;flex:none}
   .btn-calc{background:var(--sw-gold);color:var(--ink);border:1px solid var(--accent-dark)}
   .btn-calc:hover{background:var(--accent-dark);color:#fff}
+  .btn-nav{background:#fff;color:var(--ink-soft);border:1px solid var(--rose-line);text-decoration:none;display:inline-flex;align-items:center}
+  .btn-nav:hover{background:var(--rose-line);color:var(--ink)}
 
   .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
   .card h3{margin:0 0 10px}
@@ -49,6 +53,16 @@
   .formula-note label{display:flex;align-items:center;gap:6px;white-space:nowrap}
   .formula-note input[type=number]{width:90px;padding:5px 8px;border:1.5px solid var(--rose-line);border-radius:8px;font-family:inherit;font-size:13px !important;color:var(--ink);background:#fff}
   .formula-note input[type=number]:focus{outline:none;border-color:var(--accent-dark)}
+  .margin-formula-input{grid-column:2;width:100%;max-width:340px;padding:6px 10px;border:1.5px solid var(--rose-line);border-radius:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px !important;color:var(--accent-dark);background:#fff}
+  .margin-formula-input:focus{outline:none;border-color:var(--accent-dark)}
+  .formula-note code{background:#fff;border:1px solid var(--rose-line);border-radius:6px;font-size:11.5px}
+  .chip-row{grid-column:2;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:2px}
+  .chip{border:1.5px solid var(--rose-line);background:#fff;border-radius:8px;padding:4px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;cursor:pointer;line-height:1.2}
+  .chip-var{color:var(--accent-dark);font-weight:600}
+  .chip-var:hover{background:var(--sw-gold,#AEC3F5);border-color:var(--accent-dark);color:var(--ink)}
+  .chip-op{color:var(--ink-soft);padding:4px 12px}
+  .chip-op:hover{background:var(--rose,#FBC9CE);color:var(--ink)}
+  .chip-sep{width:1px;align-self:stretch;background:var(--rose-line);margin:0 2px}
 
   dialog{border:none;border-radius:0;padding:0;background:transparent;max-width:none;width:100%}
   dialog::backdrop{background:rgba(62,58,46,.4)}
@@ -61,11 +75,15 @@
   .modal-close{background:transparent;border:none;font-size:20px;line-height:1;color:var(--ink-soft);cursor:pointer;padding:4px 6px;border-radius:8px}
   .modal-close:hover{background:var(--rose,#FBC9CE);color:var(--ink)}
   .modal-in .formula-card{background:transparent;box-shadow:none;padding:0;margin:0}
+  .modal-footer{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:18px;padding-top:14px;border-top:1px solid var(--rose-line)}
+  .save-status{font-size:12.5px;color:var(--ok,#2FA36B);opacity:0;transition:opacity .2s}
+  .save-status.show{opacity:1}
 
   @media (max-width:600px){
     .formula-row{grid-template-columns:1fr}
     .formula-row code{grid-column:1}
     .formula-note{grid-column:1}
+    .chip-row{grid-column:1}
     .wrap{padding:16px 12px 60px}
     .brand h1{font-size:22px}
     .card{padding:12px}
@@ -83,7 +101,10 @@
       <h1>Prussian Blue Fins</h1>
       <p>Import cost &amp; margin calculator</p>
     </div>
-    <button type="button" class="btn btn-calc" id="openCalcBtn">Calculation ⚙️</button>
+    <div class="header-actions">
+      <a class="btn btn-nav" href="https://samisdiving.com/nav">&larr; Nav</a>
+      <button type="button" class="btn btn-calc" id="openCalcBtn">Calculation ⚙️</button>
+    </div>
   </header>
   <div id="view"></div>
 </div>
@@ -95,6 +116,10 @@
       <button type="button" class="modal-close" id="closeCalcBtn" aria-label="Close">&times;</button>
     </div>
     <div id="calcBody"></div>
+    <div class="modal-footer">
+      <span id="calcSaveStatus" class="save-status"></span>
+      <button type="button" class="btn btn-calc" id="saveCalcBtn">Save</button>
+    </div>
   </div>
 </dialog>
 
@@ -139,31 +164,70 @@ const pbStorage = (() => {
   }
 })();
 
-// Cost and sell price are always a fixed discount off — not user-editable,
-// so these live as plain constants rather than in the editable settings
-// below.
-// costKeepFrac: your cost = (ntd * costKeepFrac) * rate (40% off -> keep 0.6)
-// sellKeepFrac: sell price = (orig * rate) * sellKeepFrac (10% off site price -> keep 0.9)
-const PB_COST_KEEP_FRAC = 0.6;
-const PB_SELL_KEEP_FRAC = 0.9;
+// One box ships this many fins — used to split the shipping formula's box
+// total across each fin (see the default shippingFormula below).
+const PB_FINS_PER_BOX = 3;
 
 // Defaults, used the first time (or whenever a saved value is missing/invalid).
 // rate: TWD -> IDR. Back-calculated from Rp 8,618,544.64 shown for the
 //   NT$15,300 PB-X1 on the site itself (which localizes currency by visitor
 //   region). Re-derive it the same way if the site's rate drifts.
-// boxDims: length/width/height (cm) of the (single) box every fin ships in,
-//   used to work out the volumetric shipping weight — see shipRatePerKg.
 // shipRatePerKg: cost per volumetric kg, in IDR.
+// boxDims: length/width/height (cm) of the (single) box every fin ships in.
+// costFormula / websiteSellFormula / sellBaseFormula / shippingFormula /
+//   marginFormula: editable expressions — see PB_FORMULAS below for each
+//   one's available variables. Margin % is derived from margin, not
+//   separately editable.
 const PB_DEFAULTS = {
   rate: 570,
   shipRatePerKg: 320000,
   boxDims: { l: 0, w: 0, h: 0 },
+  costFormula: '(ntd * 0.6) * rate',
+  websiteSellFormula: '(orig * rate) * 0.9',
+  sellBaseFormula: 'websiteSell',
+  shippingFormula: '((l * w * h / 5000) * rate) / fins',
+  marginFormula: 'sellBase - cost',
+};
+
+// Which variables each formula is allowed to use, and how to label them in
+// the popup. Kept in one place so the validator, the evaluator and the UI
+// hint all stay in sync.
+// Computed in this order per fin: shipping (shared, once) -> cost ->
+// website sell price -> my base price -> margin.
+// Each formula can use any value already computed by the time it runs, not
+// just its "own" variables — e.g. the cost formula can factor in shipping.
+const PB_FORMULAS = {
+  costFormula:        { label: 'Your cost (IDR)',       vars: ['ntd', 'orig', 'rate', 'shipping'] },
+  websiteSellFormula: { label: 'Website sell price',    vars: ['ntd', 'orig', 'rate', 'shipping', 'cost'] },
+  sellBaseFormula:    { label: 'My base price',         vars: ['ntd', 'orig', 'rate', 'shipping', 'cost', 'websiteSell'] },
+  shippingFormula:    { label: 'Shipping',              vars: ['l', 'w', 'h', 'rate', 'fins'] },
+  marginFormula:       { label: 'Margin',                vars: ['ntd', 'orig', 'rate', 'shipping', 'cost', 'websiteSell', 'sellBase'] },
 };
 
 let pbSettings;
 try { pbSettings = Object.assign({}, PB_DEFAULTS, JSON.parse(pbStorage.get())); } catch(e){ pbSettings = Object.assign({}, PB_DEFAULTS); }
 if(typeof pbSettings.rate !== 'number' || isNaN(pbSettings.rate)) pbSettings.rate = PB_DEFAULTS.rate;
 if(typeof pbSettings.shipRatePerKg !== 'number' || isNaN(pbSettings.shipRatePerKg)) pbSettings.shipRatePerKg = PB_DEFAULTS.shipRatePerKg;
+// Migrate a save from before "sell price" was split into website / base /
+// end-selling: reuse the old sell formula as the new website-sell formula,
+// and rewrite "sellPrice" references in an old margin formula to "endSelling".
+if(typeof pbSettings.sellFormula === 'string' && typeof pbSettings.websiteSellFormula !== 'string'){
+  pbSettings.websiteSellFormula = pbSettings.sellFormula;
+  delete pbSettings.sellFormula;
+  if(typeof pbSettings.marginFormula === 'string'){
+    pbSettings.marginFormula = pbSettings.marginFormula.replace(/\bsellPrice\b/g, 'endSelling');
+  }
+}
+// Migrate a save from before "end selling price" was removed: it used to be
+// sellBase + shipping, so rewrite any old margin formula's "endSelling"
+// references to the equivalent "(sellBase + shipping)" expression.
+if(typeof pbSettings.marginFormula === 'string' && /\bendSelling\b/.test(pbSettings.marginFormula)){
+  pbSettings.marginFormula = pbSettings.marginFormula.replace(/\bendSelling\b/g, '(sellBase + shipping)');
+}
+delete pbSettings.endSellingFormula;
+Object.keys(PB_FORMULAS).forEach(key => {
+  if(typeof pbSettings[key] !== 'string' || !pbSettings[key].trim()) pbSettings[key] = PB_DEFAULTS[key];
+});
 {
   const d = pbSettings.boxDims;
   pbSettings.boxDims = {
@@ -175,15 +239,35 @@ if(typeof pbSettings.shipRatePerKg !== 'number' || isNaN(pbSettings.shipRatePerK
 
 function savePbSettings(){ pbStorage.set(JSON.stringify(pbSettings)); }
 
-// Volumetric weight (kg) = L x W x H (cm) / 5000 — the standard courier
-// divisor. One box ships 3 fins, so the per-fin shipping fee is the box's
-// total fee (weight x cost-per-kg) split three ways.
-const PB_FINS_PER_BOX = 3;
-function boxWeightKg(dims){
-  return (dims.l * dims.w * dims.h) / 5000;
+// Safely evaluate a user-typed formula. Only digits, the named variables for
+// that field, arithmetic operators, parentheses and decimal points are
+// allowed — anything else (an unknown name, semicolons, function calls,
+// etc.) is rejected before it ever reaches Function(), so a field can't be
+// used to run arbitrary script.
+// Expands currency-literal tokens like "NTD1500" or "ntd1500.5" into a plain
+// numeric expression using the current TWD->IDR rate, e.g. "(1500*570)".
+// Safe against colliding with the "ntd" formula variable because that
+// variable name is never immediately followed by a digit in normal usage.
+function expandCurrencyLiterals(formula){
+  const twdRate = (pbSettings && typeof pbSettings.rate === 'number' && pbSettings.rate > 0) ? pbSettings.rate : PB_DEFAULTS.rate;
+  return formula.replace(/ntd\s*([0-9]+(?:\.[0-9]+)?)/gi, (_, num) => `(${num}*${twdRate})`);
 }
-function boxShipFee(dims, ratePerKg){
-  return (boxWeightKg(dims) * ratePerKg) / PB_FINS_PER_BOX;
+
+function evalFormula(formulaKey, formula, values){
+  const varNames = PB_FORMULAS[formulaKey].vars;
+  const expanded = expandCurrencyLiterals(formula);
+  const stripped = expanded.replace(new RegExp(varNames.join('|'), 'g'), '');
+  if(/[^0-9+\-*/().\s]/.test(stripped)) {
+    return { ok: false, error: `Only ${varNames.join(', ')}, numbers, NTD&lt;amount&gt; and + - * / ( ) are allowed.` };
+  }
+  try {
+    const fn = new Function(...varNames, `"use strict"; return (${expanded});`);
+    const result = fn(...varNames.map(v => values[v]));
+    if(typeof result !== 'number' || !isFinite(result)) return { ok: false, error: 'Formula did not produce a number.' };
+    return { ok: true, value: result };
+  } catch(e){
+    return { ok: false, error: 'Invalid formula.' };
+  }
 }
 
 function formatNTD(n){
@@ -194,27 +278,54 @@ function formatIDR(n){
 }
 
 function renderTables(){
-  const { rate, shipRatePerKg, boxDims } = pbSettings;
-  const shipFee = boxShipFee(boxDims, shipRatePerKg);
+  const { rate, shipRatePerKg, boxDims, costFormula, websiteSellFormula, sellBaseFormula, shippingFormula, marginFormula } = pbSettings;
+
+  const shipResult = evalFormula('shippingFormula', shippingFormula, {
+    l: boxDims.l, w: boxDims.w, h: boxDims.h, rate: shipRatePerKg, fins: PB_FINS_PER_BOX,
+  });
+  const shipFee = shipResult.ok ? shipResult.value : NaN;
   const cats = [...new Set(PB_CATALOG.map(p => p.cat))];
 
+  function cell(result, formatter){
+    return result.ok ? formatter(result.value) : '<span style="color:#b91c1c">error</span>';
+  }
+
   function row(p){
-    const discounted = p.ntd * PB_COST_KEEP_FRAC; // 40% off the site's sale price — your cost
-    const cost = discounted * rate; // "my price"
-    // Sell price = the site's ORIGINAL (non-discounted, crossed-out) NT$
-    // price, converted to IDR, at 40% off.
-    const sellPrice = (p.orig * rate) * PB_SELL_KEEP_FRAC;
-    // Margin = selling price - shipping fee (from the box's volumetric weight) - my price.
-    const margin = sellPrice - shipFee - cost;
-    const marginColor = m => m < 0 ? '#b91c1c' : 'inherit';
+    // "orig" here is the site's already-discounted sale price (ntd), not
+    // the crossed-out original — e.g. PB-X1 uses NT$15,000, not NT$15,300.
+    // Computed in order — cost, website sell price, my base price, margin —
+    // so each later formula can factor in anything already computed (e.g.
+    // margin can use every earlier value).
+    const costResult = evalFormula('costFormula', costFormula, { ntd: p.ntd, orig: p.ntd, rate, shipping: shipFee });
+    const cost = costResult.ok ? costResult.value : NaN;
+
+    const websiteSellResult = costResult.ok
+      ? evalFormula('websiteSellFormula', websiteSellFormula, { ntd: p.ntd, orig: p.ntd, rate, shipping: shipFee, cost })
+      : { ok: false };
+    const websiteSell = websiteSellResult.ok ? websiteSellResult.value : NaN;
+
+    const sellBaseResult = (costResult.ok && websiteSellResult.ok)
+      ? evalFormula('sellBaseFormula', sellBaseFormula, { ntd: p.ntd, orig: p.ntd, rate, shipping: shipFee, cost, websiteSell })
+      : { ok: false };
+    const sellBase = sellBaseResult.ok ? sellBaseResult.value : NaN;
+
+    const marginResult = (costResult.ok && websiteSellResult.ok && sellBaseResult.ok && shipResult.ok)
+      ? evalFormula('marginFormula', marginFormula, { ntd: p.ntd, orig: p.ntd, rate, shipping: shipFee, cost, websiteSell, sellBase })
+      : { ok: false };
+    const margin = marginResult.ok ? marginResult.value : NaN;
+    const marginColor = m => (isNaN(m) ? 'var(--ink-soft)' : (m < 0 ? '#b91c1c' : 'inherit'));
+    const marginPct = (marginResult.ok && sellBaseResult.ok && sellBase !== 0) ? (margin / sellBase) * 100 : NaN;
+    const marginPctText = isNaN(marginPct) ? '<span style="color:#b91c1c">error</span>' : `${marginPct.toFixed(1)}%`;
     return `
       <tr>
         <td style="padding:6px 8px">${p.name}</td>
-        <td style="text-align:right;padding:6px 8px;color:var(--ink-soft);text-decoration:line-through">${formatNTD(p.orig)}</td>
-        <td style="text-align:right;padding:6px 8px;font-weight:600">${formatIDR(cost)}</td>
-        <td style="text-align:right;padding:6px 8px;font-weight:600">${formatIDR(sellPrice)}</td>
-        <td style="text-align:right;padding:6px 8px;color:var(--ink-soft)">${formatIDR(shipFee)}</td>
-        <td style="text-align:right;padding:6px 8px;font-weight:600;color:${marginColor(margin)}">${formatIDR(margin)}</td>
+        <td style="text-align:right;padding:6px 8px;color:var(--ink-soft)">${formatNTD(p.ntd)}</td>
+        <td style="text-align:right;padding:6px 8px;font-weight:600">${cell(costResult, formatIDR)}</td>
+        <td style="text-align:right;padding:6px 8px;color:var(--ink-soft)">${cell(websiteSellResult, formatIDR)}</td>
+        <td style="text-align:right;padding:6px 8px;font-weight:600">${cell(sellBaseResult, formatIDR)}</td>
+        <td style="text-align:right;padding:6px 8px;color:var(--ink-soft)">${cell(shipResult, formatIDR)}</td>
+        <td style="text-align:right;padding:6px 8px;font-weight:600;color:${marginColor(margin)}">${marginResult.ok ? formatIDR(margin) : '<span style="color:#b91c1c">error</span>'}</td>
+        <td style="text-align:right;padding:6px 8px;font-weight:600;color:${marginColor(margin)}">${marginPctText}</td>
       </tr>`;
   }
 
@@ -228,10 +339,12 @@ function renderTables(){
             <thead><tr>
               <th style="text-align:left">Fin</th>
               <th>Site price</th>
-              <th>Your cost (IDR)</th>
-              <th>Sell price (&minus;10%)</th>
+              <th>Your cost</th>
+              <th>Website sell price</th>
+              <th>My base price</th>
               <th>Shipping</th>
               <th>Margin</th>
+              <th>Margin %</th>
             </tr></thead>
             <tbody>${items.map(row).join('')}</tbody>
           </table>
@@ -242,20 +355,54 @@ function renderTables(){
   return sections;
 }
 
+const PB_OPERATOR_CHIPS = ['+', '-', '×', '/', '(', ')'];
+// The multiplication chip shows as × but inserts a real * into the formula.
+function chipInsertText(chip){ return chip === '×' ? '*' : chip; }
+
+function formulaRowHtml(key, sampleValues, extraNoteHtml){
+  const { label, vars } = PB_FORMULAS[key];
+  const formula = pbSettings[key];
+  const check = evalFormula(key, formula, sampleValues);
+  const inputId = `formula-input-${key}`;
+  const varChips = vars.map(v => `<button type="button" class="chip chip-var" data-insert="${v}" data-target-input="${inputId}">${v}</button>`).join('');
+  const opChips = PB_OPERATOR_CHIPS.map(c => `<button type="button" class="chip chip-op" data-insert="${chipInsertText(c)}" data-target-input="${inputId}">${c}</button>`).join('');
+  const ntdChip = `<button type="button" class="chip chip-var" data-insert="NTD" data-target-input="${inputId}" title="type an amount right after, e.g. NTD1500">NTD&hellip;</button>`;
+  return `
+      <div class="formula-row">
+        <div class="formula-label">${label}</div>
+        <input type="text" id="${inputId}" class="margin-formula-input" data-pb-setting-text="${key}" value="${formula.replace(/"/g, '&quot;')}" spellcheck="false">
+        <div class="chip-row">${varChips}<span class="chip-sep"></span>${opChips}<span class="chip-sep"></span>${ntdChip}</div>
+        <div class="formula-note" id="formula-note-${key}">
+          ${!check.ok ? `<span style="color:#b91c1c">${check.error}</span>` : ''}
+          ${extraNoteHtml || ''}
+          <span>tip: type <code>NTD1500</code> to add an NT$ amount, auto-converted at the current rate</span>
+        </div>
+      </div>`;
+}
+
 function renderCalcSettings(){
-  const { rate, shipRatePerKg, boxDims } = pbSettings;
-  const weight = boxWeightKg(boxDims);
-  const fee = boxShipFee(boxDims, shipRatePerKg);
+  const { rate, shipRatePerKg, boxDims, rateFetchedAt } = pbSettings;
+
+  const rateRowHtml = `
+      <div class="formula-row">
+        <div class="formula-label">TWD&rarr;IDR rate</div>
+        <div class="chip-row" style="margin-top:0">
+          <input type="number" step="0.01" min="0" id="rate-input" data-pb-setting="rate" value="${rate}" style="width:110px;padding:6px 10px;border:1.5px solid var(--rose-line);border-radius:8px;font-family:inherit;font-size:13px !important;color:var(--ink);background:#fff">
+          <button type="button" class="chip chip-var" id="fetchRateBtn">&#8635; Fetch live rate</button>
+        </div>
+        <div class="formula-note" id="rate-fetch-status">
+          ${rateFetchedAt ? `market rate as of ${new Date(rateFetchedAt).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'})} — the site's own price may run higher` : 'used in the cost &amp; sell formulas above; fetch pulls the current TWD&rarr;IDR market rate'}
+        </div>
+      </div>`;
 
   const boxRowHtml = `
       <div class="formula-row">
-        <div class="formula-label">Box</div>
-        <code>${boxDims.l} &times; ${boxDims.w} &times; ${boxDims.h} / 5000 = ${weight.toFixed(2)} kg</code>
-        <div class="formula-note">
-          <label>L (cm)<input type="number" step="0.1" min="0" data-pb-dim="l" value="${boxDims.l}"></label>
-          <label>W (cm)<input type="number" step="0.1" min="0" data-pb-dim="w" value="${boxDims.w}"></label>
-          <label>H (cm)<input type="number" step="0.1" min="0" data-pb-dim="h" value="${boxDims.h}"></label>
-          <span style="align-self:center">&rarr; ${formatIDR(fee)} shipping per fin</span>
+        <div class="formula-label">Box (cm)</div>
+        <div class="formula-note" style="margin-top:0">
+          <label>L<input type="number" step="0.1" min="0" data-pb-dim="l" value="${boxDims.l}"></label>
+          <label>W<input type="number" step="0.1" min="0" data-pb-dim="w" value="${boxDims.w}"></label>
+          <label>H<input type="number" step="0.1" min="0" data-pb-dim="h" value="${boxDims.h}"></label>
+          <label>IDR per kg<input type="number" step="1000" min="0" data-pb-setting="shipRatePerKg" value="${shipRatePerKg}"></label>
         </div>
       </div>`;
 
@@ -265,38 +412,19 @@ function renderCalcSettings(){
         <div class="formula-row">
           <div class="formula-label">Site price</div>
           <code>orig</code>
-          <div class="formula-note">the site's crossed-out original NT$ price, shown as-is</div>
+          <div class="formula-note">the site's already-discounted NT$ sale price (e.g. NT$15,000 for the PB-X1, not the crossed-out NT$15,300), shown as-is (not editable)</div>
         </div>
-        <div class="formula-row">
-          <div class="formula-label">Your cost (IDR)</div>
-          <code>(ntd &times; 0.60) &times; rate</code>
-          <div class="formula-note">
-            fixed 40% off the site's already-discounted sale price
-            <label>TWD&rarr;IDR rate
-              <input type="number" step="1" min="0" data-pb-setting="rate" value="${rate}">
-            </label>
-          </div>
-        </div>
-        <div class="formula-row">
-          <div class="formula-label">Sell price</div>
-          <code>(orig &times; rate) &times; 0.90</code>
-          <div class="formula-note">fixed 10% off the converted site (original) price</div>
-        </div>
-        <div class="formula-row">
-          <div class="formula-label">Shipping</div>
-          <code>((L &times; W &times; H / 5000) &times; rate/kg) / 3</code>
-          <div class="formula-note">
-            volumetric weight per box, split across the 3 fins it ships, at
-            <label>IDR per kg
-              <input type="number" step="1000" min="0" data-pb-setting="shipRatePerKg" value="${shipRatePerKg}">
-            </label>
-          </div>
-        </div>
+        ${formulaRowHtml('costFormula', { ntd: 1, orig: 1, rate: 1, shipping: 1 })}
+        ${formulaRowHtml('websiteSellFormula', { ntd: 1, orig: 1, rate: 1, shipping: 1, cost: 1 },
+          'what prussianbluefins.com itself would charge — for reference, not what you charge')}
+        ${formulaRowHtml('sellBaseFormula', { ntd: 1, orig: 1, rate: 1, shipping: 1, cost: 1, websiteSell: 1 },
+          'your own price before shipping is added on — defaults to matching the website sell price')}
+        ${formulaRowHtml('shippingFormula', { l: 1, w: 1, h: 1, rate: 1, fins: PB_FINS_PER_BOX },
+          'rate here is IDR per kg, l/w/h come from the box below, fins is fixed at ' + PB_FINS_PER_BOX)}
+        ${rateRowHtml}
         ${boxRowHtml}
-        <div class="formula-row">
-          <div class="formula-label">Margin</div>
-          <code>sellPrice &minus; shipping &minus; cost</code>
-        </div>
+        ${formulaRowHtml('marginFormula', { ntd: 1, orig: 1, rate: 1, shipping: 1, cost: 1, websiteSell: 1, sellBase: 1 },
+          'margin % (shown next to margin in the table) is your base price minus cost, as a % of your base price')}
       </div>
     </div>`;
 }
@@ -320,6 +448,63 @@ function bindSettingInputs(container, onChanged){
       onChanged();
     });
   });
+  container.querySelectorAll('[data-pb-setting-text]').forEach(input => {
+    input.addEventListener('focus', e => { e.target.dataset.lastFocused = '1'; });
+    input.addEventListener('change', e => {
+      const key = e.target.dataset.pbSettingText;
+      const val = e.target.value.trim();
+      pbSettings[key] = val || PB_DEFAULTS[key];
+      savePbSettings();
+      onChanged();
+    });
+  });
+  // Variable/operator chips: insert the chip's text into its formula field
+  // at the last cursor position (or the end, if the field was never
+  // focused yet), then let the normal change handling above save & recalc.
+  container.querySelectorAll('[data-insert]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const input = document.getElementById(chip.dataset.targetInput);
+      if(!input) return;
+      const text = chip.dataset.insert;
+      // Only trust the field's cursor position if it's the one the user was
+      // last actually focused on — a freshly re-rendered field defaults its
+      // selection to 0, which would make every chip prepend instead of
+      // append when nobody has clicked into the field yet.
+      const wasFocused = input.dataset.lastFocused === '1';
+      const start = wasFocused && input.selectionStart != null ? input.selectionStart : input.value.length;
+      const end = wasFocused && input.selectionEnd != null ? input.selectionEnd : input.value.length;
+      input.value = input.value.slice(0, start) + text + input.value.slice(end);
+      const pos = start + text.length;
+      input.focus();
+      input.setSelectionRange(pos, pos);
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+}
+
+// Live TWD -> IDR market rate, pulled from a free no-key currency API.
+// This is the general market rate, not prussianbluefins.com's own visitor
+// pricing (the site marks its displayed Rupiah prices up from the market
+// rate, and that markup isn't something a static page can read off the
+// site itself) — treat it as a current, trustworthy starting point for the
+// rate field above rather than an exact match to the site's own number.
+const PB_RATE_APIS = [
+  'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/twd.json',
+  'https://open.er-api.com/v6/latest/TWD',
+];
+async function fetchLiveTwdToIdr(){
+  let lastError;
+  for(const url of PB_RATE_APIS){
+    try {
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const value = data.twd ? data.twd.idr : (data.rates ? data.rates.IDR : undefined);
+      if(typeof value === 'number' && value > 0) return value;
+      throw new Error('IDR rate missing from response');
+    } catch(e){ lastError = e; }
+  }
+  throw lastError || new Error('No rate source reachable');
 }
 
 function renderAndBindPB(){
@@ -327,6 +512,25 @@ function renderAndBindPB(){
   const calcBody = document.getElementById('calcBody');
   calcBody.innerHTML = renderCalcSettings();
   bindSettingInputs(calcBody, renderAndBindPB);
+
+  const fetchBtn = document.getElementById('fetchRateBtn');
+  const statusEl = document.getElementById('rate-fetch-status');
+  fetchBtn.addEventListener('click', async () => {
+    fetchBtn.disabled = true;
+    fetchBtn.textContent = 'Fetching…';
+    statusEl.textContent = '';
+    try {
+      const idrPerTwd = await fetchLiveTwdToIdr();
+      pbSettings.rate = idrPerTwd;
+      pbSettings.rateFetchedAt = Date.now();
+      savePbSettings();
+      renderAndBindPB();
+    } catch(e){
+      fetchBtn.disabled = false;
+      fetchBtn.innerHTML = '&#8635; Fetch live rate';
+      statusEl.innerHTML = `<span style="color:#b91c1c">Couldn't fetch a live rate (${e.message}) — enter it manually.</span>`;
+    }
+  });
 }
 
 renderAndBindPB();
@@ -335,6 +539,16 @@ const calcDialog = document.getElementById('calcDialog');
 document.getElementById('openCalcBtn').addEventListener('click', () => calcDialog.showModal());
 document.getElementById('closeCalcBtn').addEventListener('click', () => calcDialog.close());
 calcDialog.addEventListener('click', e => { if(e.target === calcDialog) calcDialog.close(); });
+
+let saveStatusTimer = null;
+document.getElementById('saveCalcBtn').addEventListener('click', () => {
+  savePbSettings();
+  const statusEl = document.getElementById('calcSaveStatus');
+  statusEl.textContent = 'Saved!';
+  statusEl.classList.add('show');
+  clearTimeout(saveStatusTimer);
+  saveStatusTimer = setTimeout(() => statusEl.classList.remove('show'), 1800);
+});
 </script>
 </body>
 </html>
