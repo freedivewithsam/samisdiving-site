@@ -3565,6 +3565,19 @@ function wireTimeAutoColon(input){
   });
 }
 document.querySelectorAll('#fSessTime, #fCalEvTime, #fTxTime, #pTxTime, #fProgSessTime').forEach(wireTimeAutoColon);
+/* Same digit->HH:MM reformatting as wireTimeAutoColon above, but callable
+   directly — used at the top of each form's submit handler below so
+   typing e.g. "1800" then pressing Enter to submit immediately (which
+   submits the form without ever blurring the field, so the listener
+   above never fires) still gets recognized as "18:00" rather than
+   silently failing the field's HH:MM pattern validation. */
+function normalizeTimeField(id){
+  const input = $(id);
+  if(!input) return;
+  let digits = input.value.replace(/\D/g,'').slice(0,4);
+  if(digits.length >= 3) input.value = digits.slice(0,2) + ':' + digits.slice(2);
+  else if(digits) input.value = digits;
+}
 /* session date "YYYY-MM-DDTHH:MM" <-> separate DD-MM-YYYY + 24h HH:MM fields */
 function sessIsoToParts(iso){
   const m = (iso||'').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
@@ -4513,6 +4526,7 @@ $('studentForm').addEventListener('submit', ()=>{
 });
 
 $('sessForm').addEventListener('submit', ()=>{
+  normalizeTimeField('fSessTime');
   const st = db.students.find(s=>s.id===sessStudentId);
   const existing = editingSess ? st.sessions.find(x=>x.id===editingSess) : null;
 
@@ -4541,6 +4555,7 @@ $('sessForm').addEventListener('submit', ()=>{
 });
 
 $('programSessionForm').addEventListener('submit', ()=>{
+  normalizeTimeField('fProgSessTime');
   const name = $('fProgStudent').value.trim();
   if(!name || !programSessionKey) return;
   const resolved = resolveAgainstKnown(name, knownStudentNames()) || name;
@@ -4616,6 +4631,7 @@ $('fTodoName').addEventListener('keydown', e=>{
 });
 
 $('calEventForm').addEventListener('submit', ()=>{
+  normalizeTimeField('fCalEvTime');
   const isoDate = dateOnlyPartsToIso($('fCalEvDate').value);
   if(!isoDate){ askAlert('Please enter a valid date (DD-MM-YYYY).'); return; }
   const isoEnd = $('fCalEvEndDate').value.trim() ? dateOnlyPartsToIso($('fCalEvEndDate').value) : null;
@@ -4700,6 +4716,7 @@ $('searchInput').addEventListener('input', ()=>{
 });
 
 $('financeForm').addEventListener('submit', ()=>{
+  normalizeTimeField('fTxTime');
   const data = {
     type: 'expense',
     item: $('fTxItem').value.trim(),
@@ -4715,6 +4732,7 @@ $('financeForm').addEventListener('submit', ()=>{
 });
 
 $('personalForm').addEventListener('submit', ()=>{
+  normalizeTimeField('pTxTime');
   const data = {
     type: personalKind === 'income' ? 'income' : 'expense',
     item: $('pTxItem').value.trim(),
