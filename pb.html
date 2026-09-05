@@ -103,9 +103,11 @@
     </div>
     <div class="header-actions">
       <a class="btn btn-nav" href="https://samisdiving.com/nav">&larr; Nav</a>
+      <button type="button" class="btn btn-nav" id="pbSyncBtn" title="sync these numbers across devices">Sync &#9729;</button>
       <button type="button" class="btn btn-calc" id="openCalcBtn">Calculation ⚙️</button>
     </div>
   </header>
+  <div id="pbSyncStatus" style="text-align:right;font-size:11.5px;color:var(--ink-soft);margin:-14px 0 14px">Saved on this device only</div>
   <div id="view"></div>
 </div>
 
@@ -237,7 +239,107 @@ Object.keys(PB_FORMULAS).forEach(key => {
   };
 }
 
-function savePbSettings(){ pbStorage.set(JSON.stringify(pbSettings)); }
+function savePbSettings(){ pbStorage.set(JSON.stringify(pbSettings)); scheduleCloudSync(); }
+
+// ---- cross-device sync (optional) -----------------------------------------
+// localStorage alone only persists on the one browser/device that touched
+// it — fine for a quick refresh, useless once this page is hosted on GitHub
+// Pages and opened from a phone, a laptop, or after a redeploy. To carry
+// numbers across devices this pushes/pulls pbSettings to a small free
+// backend: a Google Apps Script Web App backed by a Google Sheet. It's just
+// a plain fetch() to a URL, so it works from a static GitHub Pages site (or
+// any plain .html file) with no server of your own.
+//
+// Setup (one-time, ~2 minutes):
+//   1. Go to script.google.com -> New project.
+//   2. Paste the Code.gs from the setup note (ask for it) and Deploy > New
+//      deployment > type "Web app", access "Anyone".
+//   3. Copy the resulting URL, click "Sync ☁" below and paste it in.
+// Leave it unset and the page still works — it just falls back to
+// per-device localStorage, same as before.
+const PB_SHEET_URL_KEY = 'pb_sheet_url';
+let pbCloudAvailable = false;
+let pbCloudSyncTimer = null;
+let pbLastSyncedJson = null;
+
+function pbSheetEndpoint(){
+  try {
+    const override = localStorage.getItem(PB_SHEET_URL_KEY);
+    if(override === 'off') return null;
+    if(override) return override;
+  } catch(e){ /* ignore */ }
+  return null;
+}
+function pbSetSheetEndpoint(url){
+  try { localStorage.setItem(PB_SHEET_URL_KEY, url || 'off'); } catch(e){ /* ignore */ }
+}
+
+function scheduleCloudSync(immediate){
+  if(!pbSheetEndpoint()) return;
+  if(pbCloudSyncTimer) clearTimeout(pbCloudSyncTimer);
+  pbCloudSyncTimer = setTimeout(doCloudSync, immediate ? 50 : 1200);
+}
+
+function doCloudSync(){
+  pbCloudSyncTimer = null;
+  const url = pbSheetEndpoint();
+  if(!url) return;
+  const json = JSON.stringify(pbSettings);
+  if(json === pbLastSyncedJson) return;
+  // text/plain avoids a CORS preflight, which a default Apps Script Web App
+  // deployment doesn't handle.
+  fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: json })
+    .then(r => { if(!r.ok) throw new Error('save failed'); return r.json(); })
+    .then(() => { pbLastSyncedJson = json; pbCloudAvailable = true; updatePbSyncStatus(); })
+    .catch(() => { scheduleCloudSync(); });
+}
+
+function pullCloudState(){
+  const url = pbSheetEndpoint();
+  if(!url) return;
+  fetch(url, { cache: 'no-store' }).then(r => {
+    if(!r.ok) throw new Error('fetch failed');
+    return r.json();
+  }).then(data => {
+    if(data && typeof data === 'object' && Object.keys(data).length){
+      pbSettings = Object.assign({}, PB_DEFAULTS, pbSettings, data);
+      Object.keys(PB_FORMULAS).forEach(key => {
+        if(typeof pbSettings[key] !== 'string' || !pbSettings[key].trim()) pbSettings[key] = PB_DEFAULTS[key];
+      });
+      pbLastSyncedJson = JSON.stringify(pbSettings);
+      pbStorage.set(pbLastSyncedJson);
+      pbCloudAvailable = true;
+      updatePbSyncStatus();
+      renderAndBindPB();
+    } else {
+      // sheet has nothing saved yet — push what we have now
+      pbCloudAvailable = true;
+      updatePbSyncStatus();
+      scheduleCloudSync(true);
+    }
+  }).catch(() => {
+    pbCloudAvailable = false;
+    updatePbSyncStatus();
+  });
+}
+
+function updatePbSyncStatus(){
+  const el = document.getElementById('pbSyncStatus');
+  if(el) el.textContent = pbSheetEndpoint() ? (pbCloudAvailable ? 'Synced via Google Sheet' : 'Sync set — connecting…') : 'Saved on this device only';
+}
+
+function openPbCloudSettings(){
+  const current = pbSheetEndpoint() || '';
+  const next = window.prompt(
+    'Paste your Google Apps Script Web App URL to sync these numbers across every device that opens this page (leave blank to turn sync off):',
+    current
+  );
+  if(next === null) return; // cancelled
+  const trimmed = next.trim();
+  pbSetSheetEndpoint(trimmed || null);
+  updatePbSyncStatus();
+  if(trimmed) pullCloudState();
+}
 
 // Safely evaluate a user-typed formula. Only digits, the named variables for
 // that field, arithmetic operators, parentheses and decimal points are
@@ -534,6 +636,10 @@ function renderAndBindPB(){
 }
 
 renderAndBindPB();
+
+updatePbSyncStatus();
+if(pbSheetEndpoint()) pullCloudState();
+document.getElementById('pbSyncBtn').addEventListener('click', openPbCloudSettings);
 
 const calcDialog = document.getElementById('calcDialog');
 document.getElementById('openCalcBtn').addEventListener('click', () => calcDialog.showModal());
