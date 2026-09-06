@@ -1719,11 +1719,14 @@ function jsonResponse_(obj){
     const v = vels.length ? avg(vels).toFixed(2)+' m/s' : '—';
     const h = hrs.length ? Math.round(avg(hrs))+' bpm' : '—';
     const c = session.cycle || '—';
-    const p = session.poolLength ? session.poolLength+'m' : '—';
     grid.innerHTML = `
       <div class="card stat-card" style="background:var(--pal-7); border-color:transparent;">
         <div class="label">Pool length</div>
-        <div class="value">${p}</div>
+        <select id="pool-length-select" style="margin-top:4px; font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:600; padding:6px 10px;">
+          <option value="" ${session.poolLength==null ? 'selected' : ''}>— unset</option>
+          <option value="25" ${session.poolLength===25 ? 'selected' : ''}>25m</option>
+          <option value="50" ${session.poolLength===50 ? 'selected' : ''}>50m</option>
+        </select>
       </div>
       <div class="card stat-card" style="background:var(--pal-4); border-color:transparent;">
         <div class="label">Avg time</div>
@@ -1746,6 +1749,26 @@ function jsonResponse_(obj){
         <div class="value">${c}</div>
       </div>
     `;
+    // Pool length is a single field on the whole session (every attempt in
+    // it shares one pool), so changing it here updates the whole session's
+    // pool length in one go — no per-attempt editing needed.
+    document.getElementById('pool-length-select').addEventListener('change', (e)=>{
+      const oldVal = session.poolLength;
+      const newVal = e.target.value ? parseInt(e.target.value, 10) : null;
+      if(newVal === oldVal) return;
+      session.poolLength = newVal;
+      renderStats();
+      renderPoolBreakdown();
+      renderCycleBreakdown();
+      renderDetailStats(session);
+      updateMergeBtn();
+      if(state.sheetUrl){
+        const cleanup = oldVal !== newVal
+          ? deleteSessionFromSheet(session.date, oldVal).catch(()=>{})
+          : Promise.resolve();
+        cleanup.then(()=> pushSessionToSheet(session)).catch(()=>{ flashSyncBtn('Edit not synced'); });
+      }
+    });
   }
 
   function renderDetailTable(){
