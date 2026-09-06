@@ -103,11 +103,11 @@
     </div>
     <div class="header-actions">
       <a class="btn btn-nav" href="https://samisdiving.com/nav">&larr; Nav</a>
-      <button type="button" class="btn btn-nav" id="pbSyncBtn" title="sync these numbers across devices">Sync &#9729;</button>
+      <button type="button" class="btn btn-nav" id="pbSyncBtn" title="sync these numbers across devices via Google Sheet">Sync: On &#9729;</button>
       <button type="button" class="btn btn-calc" id="openCalcBtn">Calculation ⚙️</button>
     </div>
   </header>
-  <div id="pbSyncStatus" style="text-align:right;font-size:11.5px;color:var(--ink-soft);margin:-14px 0 14px">Saved on this device only</div>
+  <div id="pbSyncStatus" style="text-align:right;font-size:11.5px;color:var(--ink-soft);margin:-14px 0 14px">Sync on — connecting…</div>
   <div id="view"></div>
 </div>
 
@@ -254,24 +254,27 @@ function savePbSettings(){ pbStorage.set(JSON.stringify(pbSettings)); scheduleCl
 //   1. Go to script.google.com -> New project.
 //   2. Paste the Code.gs from the setup note (ask for it) and Deploy > New
 //      deployment > type "Web app", access "Anyone".
-//   3. Copy the resulting URL, click "Sync ☁" below and paste it in.
-// Leave it unset and the page still works — it just falls back to
-// per-device localStorage, same as before.
-const PB_SHEET_URL_KEY = 'pb_sheet_url';
+//   3. Copy the resulting URL and put it in PB_SHEET_URL below.
+// Baked-in endpoint for this page — every visitor syncs to the same Google
+// Sheet backend by default. The "Sync ☁" button just toggles it on/off per
+// browser (via localStorage); it never prompts for a URL.
+const PB_SHEET_URL = 'https://script.google.com/macros/s/AKfycbyqFP5MzFZEW-NmLaYnJEFJLgApmufg0P2WXlt5V1FsURvrWjhqBk4x5Mx3rOAD2B9UBA/exec';
+const PB_SHEET_URL_KEY = 'pb_sheet_sync_enabled';
 let pbCloudAvailable = false;
 let pbCloudSyncTimer = null;
 let pbLastSyncedJson = null;
 
-function pbSheetEndpoint(){
+function pbSyncEnabled(){
   try {
-    const override = localStorage.getItem(PB_SHEET_URL_KEY);
-    if(override === 'off') return null;
-    if(override) return override;
-  } catch(e){ /* ignore */ }
-  return null;
+    const flag = localStorage.getItem(PB_SHEET_URL_KEY);
+    return flag !== 'off'; // on by default
+  } catch(e){ return true; }
 }
-function pbSetSheetEndpoint(url){
-  try { localStorage.setItem(PB_SHEET_URL_KEY, url || 'off'); } catch(e){ /* ignore */ }
+function pbSheetEndpoint(){
+  return pbSyncEnabled() ? PB_SHEET_URL : null;
+}
+function pbSetSyncEnabled(on){
+  try { localStorage.setItem(PB_SHEET_URL_KEY, on ? 'on' : 'off'); } catch(e){ /* ignore */ }
 }
 
 function scheduleCloudSync(immediate){
@@ -325,20 +328,18 @@ function pullCloudState(){
 
 function updatePbSyncStatus(){
   const el = document.getElementById('pbSyncStatus');
-  if(el) el.textContent = pbSheetEndpoint() ? (pbCloudAvailable ? 'Synced via Google Sheet' : 'Sync set — connecting…') : 'Saved on this device only';
+  const btn = document.getElementById('pbSyncBtn');
+  const on = pbSyncEnabled();
+  if(el) el.textContent = on ? (pbCloudAvailable ? 'Synced via Google Sheet' : 'Sync on — connecting…') : 'Sync off — saved on this device only';
+  if(btn) btn.textContent = on ? 'Sync: On ☁' : 'Sync: Off';
 }
 
-function openPbCloudSettings(){
-  const current = pbSheetEndpoint() || '';
-  const next = window.prompt(
-    'Paste your Google Apps Script Web App URL to sync these numbers across every device that opens this page (leave blank to turn sync off):',
-    current
-  );
-  if(next === null) return; // cancelled
-  const trimmed = next.trim();
-  pbSetSheetEndpoint(trimmed || null);
+function togglePbCloudSync(){
+  const turningOn = !pbSyncEnabled();
+  pbSetSyncEnabled(turningOn);
+  pbCloudAvailable = false;
   updatePbSyncStatus();
-  if(trimmed) pullCloudState();
+  if(turningOn) pullCloudState();
 }
 
 // Safely evaluate a user-typed formula. Only digits, the named variables for
@@ -639,7 +640,7 @@ renderAndBindPB();
 
 updatePbSyncStatus();
 if(pbSheetEndpoint()) pullCloudState();
-document.getElementById('pbSyncBtn').addEventListener('click', openPbCloudSettings);
+document.getElementById('pbSyncBtn').addEventListener('click', togglePbCloudSync);
 
 const calcDialog = document.getElementById('calcDialog');
 document.getElementById('openCalcBtn').addEventListener('click', () => calcDialog.showModal());
