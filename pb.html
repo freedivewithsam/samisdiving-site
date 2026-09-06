@@ -148,6 +148,18 @@
     .header-actions{flex-wrap:wrap;row-gap:8px;width:100%}
     .btn{padding:8px 12px;font-size:12.5px}
     #pbSyncStatus{text-align:left !important}
+
+    /* Calculation popup: the formula grid is normally a fixed label column
+       plus a wide input column — on a phone that squeezed the formula box
+       into a sliver (or pushed it into a column that no longer existed),
+       cutting it off. Stack label above field instead, and let the field
+       use the full width. */
+    .formula-row{grid-template-columns:1fr}
+    .formula-row code{grid-column:1}
+    .formula-note{grid-column:1}
+    .margin-formula-input{grid-column:1;max-width:none;font-size:14px !important}
+    .chip-row{grid-column:1}
+    .modal-in{padding:16px 14px calc(14px + env(safe-area-inset-bottom))}
   }
   input, select, textarea{ font-size:16px !important; }
 </style>
