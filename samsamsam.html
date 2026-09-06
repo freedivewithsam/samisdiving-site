@@ -87,23 +87,11 @@
   .cal-evt.type-blue{background:var(--sw-blue-lt)}
   .cal-evt.other-type{background:var(--sw-cream)}
   .cal-evt-more{font-size:10.5px;color:var(--ink-soft);padding:0 5px}
-  .cal-week-list{display:flex;flex-direction:column;gap:8px}
-  .cal-week-day{background:var(--bg);border-radius:10px;padding:10px 12px}
-  .cal-week-day.today{background:var(--sw-pink-lt);box-shadow:inset 0 0 0 1.5px var(--accent-dark)}
-  .cal-week-daylabel{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:6px;display:flex;gap:6px;align-items:baseline}
-  .cal-week-daylabel .dow{text-transform:uppercase;letter-spacing:.04em;font-size:11px;color:var(--ink-soft);font-weight:700}
-  .cal-week-events{display:flex;flex-direction:column;gap:5px}
-  .cal-week-evt{font-size:13px;line-height:1.3;padding:7px 10px;border-radius:8px;background:var(--sw-mint);color:var(--ink);cursor:pointer}
-  .cal-week-evt.type-pink{background:var(--sw-pink-lt)}
-  .cal-week-evt.type-green{background:var(--sw-mint-lt)}
-  .cal-week-evt.type-blue{background:var(--sw-blue-lt)}
-  .cal-week-evt.other-type{background:var(--sw-cream)}
-  .cal-week-evt.span-start{box-shadow:inset 3px 0 0 rgba(0,0,0,.28)}
-  .cal-week-evt.span-mid{box-shadow:inset 3px 0 0 rgba(0,0,0,.28), inset -3px 0 0 rgba(0,0,0,.28)}
-  .cal-week-evt.span-end{box-shadow:inset -3px 0 0 rgba(0,0,0,.28)}
-  .cal-week-empty{font-size:12.5px;color:var(--ink-soft);padding:2px 0}
   .cal-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--ink-soft);margin:2px 0 10px;align-items:center}
   .cal-legend .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+  .cal-legend-item{cursor:pointer;padding:2px 6px;border-radius:6px;transition:background .15s}
+  .cal-legend-item:hover{background:var(--rose)}
+  .cal-legend-item.active{background:var(--sw-pink);color:var(--ink);font-weight:600}
   @media (max-width:640px){
     .cal-cell{min-height:56px;padding:4px 2px}
     .cal-evt{font-size:9.5px;padding:1px 3px}
@@ -693,7 +681,7 @@
     </div>
     <div class="field">
       <label for="fCalEvTitle" id="fCalEvTitleLabel">Title</label>
-      <input id="fCalEvTitle" type="text" required>
+      <input id="fCalEvTitle" type="text">
     </div>
     <div class="field">
       <label for="fCalEvDate" id="fCalEvDateLabel">Date</label>
@@ -1101,8 +1089,7 @@ let editingPersonalTx = null;
 let personalKind = 'expense';
 let personalMonth = 'all';
 let calendarMonthKey = null; // 'YYYY-MM' currently shown on the Calendar tab; null = current month
-let calendarViewMode = 'month'; // 'month' | 'week'
-let calendarWeekStart = null; // 'YYYY-MM-DD' (a Monday) currently shown in week view; null = this week
+let calendarTypeFilter = null; // when set, only custom calendar events of this type show — sessions are unaffected
 let categoryFilter = null; // when set, the Personal Finance expense list only shows this category
 let financeMonth = 'all';
 let confirmCb = null;
@@ -2421,23 +2408,54 @@ function render(){
 
 /* Simple month-grid / week-list calendar built from every student's
    sessions — no external embed. Weeks start on Monday. */
+/* Counts, per type, how many of a given (year, month)'s custom calendar
+   events overlap that month — used to scope the legend's counts to
+   whichever month/week is currently being viewed, rather than an
+   all-time total. Each event counts once even if it spans several days
+   within the month; an annually-repeating event is checked against its
+   occurrence shifted to that specific year. */
+function countCalendarEventsInMonth(year, month){
+  const counts = {};
+  const monthStart = `${year}-${String(month).padStart(2,'0')}-01`;
+  const monthEnd = `${year}-${String(month).padStart(2,'0')}-${String(new Date(year, month, 0).getDate()).padStart(2,'0')}`;
+  (db.calendarEvents||[]).forEach(ev=>{
+    if(!ev.date || typeof ev.date !== 'string') return;
+    let start = ev.date, end = ev.endDate || ev.date;
+    if(ev.repeatsAnnually){
+      start = shiftYear(ev.date, year);
+      end = ev.endDate ? shiftYear(ev.endDate, year) : start;
+    }
+    // Overlap test: the event's range and the month's range intersect.
+    if(start > monthEnd || end < monthStart) return;
+    const t = calEventLabel(ev);
+    counts[t] = (counts[t]||0) + 1;
+  });
+  return counts;
+}
+
 function renderCalendar(){
   const byDay = groupSessionsByDay();
-  const viewSwitch = `
-    <div class="subtabs">
-      <button type="button" class="subtab-btn ${calendarViewMode==='month'?'active':''}" data-action="cal-view-month">Month</button>
-      <button type="button" class="subtab-btn ${calendarViewMode==='week'?'active':''}" data-action="cal-view-week">Week</button>
-    </div>`;
-  // Legend lists every distinct event type currently in use, each with the
-  // soft pastel colour it was assigned (birthday gets its rainbow swatch).
+  // Legend lists every distinct custom event type currently in use, each
+  // with the soft pastel colour it was assigned (birthday gets its
+  // rainbow swatch), a count scoped to whichever month is currently
+  // being viewed — not an all-time total — and is clickable to filter
+  // the calendar down to just that type — tapping the active one again
+  // clears the filter. While a filter is active, regular sessions are
+  // hidden too (see groupSessionsByDay), so the calendar shows ONLY the
+  // selected type, not that type plus everything else as usual.
+  const todayKeyForLegend = localDateKey(new Date());
+  const [legendYear, legendMonth] = (calendarMonthKey || todayKeyForLegend.slice(0,7)).split('-').map(Number);
   const usedTypes = [...new Set((db.calendarEvents||[]).map(ev=>calEventLabel(ev)))].sort();
+  const typeCounts = countCalendarEventsInMonth(legendYear, legendMonth);
   const legend = `<div class="cal-legend">
-      ${usedTypes.length ? usedTypes.map(t=>{
+      ${usedTypes.length ? usedTypes.filter(t=>typeCounts[t]).map(t=>{
         const {bg} = getEventTypeColor(t);
-        return `<span><span class="dot" style="background:${bg}"></span>${esc(t)}</span>`;
+        const active = calendarTypeFilter === t;
+        return `<span class="cal-legend-item${active?' active':''}" data-action="filter-calendar-type" data-type="${esc(t)}"><span class="dot" style="background:${bg}"></span>${esc(t)} (${typeCounts[t]})</span>`;
       }).join('') : `<span><span class="dot" style="background:${CAL_EVENT_PASTELS[0]}"></span>Event</span>`}
+      ${calendarTypeFilter ? `<button type="button" class="cat-clear" data-action="clear-calendar-type-filter" style="margin:0 0 0 4px">&larr; Showing "${esc(calendarTypeFilter)}" only</button>` : ''}
     </div>`;
-  return `<h2 class="section">Calendar</h2>${viewSwitch}${legend}${calendarViewMode==='week' ? renderCalendarWeek(byDay) : renderCalendarMonth(byDay)}`;
+  return `<h2 class="section">Calendar</h2>${legend}${renderCalendarMonth(byDay)}`;
 }
 
 /* Groups every session that has a date, plus every custom calendar event
@@ -2445,15 +2463,21 @@ function renderCalendar(){
    day ("YYYY-MM-DD"). */
 function groupSessionsByDay(){
   const byDay = {};
-  (db.students||[]).forEach(st=>{
-    (st.sessions||[]).forEach(s=>{
-      if(!s.date || typeof s.date !== 'string') return;
-      const dayKey = s.date.slice(0,10);
-      (byDay[dayKey] ||= []).push({ kind:'session', st, s, sortKey: s.date });
+  // When a type filter is active, regular sessions are hidden too — the
+  // filter means "show me only this type," not "show this type PLUS
+  // everything else as usual."
+  if(!calendarTypeFilter){
+    (db.students||[]).forEach(st=>{
+      (st.sessions||[]).forEach(s=>{
+        if(!s.date || typeof s.date !== 'string') return;
+        const dayKey = s.date.slice(0,10);
+        (byDay[dayKey] ||= []).push({ kind:'session', st, s, sortKey: s.date });
+      });
     });
-  });
+  }
   (db.calendarEvents||[]).forEach(ev=>{
     if(!ev.date || typeof ev.date !== 'string') return;
+    if(calendarTypeFilter && calEventLabel(ev) !== calendarTypeFilter) return;
     if(!ev.repeatsAnnually){
       const keys = dateRangeKeys(ev.date, ev.endDate);
       keys.forEach((dayKey,i)=>{
@@ -2562,71 +2586,6 @@ function renderCalendarMonth(byDay){
   return html;
 }
 
-/* Vertical day-by-day list for the week containing calendarWeekStart (or
-   today if unset) — easier to read and tap on a phone than a 7-column
-   grid squeezed into a narrow screen. */
-function renderCalendarWeek(byDay){
-  const today = new Date();
-  const todayKey = localDateKey(today);
-  const startKey = calendarWeekStart || mondayKeyOf(today);
-  const [sy, sm, sd] = startKey.split('-').map(Number);
-  const startDate = new Date(sy, sm - 1, sd);
-  const endDate = new Date(sy, sm - 1, sd + 6);
-  const rangeLabel = startDate.getMonth() === endDate.getMonth()
-    ? `${startDate.getDate()}–${endDate.getDate()} ${endDate.toLocaleDateString('en-GB',{month:'long', year:'numeric'})}`
-    : `${startDate.toLocaleDateString('en-GB',{day:'numeric', month:'short'})} – ${endDate.toLocaleDateString('en-GB',{day:'numeric', month:'short', year:'numeric'})}`;
-
-  const dows = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  let html = `
-  <div class="cal-card">
-    <div class="cal-nav">
-      <div class="cal-title">${esc(rangeLabel)}</div>
-      <div class="cal-nav-btns">
-        <button type="button" class="btn btn-ghost btn-small" data-action="cal-prev">&larr;</button>
-        <button type="button" class="btn btn-ghost btn-small" data-action="cal-today">Today</button>
-        <button type="button" class="btn btn-ghost btn-small" data-action="cal-next">&rarr;</button>
-      </div>
-    </div>
-    <div class="cal-week-list">`;
-
-  for(let i = 0; i < 7; i++){
-    const d = new Date(sy, sm - 1, sd + i);
-    const key = localDateKey(d);
-    const isToday = key === todayKey;
-    const dayEvents = (byDay[key]||[]).sort((a,b)=>a.sortKey.localeCompare(b.sortKey));
-    html += `<div class="cal-week-day${isToday?' today':''}">
-      <div class="cal-week-daylabel"><span class="dow">${dows[i]}</span> ${d.getDate()} ${d.toLocaleDateString('en-GB',{month:'short'})}${isToday?' · Today':''}
-        <button type="button" class="btn btn-ghost btn-small" style="margin-left:auto" data-action="new-cal-event-on-day" data-day="${key}">+ Add</button>
-      </div>
-      <div class="cal-week-events">
-        ${dayEvents.length ? dayEvents.map(entry=>{
-          if(entry.kind==='custom'){
-            const ev = entry.ev;
-            const {bg,fg} = getEventTypeColor(ev.type);
-            const spanClass = entry.spanPos ? 'span-'+entry.spanPos : '';
-            const label = (entry.spanPos==='mid' || entry.spanPos==='end' ? '⋯ ' : '') + (ev.time ? ev.time+' - ' : '') + calEventLabel(ev) + ' - ' + ev.title + (entry.age!=null ? ' - '+entry.age : '') + (entry.spanPos==='start' || entry.spanPos==='mid' ? ' ⋯' : '');
-            return `<div class="cal-week-evt ${spanClass}" style="background:${bg};color:${fg}" data-action="edit-cal-event" data-calevent="${ev.id}">${esc(label)}</div>`;
-          }
-          const {st,s} = entry;
-          const t = fmtTimeOnly(s.date);
-          const typeClass = calTypeColorClass(s.type);
-          const label = (t?t+' - ':'') + typeLabel(s.type) + ' - ' + st.name;
-          return `<div class="cal-week-evt ${typeClass}" data-action="cal-open-sess" data-student="${st.id}" data-sess="${s.id}">${esc(label)}</div>`;
-        }).join('') : `<div class="cal-week-empty">No sessions</div>`}
-      </div>
-    </div>`;
-  }
-
-  html += `</div></div>`;
-  return html;
-}
-
-/* 'YYYY-MM-DD' for the Monday of the week containing the given Date. */
-function mondayKeyOf(date){
-  const shift = (date.getDay() + 6) % 7; // 0=Mon..6=Sun
-  const mon = new Date(date.getFullYear(), date.getMonth(), date.getDate() - shift);
-  return localDateKey(mon);
-}
 /* Local "YYYY-MM-DD" for a Date object — matches how session dates are
    keyed, without any UTC-shift surprises from toISOString(). */
 function localDateKey(d){
@@ -4191,32 +4150,21 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-action]');
   if(!el) return;
   const a = el.dataset.action, sid = el.dataset.student, xid = el.dataset.sess;
-  if(a==='go-tab'){ if(el.dataset.tab !== currentTab) previousTab = currentTab; currentTab = el.dataset.tab; currentStudent = null; searchQuery=''; personalMonth='all'; financeMonth='all'; categoryFilter=null; currentProgram = null; if($('searchInput')) $('searchInput').value=''; render(); window.scrollTo(0,0); }
+  if(a==='go-tab'){ if(el.dataset.tab !== currentTab) previousTab = currentTab; currentTab = el.dataset.tab; currentStudent = null; searchQuery=''; personalMonth='all'; financeMonth='all'; categoryFilter=null; calendarTypeFilter=null; currentProgram = null; if($('searchInput')) $('searchInput').value=''; render(); window.scrollTo(0,0); }
   else if(a==='toggle-discreet'){ discreetMode = !discreetMode; saveDiscreetMode(); updateDiscreetBtn(); render(); }
   else if(a==='filter-category'){ categoryFilter = (categoryFilter === el.dataset.cat) ? null : el.dataset.cat; render(); }
   else if(a==='clear-category-filter'){ categoryFilter = null; render(); }
   else if(a==='cal-prev' || a==='cal-next' || a==='cal-today'){
-    if(calendarViewMode==='week'){
-      if(a==='cal-today'){
-        calendarWeekStart = mondayKeyOf(new Date());
-      } else {
-        const baseKey = calendarWeekStart || mondayKeyOf(new Date());
-        const [y,m,d] = baseKey.split('-').map(Number);
-        const delta = a==='cal-prev' ? -7 : 7;
-        calendarWeekStart = localDateKey(new Date(y, m-1, d+delta));
-      }
-    } else {
-      const base = calendarMonthKey ? calendarMonthKey.split('-').map(Number) : (()=>{ const t=new Date(); return [t.getFullYear(), t.getMonth()+1]; })();
-      let [y,m] = base;
-      if(a==='cal-prev'){ m--; if(m<1){ m=12; y--; } }
-      else if(a==='cal-next'){ m++; if(m>12){ m=1; y++; } }
-      else { const t=new Date(); y=t.getFullYear(); m=t.getMonth()+1; }
-      calendarMonthKey = `${y}-${String(m).padStart(2,'0')}`;
-    }
+    const base = calendarMonthKey ? calendarMonthKey.split('-').map(Number) : (()=>{ const t=new Date(); return [t.getFullYear(), t.getMonth()+1]; })();
+    let [y,m] = base;
+    if(a==='cal-prev'){ m--; if(m<1){ m=12; y--; } }
+    else if(a==='cal-next'){ m++; if(m>12){ m=1; y++; } }
+    else { const t=new Date(); y=t.getFullYear(); m=t.getMonth()+1; }
+    calendarMonthKey = `${y}-${String(m).padStart(2,'0')}`;
     render();
   }
-  else if(a==='cal-view-month'){ calendarViewMode = 'month'; render(); }
-  else if(a==='cal-view-week'){ calendarViewMode = 'week'; render(); }
+  else if(a==='filter-calendar-type'){ calendarTypeFilter = (calendarTypeFilter === el.dataset.type) ? null : el.dataset.type; render(); }
+  else if(a==='clear-calendar-type-filter'){ calendarTypeFilter = null; render(); }
   else if(a==='cal-open-sess'){ currentTab='students'; currentStudent=sid; render(); window.scrollTo(0,0); }
   else if(a==='new-cal-event') openCalEventModal();
   else if(a==='new-cal-event-on-day') openCalEventModal(null, el.dataset.day);
