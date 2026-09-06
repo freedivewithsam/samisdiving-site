@@ -76,7 +76,7 @@
   .formula-note label{display:flex;align-items:center;gap:6px;white-space:nowrap}
   .formula-note input[type=number]{width:90px;padding:5px 8px;border:1.5px solid var(--rose-line);border-radius:8px;font-family:inherit;font-size:13px !important;color:var(--ink);background:#fff}
   .formula-note input[type=number]:focus{outline:none;border-color:var(--accent-dark)}
-  .margin-formula-input{grid-column:2;width:100%;max-width:340px;padding:6px 10px;border:1.5px solid var(--rose-line);border-radius:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px !important;color:var(--accent-dark);background:#fff}
+  .margin-formula-input{grid-column:2;width:100%;max-width:340px;padding:6px 10px;border:1.5px solid var(--rose-line);border-radius:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px !important;color:var(--accent-dark);background:#fff;resize:none;overflow:hidden;white-space:pre-wrap;word-break:break-word;line-height:1.4;display:block}
   .margin-formula-input:focus{outline:none;border-color:var(--accent-dark)}
   .formula-note code{background:#fff;border:1px solid var(--rose-line);border-radius:6px;font-size:11.5px}
   .chip-row{grid-column:2;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:2px}
@@ -704,7 +704,7 @@ function formulaRowHtml(key, sampleValues, extraNoteHtml){
   return `
       <div class="formula-row">
         <div class="formula-label">${label}</div>
-        <input type="text" id="${inputId}" class="margin-formula-input" data-pb-setting-text="${key}" value="${formula.replace(/"/g, '&quot;')}" spellcheck="false">
+        <textarea id="${inputId}" class="margin-formula-input" data-pb-setting-text="${key}" spellcheck="false" rows="1">${formula.replace(/</g, '&lt;')}</textarea>
         <div class="formula-note" id="formula-note-${key}">
           ${!check.ok ? `<span style="color:#b91c1c">${check.error}</span>` : ''}
           ${extraNoteHtml || ''}
@@ -776,6 +776,13 @@ function renderCalcSettings(){
     </div>`;
 }
 
+// Grows a formula <textarea> to fit all of its content (no internal
+// scrolling, no clipped lines) — called on load and on every keystroke.
+function autoGrowFormulaBox(el){
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
 function bindSettingInputs(container, onChanged){
   container.querySelectorAll('[data-pb-setting]').forEach(input => {
     input.addEventListener('change', e => {
@@ -796,10 +803,12 @@ function bindSettingInputs(container, onChanged){
     });
   });
   container.querySelectorAll('[data-pb-setting-text]').forEach(input => {
+    autoGrowFormulaBox(input); // size correctly as soon as it's rendered
     input.addEventListener('focus', e => {
       e.target.dataset.lastFocused = '1';
       pbLastFocusedInputId = e.target.id;
     });
+    input.addEventListener('input', e => autoGrowFormulaBox(e.target));
     input.addEventListener('change', e => {
       const key = e.target.dataset.pbSettingText;
       const val = e.target.value.trim();
