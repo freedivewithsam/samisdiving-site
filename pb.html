@@ -36,6 +36,29 @@
   .btn-calc:hover{background:var(--accent-dark);color:#fff}
   .btn-nav{background:#fff;color:var(--ink-soft);border:1px solid var(--rose-line);text-decoration:none;display:inline-flex;align-items:center}
   .btn-nav:hover{background:var(--rose-line);color:var(--ink)}
+  .btn-cart{background:#fff;color:var(--ink);border:1px solid var(--accent-dark);display:inline-flex;align-items:center;gap:6px}
+  .btn-cart:hover{background:var(--sw-gold);color:var(--ink)}
+  .cart-badge{background:var(--accent-dark);color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:1px 7px;line-height:1.5}
+
+  .cart-add-btn{border:1.5px solid var(--rose-line);background:#fff;color:var(--accent-dark);border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex:none}
+  .cart-add-btn:hover{background:var(--sw-gold);border-color:var(--accent-dark);color:var(--ink)}
+  .cart-lines{display:flex;flex-direction:column;gap:14px}
+  .cart-line{border:1px solid var(--rose-line);border-radius:12px;padding:10px 12px;background:#FFF8FA}
+  .cart-line-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .cart-line-name{font-weight:600;font-size:14px}
+  .cart-remove{background:transparent;border:none;font-size:18px;line-height:1;color:var(--ink-soft);cursor:pointer;padding:2px 6px;border-radius:8px}
+  .cart-remove:hover{background:var(--rose,#FBC9CE);color:#b91c1c}
+  .cart-line-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
+  .cart-qty{display:flex;align-items:center;gap:8px;font-weight:600}
+  .cart-qty button{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--rose-line);background:#fff;color:var(--accent-dark);font-size:15px;line-height:1;cursor:pointer;font-family:inherit}
+  .cart-qty button:hover{background:var(--sw-gold);border-color:var(--accent-dark)}
+  .cart-line-price{font-size:12.5px;color:var(--ink-soft)}
+  .cart-addons{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+  .cart-addon{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-soft);cursor:pointer}
+  .cart-addon input{cursor:pointer}
+  .cart-line-subtotal{margin-top:8px;font-size:12.5px;font-weight:600;color:var(--ink);text-align:right}
+  .cart-total-row{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--rose-line);font-size:15px}
+  .cart-total-row strong{font-size:17px;color:var(--accent-dark)}
 
   .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
   .card h3{margin:0 0 10px}
@@ -66,10 +89,10 @@
 
   dialog{border:none;border-radius:0;padding:0;background:transparent;max-width:none;width:100%}
   dialog::backdrop{background:rgba(62,58,46,.4)}
-  #calcDialog{position:fixed;inset:0;margin:0;align-items:flex-end;justify-content:center;max-height:none;height:100%;background:transparent}
-  #calcDialog[open]{display:flex}
+  #calcDialog, #cartDialog{position:fixed;inset:0;margin:0;align-items:flex-end;justify-content:center;max-height:none;height:100%;background:transparent}
+  #calcDialog[open], #cartDialog[open]{display:flex}
   .modal-in{background:var(--card);border-radius:20px 20px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));max-width:560px;width:100%;margin:0 auto;max-height:88vh;overflow-y:auto;box-shadow:0 -6px 24px rgba(0,0,0,.15)}
-  @media (min-width:640px){ #calcDialog{align-items:center} .modal-in{border-radius:20px;margin-top:0} }
+  @media (min-width:640px){ #calcDialog, #cartDialog{align-items:center} .modal-in{border-radius:20px;margin-top:0} }
   .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
   .modal-head h3{margin:0;font-size:16px}
   .modal-close{background:transparent;border:none;font-size:20px;line-height:1;color:var(--ink-soft);cursor:pointer;padding:4px 6px;border-radius:8px}
@@ -105,6 +128,7 @@
       <a class="btn btn-nav" href="https://samisdiving.com/nav">&larr; Nav</a>
       <button type="button" class="btn btn-nav" id="pbSyncBtn" title="sync these numbers across devices via Google Sheet">Sync: On &#9729;</button>
       <button type="button" class="btn btn-calc" id="openCalcBtn">Calculation ⚙️</button>
+      <button type="button" class="btn btn-cart" id="cartBtn">&#128722; Cart<span id="cartBadge" class="cart-badge" hidden></span></button>
     </div>
   </header>
   <div id="pbSyncStatus" style="text-align:right;font-size:11.5px;color:var(--ink-soft);margin:-14px 0 14px">Sync on — connecting…</div>
@@ -121,6 +145,19 @@
     <div class="modal-footer">
       <span id="calcSaveStatus" class="save-status"></span>
       <button type="button" class="btn btn-calc" id="saveCalcBtn">Save</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="cartDialog">
+  <div class="modal-in">
+    <div class="modal-head">
+      <h3>Your cart</h3>
+      <button type="button" class="modal-close" id="closeCartBtn" aria-label="Close">&times;</button>
+    </div>
+    <div id="cartBody"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-nav" id="clearCartBtn">Clear cart</button>
     </div>
   </div>
 </dialog>
@@ -176,34 +213,31 @@ const PB_FINS_PER_BOX = 3;
 //   region). Re-derive it the same way if the site's rate drifts.
 // shipRatePerKg: cost per volumetric kg, in IDR.
 // boxDims: length/width/height (cm) of the (single) box every fin ships in.
-// costFormula / websiteSellFormula / sellBaseFormula / shippingFormula /
-//   marginFormula: editable expressions — see PB_FORMULAS below for each
-//   one's available variables. Margin % is derived from margin, not
-//   separately editable.
+// costFormula / websiteSellFormula / shippingFormula / marginFormula:
+// editable expressions — see PB_FORMULAS below for each one's available
+// variables. Margin % is derived from margin, not separately editable.
 const PB_DEFAULTS = {
   rate: 570,
   shipRatePerKg: 320000,
   boxDims: { l: 0, w: 0, h: 0 },
   costFormula: '(ntd * 0.6) * rate',
   websiteSellFormula: '(orig * rate) * 0.9',
-  sellBaseFormula: 'websiteSell',
   shippingFormula: '((l * w * h / 5000) * rate) / fins',
-  marginFormula: 'sellBase - cost',
+  marginFormula: 'websiteSell - cost',
 };
 
 // Which variables each formula is allowed to use, and how to label them in
 // the popup. Kept in one place so the validator, the evaluator and the UI
 // hint all stay in sync.
 // Computed in this order per fin: shipping (shared, once) -> cost ->
-// website sell price -> my base price -> margin.
+// website sell price -> margin.
 // Each formula can use any value already computed by the time it runs, not
 // just its "own" variables — e.g. the cost formula can factor in shipping.
 const PB_FORMULAS = {
   costFormula:        { label: 'Your cost (IDR)',       vars: ['ntd', 'orig', 'rate', 'shipping'] },
   websiteSellFormula: { label: 'Website sell price',    vars: ['ntd', 'orig', 'rate', 'shipping', 'cost'] },
-  sellBaseFormula:    { label: 'My base price',         vars: ['ntd', 'orig', 'rate', 'shipping', 'cost', 'websiteSell'] },
   shippingFormula:    { label: 'Shipping',              vars: ['l', 'w', 'h', 'rate', 'fins'] },
-  marginFormula:       { label: 'Margin',                vars: ['ntd', 'orig', 'rate', 'shipping', 'cost', 'websiteSell', 'sellBase'] },
+  marginFormula:       { label: 'Margin',                vars: ['ntd', 'orig', 'rate', 'shipping', 'cost', 'websiteSell'] },
 };
 
 let pbSettings;
@@ -227,6 +261,13 @@ if(typeof pbSettings.marginFormula === 'string' && /\bendSelling\b/.test(pbSetti
   pbSettings.marginFormula = pbSettings.marginFormula.replace(/\bendSelling\b/g, '(sellBase + shipping)');
 }
 delete pbSettings.endSellingFormula;
+// Migrate a save from before "my base price" was removed: it defaulted to
+// websiteSell, so rewrite any old margin formula's "sellBase" references to
+// "websiteSell" directly.
+if(typeof pbSettings.marginFormula === 'string' && /\bsellBase\b/.test(pbSettings.marginFormula)){
+  pbSettings.marginFormula = pbSettings.marginFormula.replace(/\bsellBase\b/g, 'websiteSell');
+}
+delete pbSettings.sellBaseFormula;
 Object.keys(PB_FORMULAS).forEach(key => {
   if(typeof pbSettings[key] !== 'string' || !pbSettings[key].trim()) pbSettings[key] = PB_DEFAULTS[key];
 });
@@ -240,6 +281,138 @@ Object.keys(PB_FORMULAS).forEach(key => {
 }
 
 function savePbSettings(){ pbStorage.set(JSON.stringify(pbSettings)); scheduleCloudSync(); }
+
+// ---- cart -------------------------------------------------------------
+// Per-device (localStorage only, not synced to the Google Sheet — a cart is
+// a per-visitor shopping list, not a shared setting). Keyed by fin name;
+// prices are never frozen into the cart, they're recomputed live from
+// PB_CATALOG + the current formulas every time the cart is rendered, so
+// editing a formula updates the cart total too.
+const PB_CART_KEY = 'pb-fins-cart-v1';
+const pbCartStorage = (() => {
+  try {
+    localStorage.setItem('__t','1'); localStorage.removeItem('__t');
+    return { get: () => localStorage.getItem(PB_CART_KEY), set: v => localStorage.setItem(PB_CART_KEY, v) };
+  } catch(e) {
+    let mem = null;
+    return { get: () => mem, set: v => { mem = v; } };
+  }
+})();
+
+// Optional add-ons, priced in NT$ and converted to IDR at the currently-set
+// TWD->IDR rate (same rate used everywhere else on the page).
+const PB_ADDONS = [
+  { id: 'silicone', name: 'Silicone Paddings', ntd: 300 },
+];
+function addonPriceIDR(addon){
+  const rate = (pbSettings && typeof pbSettings.rate === 'number' && pbSettings.rate > 0) ? pbSettings.rate : PB_DEFAULTS.rate;
+  return addon.ntd * rate;
+}
+
+let pbCart;
+try { pbCart = JSON.parse(pbCartStorage.get()) || {}; } catch(e){ pbCart = {}; }
+if(typeof pbCart !== 'object' || pbCart === null || Array.isArray(pbCart)) pbCart = {};
+
+function saveCart(){ pbCartStorage.set(JSON.stringify(pbCart)); }
+function cartCount(){ return Object.values(pbCart).reduce((sum, item) => sum + (item.qty || 0), 0); }
+
+function addToCart(name){
+  if(!pbCart[name]) pbCart[name] = { qty: 0, addons: {} };
+  pbCart[name].qty += 1;
+  saveCart();
+  renderAndBindPB();
+}
+function removeFromCart(name){
+  delete pbCart[name];
+  saveCart();
+  renderAndBindPB();
+}
+function setCartQty(name, qty){
+  if(!pbCart[name]) return;
+  if(qty <= 0){ delete pbCart[name]; }
+  else { pbCart[name].qty = qty; }
+  saveCart();
+  renderAndBindPB();
+}
+function toggleCartAddon(name, addonId){
+  if(!pbCart[name]) return;
+  if(!pbCart[name].addons) pbCart[name].addons = {};
+  pbCart[name].addons[addonId] = !pbCart[name].addons[addonId];
+  saveCart();
+  renderAndBindPB();
+}
+
+function computeCartTotals(){
+  const shipResult = computeShipFee();
+  const shipFee = shipResult.ok ? shipResult.value : NaN;
+  const lines = Object.keys(pbCart).map(name => {
+    const p = PB_CATALOG.find(x => x.name === name);
+    if(!p) return null;
+    const entry = pbCart[name];
+    const pricing = computeProductPricing(p, shipFee);
+    const unitPrice = pricing.websiteSell;
+    const addonsChosen = PB_ADDONS.filter(a => entry.addons && entry.addons[a.id]);
+    const addonUnitTotal = addonsChosen.reduce((sum, a) => sum + addonPriceIDR(a), 0);
+    const ok = pricing.websiteSellResult.ok;
+    const lineTotal = ok ? (unitPrice + addonUnitTotal) * entry.qty : NaN;
+    return { name, qty: entry.qty, unitPrice, addonsChosen, addonUnitTotal, lineTotal, ok };
+  }).filter(Boolean);
+  const total = lines.reduce((sum, l) => sum + (isNaN(l.lineTotal) ? 0 : l.lineTotal), 0);
+  return { lines, total };
+}
+
+function renderCartBody(){
+  const { lines, total } = computeCartTotals();
+  if(!lines.length){
+    return '<p style="color:var(--ink-soft);font-size:13.5px;margin:4px 0 0">Your cart is empty — tap "+ Cart" next to a fin to add it.</p>';
+  }
+  const linesHtml = lines.map(l => `
+    <div class="cart-line">
+      <div class="cart-line-head">
+        <span class="cart-line-name">${l.name}</span>
+        <button type="button" class="cart-remove" data-remove-cart="${l.name.replace(/"/g, '&quot;')}" aria-label="Remove">&times;</button>
+      </div>
+      <div class="cart-line-row">
+        <div class="cart-qty">
+          <button type="button" data-qty-cart="${l.name.replace(/"/g, '&quot;')}" data-delta="-1" aria-label="Decrease">&minus;</button>
+          <span>${l.qty}</span>
+          <button type="button" data-qty-cart="${l.name.replace(/"/g, '&quot;')}" data-delta="1" aria-label="Increase">+</button>
+        </div>
+        <div class="cart-line-price">${l.ok ? formatIDR(l.unitPrice) + ' each' : '<span style="color:#b91c1c">price error</span>'}</div>
+      </div>
+      <div class="cart-addons">
+        ${PB_ADDONS.map(a => `
+          <label class="cart-addon">
+            <input type="checkbox" data-addon-cart="${l.name.replace(/"/g, '&quot;')}" data-addon-id="${a.id}" ${l.addonsChosen.some(x => x.id === a.id) ? 'checked' : ''}>
+            ${a.name} (+NT$${a.ntd} &rarr; ${formatIDR(addonPriceIDR(a))} each)
+          </label>`).join('')}
+      </div>
+      <div class="cart-line-subtotal">Subtotal: ${l.ok ? formatIDR(l.lineTotal) : '<span style="color:#b91c1c">error</span>'}</div>
+    </div>`).join('');
+  return `
+    <div class="cart-lines">${linesHtml}</div>
+    <div class="cart-total-row"><span>Total (website price)</span><strong>${formatIDR(total)}</strong></div>`;
+}
+
+function bindCartEvents(container){
+  container.querySelectorAll('[data-add-cart]').forEach(btn => {
+    btn.addEventListener('click', () => addToCart(btn.dataset.addCart));
+  });
+  container.querySelectorAll('[data-remove-cart]').forEach(btn => {
+    btn.addEventListener('click', () => removeFromCart(btn.dataset.removeCart));
+  });
+  container.querySelectorAll('[data-qty-cart]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.qtyCart;
+      const delta = parseInt(btn.dataset.delta, 10);
+      const current = pbCart[name] ? pbCart[name].qty : 0;
+      setCartQty(name, current + delta);
+    });
+  });
+  container.querySelectorAll('[data-addon-cart]').forEach(chk => {
+    chk.addEventListener('change', () => toggleCartAddon(chk.dataset.addonCart, chk.dataset.addonId));
+  });
+}
 
 // ---- cross-device sync (optional) -----------------------------------------
 // localStorage alone only persists on the one browser/device that touched
@@ -380,12 +553,32 @@ function formatIDR(n){
   return 'IDR ' + Math.round(n||0).toLocaleString('id-ID');
 }
 
-function renderTables(){
-  const { rate, shipRatePerKg, boxDims, costFormula, websiteSellFormula, sellBaseFormula, shippingFormula, marginFormula } = pbSettings;
-
-  const shipResult = evalFormula('shippingFormula', shippingFormula, {
+// ---- shared pricing (used by both the table and the cart) -----------------
+function computeShipFee(){
+  const { shipRatePerKg, boxDims, shippingFormula } = pbSettings;
+  return evalFormula('shippingFormula', shippingFormula, {
     l: boxDims.l, w: boxDims.w, h: boxDims.h, rate: shipRatePerKg, fins: PB_FINS_PER_BOX,
   });
+}
+
+// "orig" here is the site's already-discounted sale price (ntd), not the
+// crossed-out original — e.g. PB-X1 uses NT$15,000, not NT$15,300.
+// Computed in order — cost, then website sell price — so websiteSellFormula
+// can factor in cost (and shipping) if it references them.
+function computeProductPricing(p, shipFee){
+  const { rate, costFormula, websiteSellFormula } = pbSettings;
+  const costResult = evalFormula('costFormula', costFormula, { ntd: p.ntd, orig: p.ntd, rate, shipping: shipFee });
+  const cost = costResult.ok ? costResult.value : NaN;
+  const websiteSellResult = costResult.ok
+    ? evalFormula('websiteSellFormula', websiteSellFormula, { ntd: p.ntd, orig: p.ntd, rate, shipping: shipFee, cost })
+    : { ok: false };
+  return { costResult, cost, websiteSellResult, websiteSell: websiteSellResult.ok ? websiteSellResult.value : NaN };
+}
+
+function renderTables(){
+  const { rate, marginFormula } = pbSettings;
+
+  const shipResult = computeShipFee();
   const shipFee = shipResult.ok ? shipResult.value : NaN;
   const cats = [...new Set(PB_CATALOG.map(p => p.cat))];
 
@@ -394,38 +587,27 @@ function renderTables(){
   }
 
   function row(p){
-    // "orig" here is the site's already-discounted sale price (ntd), not
-    // the crossed-out original — e.g. PB-X1 uses NT$15,000, not NT$15,300.
-    // Computed in order — cost, website sell price, my base price, margin —
-    // so each later formula can factor in anything already computed (e.g.
-    // margin can use every earlier value).
-    const costResult = evalFormula('costFormula', costFormula, { ntd: p.ntd, orig: p.ntd, rate, shipping: shipFee });
-    const cost = costResult.ok ? costResult.value : NaN;
+    const { costResult, cost, websiteSellResult, websiteSell } = computeProductPricing(p, shipFee);
+    const cartQty = pbCart[p.name] ? pbCart[p.name].qty : 0;
 
-    const websiteSellResult = costResult.ok
-      ? evalFormula('websiteSellFormula', websiteSellFormula, { ntd: p.ntd, orig: p.ntd, rate, shipping: shipFee, cost })
-      : { ok: false };
-    const websiteSell = websiteSellResult.ok ? websiteSellResult.value : NaN;
-
-    const sellBaseResult = (costResult.ok && websiteSellResult.ok)
-      ? evalFormula('sellBaseFormula', sellBaseFormula, { ntd: p.ntd, orig: p.ntd, rate, shipping: shipFee, cost, websiteSell })
-      : { ok: false };
-    const sellBase = sellBaseResult.ok ? sellBaseResult.value : NaN;
-
-    const marginResult = (costResult.ok && websiteSellResult.ok && sellBaseResult.ok && shipResult.ok)
-      ? evalFormula('marginFormula', marginFormula, { ntd: p.ntd, orig: p.ntd, rate, shipping: shipFee, cost, websiteSell, sellBase })
+    const marginResult = (costResult.ok && websiteSellResult.ok && shipResult.ok)
+      ? evalFormula('marginFormula', marginFormula, { ntd: p.ntd, orig: p.ntd, rate, shipping: shipFee, cost, websiteSell })
       : { ok: false };
     const margin = marginResult.ok ? marginResult.value : NaN;
     const marginColor = m => (isNaN(m) ? 'var(--ink-soft)' : (m < 0 ? '#b91c1c' : 'inherit'));
-    const marginPct = (marginResult.ok && sellBaseResult.ok && sellBase !== 0) ? (margin / sellBase) * 100 : NaN;
+    const marginPct = (marginResult.ok && websiteSellResult.ok && websiteSell !== 0) ? (margin / websiteSell) * 100 : NaN;
     const marginPctText = isNaN(marginPct) ? '<span style="color:#b91c1c">error</span>' : `${marginPct.toFixed(1)}%`;
     return `
       <tr>
-        <td style="padding:6px 8px">${p.name}</td>
+        <td style="padding:6px 8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <span>${p.name}</span>
+            <button type="button" class="cart-add-btn" data-add-cart="${p.name.replace(/"/g, '&quot;')}">${cartQty > 0 ? `&#128722; ${cartQty}` : '+ Cart'}</button>
+          </div>
+        </td>
         <td style="text-align:right;padding:6px 8px;color:var(--ink-soft)">${formatNTD(p.ntd)}</td>
         <td style="text-align:right;padding:6px 8px;font-weight:600">${cell(costResult, formatIDR)}</td>
-        <td style="text-align:right;padding:6px 8px;color:var(--ink-soft)">${cell(websiteSellResult, formatIDR)}</td>
-        <td style="text-align:right;padding:6px 8px;font-weight:600">${cell(sellBaseResult, formatIDR)}</td>
+        <td style="text-align:right;padding:6px 8px;font-weight:600">${cell(websiteSellResult, formatIDR)}</td>
         <td style="text-align:right;padding:6px 8px;color:var(--ink-soft)">${cell(shipResult, formatIDR)}</td>
         <td style="text-align:right;padding:6px 8px;font-weight:600;color:${marginColor(margin)}">${marginResult.ok ? formatIDR(margin) : '<span style="color:#b91c1c">error</span>'}</td>
         <td style="text-align:right;padding:6px 8px;font-weight:600;color:${marginColor(margin)}">${marginPctText}</td>
@@ -444,7 +626,6 @@ function renderTables(){
               <th>Site price</th>
               <th>Your cost</th>
               <th>Website sell price</th>
-              <th>My base price</th>
               <th>Shipping</th>
               <th>Margin</th>
               <th>Margin %</th>
@@ -519,15 +700,13 @@ function renderCalcSettings(){
         </div>
         ${formulaRowHtml('costFormula', { ntd: 1, orig: 1, rate: 1, shipping: 1 })}
         ${formulaRowHtml('websiteSellFormula', { ntd: 1, orig: 1, rate: 1, shipping: 1, cost: 1 },
-          'what prussianbluefins.com itself would charge — for reference, not what you charge')}
-        ${formulaRowHtml('sellBaseFormula', { ntd: 1, orig: 1, rate: 1, shipping: 1, cost: 1, websiteSell: 1 },
-          'your own price before shipping is added on — defaults to matching the website sell price')}
+          'what you charge the customer')}
         ${formulaRowHtml('shippingFormula', { l: 1, w: 1, h: 1, rate: 1, fins: PB_FINS_PER_BOX },
           'rate here is IDR per kg, l/w/h come from the box below, fins is fixed at ' + PB_FINS_PER_BOX)}
         ${rateRowHtml}
         ${boxRowHtml}
-        ${formulaRowHtml('marginFormula', { ntd: 1, orig: 1, rate: 1, shipping: 1, cost: 1, websiteSell: 1, sellBase: 1 },
-          'margin % (shown next to margin in the table) is your base price minus cost, as a % of your base price')}
+        ${formulaRowHtml('marginFormula', { ntd: 1, orig: 1, rate: 1, shipping: 1, cost: 1, websiteSell: 1 },
+          'margin % (shown next to margin in the table) is margin as a % of the website sell price')}
       </div>
     </div>`;
 }
@@ -612,9 +791,19 @@ async function fetchLiveTwdToIdr(){
 
 function renderAndBindPB(){
   document.getElementById('view').innerHTML = renderTables();
+  bindCartEvents(document.getElementById('view'));
+
   const calcBody = document.getElementById('calcBody');
   calcBody.innerHTML = renderCalcSettings();
   bindSettingInputs(calcBody, renderAndBindPB);
+
+  const cartBody = document.getElementById('cartBody');
+  cartBody.innerHTML = renderCartBody();
+  bindCartEvents(cartBody);
+  const badge = document.getElementById('cartBadge');
+  const count = cartCount();
+  badge.textContent = count > 0 ? String(count) : '';
+  badge.hidden = count === 0;
 
   const fetchBtn = document.getElementById('fetchRateBtn');
   const statusEl = document.getElementById('rate-fetch-status');
@@ -646,6 +835,16 @@ const calcDialog = document.getElementById('calcDialog');
 document.getElementById('openCalcBtn').addEventListener('click', () => calcDialog.showModal());
 document.getElementById('closeCalcBtn').addEventListener('click', () => calcDialog.close());
 calcDialog.addEventListener('click', e => { if(e.target === calcDialog) calcDialog.close(); });
+
+const cartDialog = document.getElementById('cartDialog');
+document.getElementById('cartBtn').addEventListener('click', () => cartDialog.showModal());
+document.getElementById('closeCartBtn').addEventListener('click', () => cartDialog.close());
+cartDialog.addEventListener('click', e => { if(e.target === cartDialog) cartDialog.close(); });
+document.getElementById('clearCartBtn').addEventListener('click', () => {
+  pbCart = {};
+  saveCart();
+  renderAndBindPB();
+});
 
 let saveStatusTimer = null;
 document.getElementById('saveCalcBtn').addEventListener('click', () => {
