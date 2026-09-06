@@ -396,7 +396,7 @@
     min-width: 0;
   }
   .summary-name .legend-dot { flex: none; }
-  .summary-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .summary-name span { white-space: normal; overflow-wrap: break-word; }
   .summary-val {
     text-align: right;
     font-family: "JetBrains Mono", monospace;
@@ -486,7 +486,7 @@
     padding: 4px 7px;
     cursor: text;
     min-width: 40px;
-    max-width: 220px;
+    max-width: min(220px, 60vw);
   }
   .course-tab-name-input:focus {
     outline: 2px solid var(--accent);
@@ -497,6 +497,9 @@
     background: var(--surface);
     border-color: transparent;
     color: var(--accent-ink);
+  }
+  @media (max-width: 640px) {
+    .course-tab-name-input { max-width: calc(100vw - 90px); }
   }
   .groups { gap: 0; }
   .level-group { display: none; }
@@ -555,20 +558,12 @@
     flex: 1;
     min-width: 0;
     color: var(--ink);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: break-word;
+    flex-basis: 100%;
+    order: -1;
   }
-  @media (max-width: 640px) {
-    .level-header { flex-wrap: wrap; }
-    .level-title-label {
-      white-space: normal;
-      overflow-wrap: break-word;
-      text-overflow: clip;
-      flex-basis: 100%;
-      order: -1;
-    }
-  }
+  .level-header { flex-wrap: wrap; }
 
   .level-remove {
     background: transparent;
@@ -2339,6 +2334,7 @@
         persist();
       });
       nameBox.addEventListener("change", function () { renderAll(); });
+      nameBox.addEventListener("blur", function () { nameBox.scrollLeft = 0; });
 
       tabsWrap.appendChild(tabBtn);
     });
