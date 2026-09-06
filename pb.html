@@ -86,6 +86,9 @@
   .chip-op{color:var(--ink-soft);padding:4px 12px}
   .chip-op:hover{background:var(--rose,#FBC9CE);color:var(--ink)}
   .chip-sep{width:1px;align-self:stretch;background:var(--rose-line);margin:0 2px}
+  .chip-toolbar{background:#FFF8FA;border:1px solid var(--rose-line);border-radius:12px;padding:10px 12px;margin-bottom:14px}
+  .chip-toolbar-hint{font-size:12px;color:var(--ink-soft);margin-bottom:8px}
+  .chip-row-toolbar{grid-column:auto}
 
   dialog{border:none;border-radius:0;padding:0;background:transparent;max-width:none;width:100%}
   dialog::backdrop{background:rgba(62,58,46,.4)}
@@ -102,17 +105,49 @@
   .save-status{font-size:12.5px;color:var(--ok,#2FA36B);opacity:0;transition:opacity .2s}
   .save-status.show{opacity:1}
 
-  @media (max-width:600px){
-    .formula-row{grid-template-columns:1fr}
-    .formula-row code{grid-column:1}
-    .formula-note{grid-column:1}
-    .chip-row{grid-column:1}
+  /* Below 700px the price table stops trying to be a table — seven squeezed
+     columns is what was hard to read on a phone — and each row becomes its
+     own stacked card instead: fin name up top, then one clearly labelled
+     price per line. */
+  @media (max-width:700px){
     .wrap{padding:16px 12px 60px}
     .brand h1{font-size:22px}
     .card{padding:12px}
-    table{font-size:12.5px}
-    th,td{padding:5px 4px !important}
-    th{font-size:10.5px}
+
+    table, thead, tbody, tr, td{display:block;width:100%}
+    table{border-spacing:0}
+    thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+    tbody tr{
+      border:1px solid var(--rose-line);border-radius:14px;
+      padding:12px 14px;margin-bottom:12px;background:#fff;
+    }
+    tbody tr td{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      padding:8px 0;border-bottom:1px dashed var(--rose-line);
+      font-size:15px;text-align:right;
+    }
+    tbody tr td:last-child{border-bottom:none;padding-bottom:0}
+    tbody tr td::before{
+      content:attr(data-label);font-size:11.5px;font-weight:700;
+      text-transform:uppercase;letter-spacing:.03em;color:var(--ink-soft);
+      text-align:left;flex:none;
+    }
+    /* the fin-name row already carries its own label (the name) plus the
+       cart button, so it gets no data-label prefix and a heavier rule under
+       it to read as the card's header */
+    tbody tr td:first-child{
+      padding-bottom:10px;margin-bottom:2px;
+      border-bottom:1.5px solid var(--rose-line);
+    }
+    tbody tr td:first-child::before{content:none}
+    tbody tr td:first-child > div{width:100%}
+    tbody tr td:first-child span{font-size:15.5px;font-weight:600}
+    .cart-add-btn{padding:5px 12px;font-size:12.5px}
+
+    header.app{flex-wrap:wrap}
+    .header-actions{flex-wrap:wrap;row-gap:8px;width:100%}
+    .btn{padding:8px 12px;font-size:12.5px}
+    #pbSyncStatus{text-align:left !important}
   }
   input, select, textarea{ font-size:16px !important; }
 </style>
@@ -605,12 +640,12 @@ function renderTables(){
             <button type="button" class="cart-add-btn" data-add-cart="${p.name.replace(/"/g, '&quot;')}">${cartQty > 0 ? `&#128722; ${cartQty}` : '+ Cart'}</button>
           </div>
         </td>
-        <td style="text-align:right;padding:6px 8px;color:var(--ink-soft)">${formatNTD(p.ntd)}</td>
-        <td style="text-align:right;padding:6px 8px;font-weight:600">${cell(costResult, formatIDR)}</td>
-        <td style="text-align:right;padding:6px 8px;font-weight:600">${cell(websiteSellResult, formatIDR)}</td>
-        <td style="text-align:right;padding:6px 8px;color:var(--ink-soft)">${cell(shipResult, formatIDR)}</td>
-        <td style="text-align:right;padding:6px 8px;font-weight:600;color:${marginColor(margin)}">${marginResult.ok ? formatIDR(margin) : '<span style="color:#b91c1c">error</span>'}</td>
-        <td style="text-align:right;padding:6px 8px;font-weight:600;color:${marginColor(margin)}">${marginPctText}</td>
+        <td data-label="Site price" style="text-align:right;padding:6px 8px;color:var(--ink-soft)">${formatNTD(p.ntd)}</td>
+        <td data-label="Your cost" style="text-align:right;padding:6px 8px;font-weight:600">${cell(costResult, formatIDR)}</td>
+        <td data-label="Website sell" style="text-align:right;padding:6px 8px;font-weight:600">${cell(websiteSellResult, formatIDR)}</td>
+        <td data-label="Shipping" style="text-align:right;padding:6px 8px;color:var(--ink-soft)">${cell(shipResult, formatIDR)}</td>
+        <td data-label="Margin" style="text-align:right;padding:6px 8px;font-weight:600;color:${marginColor(margin)}">${marginResult.ok ? formatIDR(margin) : '<span style="color:#b91c1c">error</span>'}</td>
+        <td data-label="Margin %" style="text-align:right;padding:6px 8px;font-weight:600;color:${marginColor(margin)}">${marginPctText}</td>
       </tr>`;
   }
 
@@ -643,24 +678,41 @@ const PB_OPERATOR_CHIPS = ['+', '-', '×', '/', '(', ')'];
 // The multiplication chip shows as × but inserts a real * into the formula.
 function chipInsertText(chip){ return chip === '×' ? '*' : chip; }
 
+// Which formula field a chip click inserts into: whichever formula field the
+// user last focused, so the variable/operator toolbar can live once at the
+// top of the popup instead of being repeated under every field. Falls back
+// to the first formula field until something has been focused.
+let pbLastFocusedInputId = null;
+
 function formulaRowHtml(key, sampleValues, extraNoteHtml){
-  const { label, vars } = PB_FORMULAS[key];
+  const { label } = PB_FORMULAS[key];
   const formula = pbSettings[key];
   const check = evalFormula(key, formula, sampleValues);
   const inputId = `formula-input-${key}`;
-  const varChips = vars.map(v => `<button type="button" class="chip chip-var" data-insert="${v}" data-target-input="${inputId}">${v}</button>`).join('');
-  const opChips = PB_OPERATOR_CHIPS.map(c => `<button type="button" class="chip chip-op" data-insert="${chipInsertText(c)}" data-target-input="${inputId}">${c}</button>`).join('');
-  const ntdChip = `<button type="button" class="chip chip-var" data-insert="NTD" data-target-input="${inputId}" title="type an amount right after, e.g. NTD1500">NTD&hellip;</button>`;
   return `
       <div class="formula-row">
         <div class="formula-label">${label}</div>
         <input type="text" id="${inputId}" class="margin-formula-input" data-pb-setting-text="${key}" value="${formula.replace(/"/g, '&quot;')}" spellcheck="false">
-        <div class="chip-row">${varChips}<span class="chip-sep"></span>${opChips}<span class="chip-sep"></span>${ntdChip}</div>
         <div class="formula-note" id="formula-note-${key}">
           ${!check.ok ? `<span style="color:#b91c1c">${check.error}</span>` : ''}
           ${extraNoteHtml || ''}
-          <span>tip: type <code>NTD1500</code> to add an NT$ amount, auto-converted at the current rate</span>
         </div>
+      </div>`;
+}
+
+// One shared toolbar of every variable/operator used across all formulas,
+// shown once at the top of the popup — click a formula field, then tap a
+// symbol here to insert it there, instead of the same chips repeating under
+// every field.
+function sharedChipToolbarHtml(){
+  const allVars = [...new Set(Object.values(PB_FORMULAS).flatMap(f => f.vars))];
+  const varChips = allVars.map(v => `<button type="button" class="chip chip-var" data-insert="${v}">${v}</button>`).join('');
+  const opChips = PB_OPERATOR_CHIPS.map(c => `<button type="button" class="chip chip-op" data-insert="${chipInsertText(c)}">${c}</button>`).join('');
+  const ntdChip = `<button type="button" class="chip chip-var" data-insert="NTD" title="type an amount right after, e.g. NTD1500">NTD&hellip;</button>`;
+  return `
+      <div class="chip-toolbar">
+        <div class="chip-toolbar-hint">Tap into a formula field below, then tap a symbol here to insert it there:</div>
+        <div class="chip-row chip-row-toolbar">${varChips}<span class="chip-sep"></span>${opChips}<span class="chip-sep"></span>${ntdChip}</div>
       </div>`;
 }
 
@@ -692,11 +744,12 @@ function renderCalcSettings(){
 
   return `
     <div class="formula-card">
+      ${sharedChipToolbarHtml()}
       <div class="formula-grid">
         <div class="formula-row">
           <div class="formula-label">Site price</div>
           <code>orig</code>
-          <div class="formula-note">the site's already-discounted NT$ sale price (e.g. NT$15,000 for the PB-X1, not the crossed-out NT$15,300), shown as-is (not editable)</div>
+          <div class="formula-note">the site's already-discounted NT$ sale price (e.g. NT$15,000 for the PB-X1, not the crossed-out NT$15,300), shown as-is (not editable) — type <code>NTD1500</code> in any field to add an NT$ amount, auto-converted at the current rate</div>
         </div>
         ${formulaRowHtml('costFormula', { ntd: 1, orig: 1, rate: 1, shipping: 1 })}
         ${formulaRowHtml('websiteSellFormula', { ntd: 1, orig: 1, rate: 1, shipping: 1, cost: 1 },
@@ -731,7 +784,10 @@ function bindSettingInputs(container, onChanged){
     });
   });
   container.querySelectorAll('[data-pb-setting-text]').forEach(input => {
-    input.addEventListener('focus', e => { e.target.dataset.lastFocused = '1'; });
+    input.addEventListener('focus', e => {
+      e.target.dataset.lastFocused = '1';
+      pbLastFocusedInputId = e.target.id;
+    });
     input.addEventListener('change', e => {
       const key = e.target.dataset.pbSettingText;
       const val = e.target.value.trim();
@@ -740,12 +796,17 @@ function bindSettingInputs(container, onChanged){
       onChanged();
     });
   });
-  // Variable/operator chips: insert the chip's text into its formula field
-  // at the last cursor position (or the end, if the field was never
-  // focused yet), then let the normal change handling above save & recalc.
+  // Variable/operator chips: insert the chip's text into whichever formula
+  // field was last focused (a chip carries its own data-target-input only
+  // where one still applies; the shared toolbar chips don't, so they fall
+  // back to pbLastFocusedInputId, or the first formula field if nothing has
+  // been focused yet), at that field's last cursor position (or the end, if
+  // the field was never focused yet) — then let the normal change handling
+  // above save & recalc.
   container.querySelectorAll('[data-insert]').forEach(chip => {
     chip.addEventListener('click', () => {
-      const input = document.getElementById(chip.dataset.targetInput);
+      const targetId = chip.dataset.targetInput || pbLastFocusedInputId || 'formula-input-costFormula';
+      const input = document.getElementById(targetId);
       if(!input) return;
       const text = chip.dataset.insert;
       // Only trust the field's cursor position if it's the one the user was
