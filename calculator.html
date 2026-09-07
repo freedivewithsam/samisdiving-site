@@ -446,61 +446,6 @@
 
   .groups { display: flex; flex-direction: column; gap: 24px; }
 
-  .course-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 2px 2px 10px;
-    margin-bottom: 4px;
-  }
-  .course-tab-btn {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    flex: none;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    color: var(--ink-soft);
-    font-family: "Space Grotesk", sans-serif;
-    font-weight: 600;
-    font-size: 0.86rem;
-    padding: 7px 12px;
-    border-radius: 10px;
-    cursor: pointer;
-    max-width: 100%;
-  }
-  .course-tab-btn:hover { color: var(--ink); border-color: var(--accent); }
-  .course-tab-btn .level-badge { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-  .course-tab-btn.active {
-    background: var(--accent);
-    color: var(--accent-ink);
-    border-color: var(--accent);
-  }
-  .course-tab-name-input {
-    background: var(--surface-2);
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    color: inherit;
-    font: inherit;
-    font-weight: inherit;
-    padding: 4px 7px;
-    cursor: text;
-    min-width: 40px;
-    max-width: min(220px, 60vw);
-  }
-  .course-tab-name-input:focus {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
-    background: var(--surface);
-  }
-  .course-tab-btn.active .course-tab-name-input {
-    background: var(--surface);
-    border-color: transparent;
-    color: var(--accent-ink);
-  }
-  @media (max-width: 640px) {
-    .course-tab-name-input { max-width: calc(100vw - 90px); }
-  }
   .groups { gap: 0; }
   .level-group { display: none; }
   .level-group.active-tab { display: block; }
@@ -1058,7 +1003,6 @@
     <div class="summary-table" id="summaryTable"></div>
   </div>
 
-  <div class="course-tabs" id="courseTabs"></div>
   <div class="groups" id="groups"></div>
   <div class="empty-hint" id="noGroupsHint" style="display:none;">No courses yet — add your first one to start calculating.</div>
 
@@ -1397,14 +1341,6 @@
       persist();
       var titleLabelEl = document.querySelector('[data-title-for="' + mc.id + '"]');
       if (titleLabelEl) titleLabelEl.textContent = nameInput.value || "Untitled course";
-      // The tab button has its own separate label (mc.tabLabel); only its
-      // placeholder (shown when no custom tab label is set) follows the
-      // course title, so it never overwrites something the user typed there.
-      var tabNameEl = document.querySelector('.course-tab-name-input[data-name-tab-for="' + mc.id + '"]');
-      if (tabNameEl) {
-        tabNameEl.placeholder = nameInput.value || "Untitled course";
-        if (!mc.tabLabel) tabNameEl.size = Math.max(6, tabNameEl.placeholder.length);
-      }
     });
     nameInput.addEventListener("change", function () { renderAll(); });
     nameWrap.appendChild(nameInput);
@@ -2280,70 +2216,14 @@
     }, function () { openPngFallback(pngPreviewBlob); saveBtn.disabled = false; });
   }
 
-  var activeMineTabId = null; // which course tab is shown on mobile
-
-  function renderCourseTabs() {
-    var tabsWrap = document.getElementById("courseTabs");
-    tabsWrap.innerHTML = "";
-    if (!mine.some(function (mc) { return mc.id === activeMineTabId; })) {
-      activeMineTabId = mine.length ? mine[0].id : null;
-    }
-    mine.forEach(function (mc) {
-      var tabBtn = document.createElement("div");
-      tabBtn.className = "course-tab-btn" + (mc.id === activeMineTabId ? " active" : "");
-      tabBtn.tabIndex = 0;
-      tabBtn.setAttribute("role", "button");
-      var dot = document.createElement("span");
-      dot.className = "level-badge";
-      dot.style.background = "var(--" + mc.color + ")";
-      tabBtn.appendChild(dot);
-      var nameBox = document.createElement("input");
-      nameBox.type = "text";
-      nameBox.className = "course-tab-name-input";
-      nameBox.dataset.nameTabFor = mc.id;
-      nameBox.value = mc.tabLabel || "";
-      nameBox.placeholder = mc.name || "Untitled course";
-      nameBox.size = Math.max(6, (mc.tabLabel || mc.name || "Untitled course").length);
-      tabBtn.appendChild(nameBox);
-
-      function activateTab() {
-        activeMineTabId = mc.id;
-        renderAll();
-        var card = document.getElementById("course-card-" + mc.id);
-        if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-
-      tabBtn.addEventListener("click", function (e) {
-        if (e.target === nameBox) return;
-        activateTab();
-      });
-      tabBtn.addEventListener("keydown", function (e) {
-        if (e.target !== nameBox && (e.key === "Enter" || e.key === " ")) {
-          e.preventDefault();
-          activateTab();
-        }
-      });
-
-      nameBox.addEventListener("click", function (e) { e.stopPropagation(); });
-      nameBox.addEventListener("focus", function () {
-        if (mc.id !== activeMineTabId) activateTab();
-      });
-      nameBox.addEventListener("input", function () {
-        mc.tabLabel = nameBox.value;
-        nameBox.size = Math.max(6, nameBox.value.length || nameBox.placeholder.length);
-        persist();
-      });
-      nameBox.addEventListener("change", function () { renderAll(); });
-      nameBox.addEventListener("blur", function () { nameBox.scrollLeft = 0; });
-
-      tabsWrap.appendChild(tabBtn);
-    });
-  }
+  var activeMineTabId = null; // which course is shown at a time (switched from the summary table)
 
   function renderAll() {
     var groupsWrap = document.getElementById("groups");
     groupsWrap.innerHTML = "";
-    renderCourseTabs();
+    if (!mine.some(function (mc) { return mc.id === activeMineTabId; })) {
+      activeMineTabId = mine.length ? mine[0].id : null;
+    }
 
     mine.forEach(function (mc, idx) {
       var matched = sortedSchools(theirs.filter(function (t) { return t.levelId === mc.id; }));
