@@ -2561,7 +2561,7 @@ function renderCalendarMonth(byDay){
         if(entry.kind==='custom'){
           const ev = entry.ev;
           const {bg,fg} = getEventTypeColor(ev.type);
-          const label = `${ev.time ? ev.time+' - ' : ''}${calEventLabel(ev)} - ${ev.title}${entry.age!=null ? ' - '+entry.age : ''}`;
+          const label = `${ev.time ? ev.time+' - ' : ''}${calEventLabel(ev)}${ev.title ? ' - '+ev.title : ''}${entry.age!=null ? ' - '+entry.age : ''}`;
           // A multi-day event's bar bridges the small gap between day cells
           // so it reads as one continuous strip rather than separate chips.
           const connectsLeft = (entry.spanPos==='mid'||entry.spanPos==='end') && col!==0;
@@ -4588,7 +4588,7 @@ $('calEventForm').addEventListener('submit', ()=>{
   const data = {
     kind: 'event',
     type,
-    title: $('fCalEvTitle').value.trim() || 'Event',
+    title: $('fCalEvTitle').value.trim(),
     date: isoDate,
     time,
     endDate: isoEnd,
