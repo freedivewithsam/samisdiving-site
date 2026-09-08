@@ -3,9 +3,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta name="robots" content="noindex, nofollow, noarchive">
-<style>html,body{overscroll-behavior-y:contain}button{touch-action:manipulation}</style>
-
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
@@ -18,127 +15,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
-<div id="__passcodeGate" style="position:fixed;inset:0;z-index:999999;background:var(--bg,#FFF7F5);display:flex;align-items:center;justify-content:center;font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <div id="__gateCard" style="background:var(--card,#fff);border-radius:var(--radius,14px);box-shadow:var(--shadow,0 1px 3px rgba(0,0,0,.08),0 6px 18px rgba(0,0,0,.06));padding:28px 26px 22px;width:min(90vw,300px);text-align:center;">
-    <div style="font-size:14px;color:var(--ink-soft,#888);margin-bottom:16px;font-weight:500;">Enter passcode</div>
-    <div id="__gateDots" style="display:flex;justify-content:center;gap:12px;margin-bottom:22px;">
-      <span class="__gdot" style="width:12px;height:12px;border-radius:50%;background:var(--rose,#eee);border:1.5px solid var(--accent-dark,#ccc);display:inline-block;transition:background .1s;"></span>
-      <span class="__gdot" style="width:12px;height:12px;border-radius:50%;background:var(--rose,#eee);border:1.5px solid var(--accent-dark,#ccc);display:inline-block;transition:background .1s;"></span>
-      <span class="__gdot" style="width:12px;height:12px;border-radius:50%;background:var(--rose,#eee);border:1.5px solid var(--accent-dark,#ccc);display:inline-block;transition:background .1s;"></span>
-      <span class="__gdot" style="width:12px;height:12px;border-radius:50%;background:var(--rose,#eee);border:1.5px solid var(--accent-dark,#ccc);display:inline-block;transition:background .1s;"></span>
-    </div>
-    <div id="__gateKeys" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-      <button type="button" class="__gkey" data-d="1" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">1</button>
-      <button type="button" class="__gkey" data-d="2" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">2</button>
-      <button type="button" class="__gkey" data-d="3" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">3</button>
-      <button type="button" class="__gkey" data-d="4" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">4</button>
-      <button type="button" class="__gkey" data-d="5" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">5</button>
-      <button type="button" class="__gkey" data-d="6" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">6</button>
-      <button type="button" class="__gkey" data-d="7" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">7</button>
-      <button type="button" class="__gkey" data-d="8" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">8</button>
-      <button type="button" class="__gkey" data-d="9" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">9</button>
-      <span></span>
-      <button type="button" class="__gkey" data-d="0" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;">0</button>
-      <button type="button" id="__gateBack" style="width:100%;aspect-ratio:1/1;border-radius:50%;border:1px solid var(--rose-line,#eee);background:var(--rose,#faf5f5);color:var(--ink,#333);font-size:19px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;background:transparent;box-shadow:none;font-size:16px;">⌫</button>
-    </div>
-    <div id="__gateError" style="color:#c0392b;font-size:12.5px;height:16px;margin-top:16px;"></div>
-  </div>
-</div>
-<script>
-(function(){
-  var HASH = "6c94e35ccc352d4e9ef0b99562cff995a5741ce8de8ad11b568892934daee366";
-  var LEN = 4;
-  var SESSION_KEY = "__gateOk_" + HASH.slice(0,8);
-  var entered = "";
-  var dots = null, keys = null, backBtn = null, errEl = null, card = null;
-
-  function sha256(text){
-    var enc = new TextEncoder().encode(text);
-    return crypto.subtle.digest("SHA-256", enc).then(function(buf){
-      return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,"0");}).join("");
-    });
-  }
-  function unlock(){
-    var g = document.getElementById("__passcodeGate");
-    if (g) g.remove();
-  }
-  function renderDots(){
-    dots.forEach(function(d, i){
-      d.style.background = i < entered.length ? "var(--accent-dark,#888)" : "var(--rose,#eee)";
-    });
-  }
-  function shake(){
-    card.style.animation = "none";
-    void card.offsetWidth;
-    card.style.animation = "__gshake .35s";
-  }
-  function reset(msg){
-    entered = "";
-    renderDots();
-    if (msg) errEl.textContent = msg;
-    shake();
-  }
-  function tryUnlock(){
-    sha256(entered).then(function(h){
-      if (h === HASH) {
-        sessionStorage.setItem(SESSION_KEY, "1");
-        unlock();
-      } else {
-        reset("Incorrect passcode");
-      }
-    });
-  }
-
-  if (sessionStorage.getItem(SESSION_KEY) === "1") {
-    unlock();
-    return;
-  }
-
-  var styleTag = document.createElement("style");
-  styleTag.textContent = "@keyframes __gshake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-4px)}40%,60%{transform:translateX(4px)}}";
-  document.head.appendChild(styleTag);
-
-  dots = Array.prototype.slice.call(document.querySelectorAll(".__gdot"));
-  keys = Array.prototype.slice.call(document.querySelectorAll(".__gkey"));
-  backBtn = document.getElementById("__gateBack");
-  errEl = document.getElementById("__gateError");
-  card = document.getElementById("__gateCard");
-
-  keys.forEach(function(btn){
-    btn.addEventListener("click", function(){
-      if (entered.length >= LEN) return;
-      errEl.textContent = "";
-      entered += btn.getAttribute("data-d");
-      renderDots();
-      if (entered.length === LEN) {
-        setTimeout(tryUnlock, 120);
-      }
-    });
-  });
-  backBtn.addEventListener("click", function(){
-    errEl.textContent = "";
-    entered = entered.slice(0, -1);
-    renderDots();
-  });
-
-  document.addEventListener("keydown", function(e){
-    if (document.getElementById("__passcodeGate") == null) return;
-    if (e.key >= "0" && e.key <= "9") {
-      if (entered.length < LEN) {
-        errEl.textContent = "";
-        entered += e.key;
-        renderDots();
-        if (entered.length === LEN) setTimeout(tryUnlock, 120);
-      }
-    } else if (e.key === "Backspace") {
-      errEl.textContent = "";
-      entered = entered.slice(0, -1);
-      renderDots();
-    }
-  });
-})();
-</script>
-
 <title>freestep</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1943,7 +1819,7 @@ function addSaleItemRow(prefillLabel, prefillQty, prefillPrice){
     <div style="display:flex;gap:8px;align-items:flex-end">
       <div class="field" style="flex:1;margin-bottom:0;position:relative">
         <label>Item</label>
-        <input class="fSaleItemProduct" required placeholder="Type to search" autocomplete="off">
+        <input class="fSaleItemProduct" placeholder="Type to search (optional — leave blank for now)" autocomplete="off">
         <div class="item-suggestions ship-dest-suggestions"></div>
       </div>
       <button type="button" class="icon-btn sale-item-remove" data-action="remove-sale-item" title="Remove item">✕</button>
@@ -3272,7 +3148,12 @@ $('saleForm').addEventListener('submit', e=>{
   const rows = Array.from(document.querySelectorAll('#saleItemsList .sale-item-row'));
   const items = [];
   for(const row of rows){
-    const label = row.querySelector('.fSaleItemProduct').value;
+    const label = row.querySelector('.fSaleItemProduct').value.trim();
+    // A blank item field means this order doesn't have its item pinned down
+    // yet — skip the row instead of treating it as an error, so an order
+    // can be logged (customer/shipping/payment info and all) and the item
+    // filled in later by editing it.
+    if(!label) continue;
     const p = findProductByTypedLabel(label);
     if(!p){
       e.preventDefault();
@@ -3284,7 +3165,6 @@ $('saleForm').addEventListener('submit', e=>{
     const price = priceRaw === '' ? null : Math.max(0, parseFloat(priceRaw) || 0);
     items.push({ p, qty, price });
   }
-  if(!items.length){ e.preventDefault(); askAlert('Add at least one item.'); return; }
 
   // Date is optional — leave it blank to log as today. If filled, it must
   // be a full 8-digit DDMMYYYY.
@@ -3346,39 +3226,70 @@ $('saleForm').addEventListener('submit', e=>{
     db.sales = db.sales.filter(x=>!editingSaleIds.includes(x.id));
   }
 
-  items.forEach((item, idx) => {
-    const { p, qty, price } = item;
-    p.stock = Math.max(0, (p.stock||0) - qty);
-    p.updatedAt = nowIso;
+  if(items.length){
+    items.forEach((item, idx) => {
+      const { p, qty, price } = item;
+      p.stock = Math.max(0, (p.stock||0) - qty);
+      p.updatedAt = nowIso;
+      db.sales.push({
+        id: uid(),
+        productId: p.id,
+        name: p.name,
+        size: p.size||'',
+        width: p.width||'',
+        color: p.color||'',
+        customer,
+        // The price actually charged for this line item — saved per line
+        // (unlike paid/shipCost, which are transaction-level and only live
+        // on the first item) so re-opening this sale later to edit or to
+        // regenerate an invoice shows what was really charged, not
+        // whatever the product's default price happens to be *now*.
+        price: price,
+        paid: idx===0 ? paid : null,
+        phone: idx===0 ? phone : '',
+        address: idx===0 ? address : '',
+        kecamatan: idx===0 ? kecamatan : '',
+        kabupaten: idx===0 ? kabupaten : '',
+        postalCode: idx===0 ? postalCode : '',
+        province: idx===0 ? province : '',
+        shipCost: idx===0 ? shipCost : null,
+        shipCostActual: idx===0 ? shipCostActual : null,
+        qty,
+        date: dateIso,
+        updatedAt: nowIso,
+        groupId,
+      });
+    });
+  } else {
+    // No item picked yet — log the order anyway (customer, shipping,
+    // payment info and all) with an empty item line, so it shows up in
+    // Sales history as "—" for now and can be edited later to fill in
+    // what was actually bought. Doesn't touch stock since no product is
+    // attached yet.
     db.sales.push({
       id: uid(),
-      productId: p.id,
-      name: p.name,
-      size: p.size||'',
-      width: p.width||'',
-      color: p.color||'',
+      productId: null,
+      name: '',
+      size: '',
+      width: '',
+      color: '',
       customer,
-      // The price actually charged for this line item — saved per line
-      // (unlike paid/shipCost, which are transaction-level and only live
-      // on the first item) so re-opening this sale later to edit or to
-      // regenerate an invoice shows what was really charged, not
-      // whatever the product's default price happens to be *now*.
-      price: price,
-      paid: idx===0 ? paid : null,
-      phone: idx===0 ? phone : '',
-      address: idx===0 ? address : '',
-      kecamatan: idx===0 ? kecamatan : '',
-      kabupaten: idx===0 ? kabupaten : '',
-      postalCode: idx===0 ? postalCode : '',
-      province: idx===0 ? province : '',
-      shipCost: idx===0 ? shipCost : null,
-      shipCostActual: idx===0 ? shipCostActual : null,
-      qty,
+      price: null,
+      paid,
+      phone,
+      address,
+      kecamatan,
+      kabupaten,
+      postalCode,
+      province,
+      shipCost,
+      shipCostActual,
+      qty: 0,
       date: dateIso,
       updatedAt: nowIso,
-      groupId,
+      groupId: null,
     });
-  });
+  }
   save(); closeSaleModal(); render();
 });
 
