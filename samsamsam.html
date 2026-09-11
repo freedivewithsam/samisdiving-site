@@ -188,7 +188,7 @@
   .todo-row .mid{min-width:0}
   .todo-row .item{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .todo-row .acts{flex-shrink:0;margin-left:auto}
-  .todo-cell{display:flex;flex-direction:column;gap:6px;min-height:96px}
+  .todo-cell{display:flex;flex-direction:column;gap:6px;height:96px;overflow:hidden}
   .todo-group-head{
     font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
     color:var(--ink-soft);margin:18px 0 8px;
@@ -1202,7 +1202,17 @@ function jsonpFetch(url){
     let settled = false;
     let timer;
     const cleanup = ()=>{
-      delete window[cbName];
+      // Replaces the callback with a harmless no-op instead of deleting
+      // it outright. This turned out to be a real bug: with a large
+      // enough database, the backend can genuinely take longer than this
+      // timeout to respond — deleting the callback here meant that once
+      // the timeout fired, the ACTUAL response arriving moments later
+      // tried to call a function that no longer existed at all, throwing
+      // "ReferenceError: ... is not defined" and crashing before the app
+      // ever got to see that response — even though the save itself had
+      // completed successfully on the backend. A no-op lets a late
+      // response arrive safely and just be silently ignored instead.
+      window[cbName] = function(){};
       if(script.parentNode) script.parentNode.removeChild(script);
       clearTimeout(timer);
     };
@@ -1221,12 +1231,17 @@ function jsonpFetch(url){
     const sep = url.indexOf('?') === -1 ? '?' : '&';
     script.src = url + sep + 'callback=' + cbName + '&_ts=' + Date.now();
     document.body.appendChild(script);
+    // 60s, not 20s — with enough data accumulated, a single save/read on
+    // the backend can genuinely take longer than 20 seconds (confirmed
+    // directly: some saves have taken 20-25s end to end), so 20s was
+    // cutting off requests that were actually still working correctly,
+    // not stuck.
     timer = setTimeout(()=>{
       if(settled) return;
       settled = true;
       cleanup();
       reject(new Error('Cloud request timed out.'));
-    }, 20000);
+    }, 60000);
   });
 }
 /* Small shim so pullCloud()/resetLocalAndRepull() below — written around
@@ -1768,7 +1783,13 @@ async function pushCloud(){
       setSyncStatus('Sync failed — check your connection.');
       return;
     }
-    const data = await jsonpFetch(syncUrl + (syncUrl.indexOf('?')===-1?'?':'&') + 'token=' + encodeURIComponent(authToken||'')).catch(()=>({}));
+    // A rejected/timed-out confirmation read must be treated as a real
+    // failure, not silently waved through as "empty but fine" — that was
+    // the actual bug: {} has no .error field, so the check right below
+    // this used to treat a timeout exactly like a successful-but-empty
+    // response, incorrectly reporting the save as confirmed when nothing
+    // had actually been confirmed at all.
+    const data = await jsonpFetch(syncUrl + (syncUrl.indexOf('?')===-1?'?':'&') + 'token=' + encodeURIComponent(authToken||'')).catch(err=>({error: (err && err.message) || 'Timed out waiting for confirmation.'}));
     if(data && data.code === 401){ handleAuthExpired(); return; }
     if(!data || data.error){
       // A "busy" response means another save was mid-write and holding
@@ -1777,8 +1798,10 @@ async function pushCloud(){
       // stuck until the person happens to trigger another save.
       hasPendingChanges = true;
       const isBusy = /busy/i.test((data && data.error) || '');
+      const isTimeout = /timed? ?out/i.test((data && data.error) || '');
       setSyncStatus('Cloud error: ' + (data && data.error ? data.error : 'Could not confirm the save.'));
       if(isBusy) setTimeout(()=>{ if(hasPendingChanges) pushCloud(); }, 4000);
+      else if(isTimeout) setTimeout(()=>{ if(hasPendingChanges) pushCloud(); }, 8000);
       return;
     }
     // These ids are now confirmed deleted on the backend — safe to drop
