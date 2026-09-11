@@ -388,20 +388,6 @@
     position:absolute;top:0;right:0;width:34px;height:100%;
     opacity:0;cursor:pointer;border:none;padding:0;margin:0;background:transparent;
   }
-  .quick-expense-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
-  .quick-expense-btn{
-    width:46px;height:46px;border-radius:50%;border:1.5px solid var(--rose-line);
-    background:var(--sw-cream);font-size:21px;cursor:pointer;display:flex;align-items:center;justify-content:center;
-    box-shadow:var(--shadow);transition:background .15s,transform .1s;
-  }
-  .quick-expense-btn:hover{background:var(--sw-pink-lt)}
-  .quick-expense-btn:active{transform:scale(0.9)}
-  .quick-expense-list-row{
-    display:flex;align-items:center;gap:12px;background:var(--card);border-radius:12px;
-    padding:10px 12px;box-shadow:var(--shadow);margin-bottom:10px;
-  }
-  .quick-expense-list-row .qe-emoji{font-size:24px;flex-shrink:0;width:32px;text-align:center}
-  .quick-expense-list-row .mid{flex:1;min-width:0}
   .checkbox-field{
     display:flex !important;align-items:center;gap:8px;cursor:pointer;
     font-size:14px;font-weight:600;text-transform:none;letter-spacing:normal;color:var(--ink);margin-bottom:0;
@@ -747,10 +733,6 @@
         <button type="button" class="subtab-btn" data-action="set-personal-kind" data-kind="income">Income</button>
       </div>
     </div>
-    <div class="field" id="pTxQuickField" style="display:none">
-      <label>Quick fill</label>
-      <div class="quick-expense-row" id="pTxQuickRow"></div>
-    </div>
     <div class="field ac-field"><label for="pTxItem">Item</label><input id="pTxItem" autocomplete="off" required><div class="ac-list" id="pTxItemList"></div></div>
     <div class="field ac-field" id="pTxCategoryField">
       <label for="pTxCategory">Category</label>
@@ -774,7 +756,6 @@
   <div class="modal-in">
     <h3>Settings</h3>
     <div style="display:flex;flex-direction:column;gap:8px;margin:14px 0">
-      <button type="button" class="btn btn-peach" id="settingsQuickExpensesBtn" data-action="settings-quick-expenses" style="display:none">⚙️ Quick expenses</button>
       <button type="button" class="btn btn-peach" id="settingsCleanupPaymentsBtn" data-action="settings-cleanup-payments" style="display:none">🧹 Clean up empty payments</button>
       <button type="button" class="btn btn-peach" data-action="settings-check-bill">📄 Check bill</button>
     </div>
@@ -789,18 +770,6 @@
     </div>
     <div class="modal-btns">
       <button type="button" class="btn btn-ghost" data-action="close-finance-settings">Close</button>
-    </div>
-  </div>
-</dialog>
-
-<dialog id="quickExpenseSettingsModal">
-  <div class="modal-in">
-    <h3>Quick expenses</h3>
-    <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px">Set up an emoji shortcut for expenses you log all the time — tap it once from Personal Finance to log it instantly with today's date and price.</p>
-    <div id="quickExpenseList"></div>
-    <div class="modal-btns">
-      <button type="button" class="btn btn-ghost" data-action="close-quick-expense-settings">Close</button>
-      <button type="button" class="btn btn-primary" data-action="new-quick-expense">+ Add quick expense</button>
     </div>
   </div>
 </dialog>
@@ -849,21 +818,6 @@
     <div class="field"><label for="fProgSessPrice">Price (IDR)</label><input id="fProgSessPrice" type="number" min="0" step="1" placeholder="0"></div>
     <div class="modal-btns">
       <button type="button" class="btn btn-ghost" data-action="close-program-session-modal">Cancel</button>
-      <button type="submit" class="btn btn-primary">Save</button>
-    </div>
-  </form>
-</dialog>
-
-<dialog id="quickExpenseModal">
-  <form class="modal-in" id="quickExpenseForm" method="dialog">
-    <h3 id="quickExpenseModalTitle">Add quick expense</h3>
-    <div class="field"><label for="fQeEmoji">Emoji</label><input id="fQeEmoji" type="text" maxlength="4" placeholder="☕" required></div>
-    <div class="field ac-field"><label for="fQeItem">Item</label><input id="fQeItem" autocomplete="off" required><div class="ac-list" id="fQeItemList"></div></div>
-    <div class="field ac-field"><label for="fQeCategory">Category</label><input id="fQeCategory" autocomplete="off"><div class="ac-list" id="fQeCategoryList"></div></div>
-    <div class="field"><label for="fQePrice">Price (IDR)</label><input id="fQePrice" type="number" min="0" step="1" required></div>
-    <div class="modal-btns">
-      <button type="button" class="btn btn-danger" id="quickExpenseDeleteBtn" data-action="delete-quick-expense-modal" style="display:none;margin-right:auto">Delete</button>
-      <button type="button" class="btn btn-ghost" data-action="close-quick-expense-modal">Cancel</button>
       <button type="submit" class="btn btn-primary">Save</button>
     </div>
   </form>
@@ -966,7 +920,6 @@ function restoreFromJson(json, label){
     if(!Array.isArray(db.calendarEvents)) db.calendarEvents = [];
     if(!Array.isArray(db.todos)) db.todos = [];
 if(!Array.isArray(db.todoChecks)) db.todoChecks = [];
-    if(!Array.isArray(db.quickExpenses)) db.quickExpenses = [];
     if(!db.programLabels || typeof db.programLabels !== 'object') db.programLabels = {};
     if(!Array.isArray(db.customPrograms)) db.customPrograms = [];
     if(!db.programPrices || typeof db.programPrices !== 'object') db.programPrices = {};
@@ -1023,7 +976,6 @@ if(!Array.isArray(db.personalFinance)) db.personalFinance = [];
 if(!Array.isArray(db.calendarEvents)) db.calendarEvents = [];
 if(!Array.isArray(db.todos)) db.todos = [];
 if(!Array.isArray(db.todoChecks)) db.todoChecks = [];
-if(!Array.isArray(db.quickExpenses)) db.quickExpenses = [];
 if(!db.programLabels || typeof db.programLabels !== 'object') db.programLabels = {};
 if(!Array.isArray(db.customPrograms)) db.customPrograms = [];
 if(!db.programPrices || typeof db.programPrices !== 'object') db.programPrices = {};
@@ -1069,7 +1021,6 @@ let deletedExpenseIds = [];
 let deletedPersonalIds = [];
 let deletedTodoIds = [];
 let deletedTodoChecks = [];
-let deletedQuickExpenseIds = [];
 let deletedStudentIds = [];
 let deletedSessionIds = [];
 let deletedSessionPaymentIds = [];
@@ -1617,19 +1568,13 @@ async function pullCloud(){
       cloudTodoChecks.forEach(c=>{ if(c && c.todoId && c.date) checkMap.set(c.todoId+'|'+c.date, c); });
       localTodoChecks.forEach(c=>{ if(c && c.todoId && c.date) checkMap.set(c.todoId+'|'+c.date, c); }); // local wins
       const keepTodoChecks = Array.from(checkMap.values());
-      const cloudQuickExpenses = (Array.isArray(data.quickExpenses) ? data.quickExpenses : []).filter(q=>!q || !deletedQuickExpenseIds.includes(q.id));
-      const localQuickExpenses = db.quickExpenses || [];
-      const qeMap = new Map();
-      cloudQuickExpenses.forEach(q=>{ if(q && q.id) qeMap.set(q.id, q); });
-      localQuickExpenses.forEach(q=>{ if(q && q.id) qeMap.set(q.id, q); }); // local wins on id conflicts
-      const keepQuickExpenses = Array.from(qeMap.values());
       // Program renames: merge by program key rather than replacing —
       // local wins on conflicts, same reasoning as everything else above.
       const cloudProgramLabels = (data.programLabels && typeof data.programLabels === 'object') ? data.programLabels : {};
       const localProgramLabels = (db.programLabels && typeof db.programLabels === 'object') ? db.programLabels : {};
       const keepProgramLabels = Object.assign({}, cloudProgramLabels, localProgramLabels);
       // Custom programs: merge by id, local wins on conflicts — same
-      // pattern as quickExpenses above, since each has its own stable id.
+      // pattern as everything else here, since each has its own stable id.
       const cloudCustomPrograms = (Array.isArray(data.customPrograms) ? data.customPrograms : []).filter(p=>!p || !deletedCustomProgramIds.includes(p.id));
       const localCustomPrograms = db.customPrograms || [];
       const cpMap = new Map();
@@ -1647,16 +1592,15 @@ async function pullCloud(){
       db.calendarEvents = keepCalEvents;
       db.todos = keepTodos;
       db.todoChecks = keepTodoChecks;
-      db.quickExpenses = keepQuickExpenses;
       db.programLabels = keepProgramLabels;
       db.customPrograms = keepCustomPrograms;
       db.programPrices = keepProgramPrices;
       migrateToStudentLevel(db);
       save(true);
-      // If the merge pulled in a local student/event/to-do/quick-expense
-      // the cloud didn't have, push the merged result back up so it isn't
-      // lost again on the next pull.
-      if(keepStudents.length > cloudStudentsArr.length || keepFinance.length > cloudFinance.length || keepPersonal.length > cloudPersonal.length || keepCalEvents.length > cloudCalEvents.length || keepTodos.length > cloudTodos.length || keepTodoChecks.length > cloudTodoChecks.length || keepQuickExpenses.length > cloudQuickExpenses.length || Object.keys(keepProgramLabels).length > Object.keys(cloudProgramLabels).length || keepCustomPrograms.length > cloudCustomPrograms.length || Object.keys(keepProgramPrices).length > Object.keys(cloudProgramPrices).length) pushCloud();
+      // If the merge pulled in a local student/event/to-do the cloud
+      // didn't have, push the merged result back up so it isn't lost
+      // again on the next pull.
+      if(keepStudents.length > cloudStudentsArr.length || keepFinance.length > cloudFinance.length || keepPersonal.length > cloudPersonal.length || keepCalEvents.length > cloudCalEvents.length || keepTodos.length > cloudTodos.length || keepTodoChecks.length > cloudTodoChecks.length || Object.keys(keepProgramLabels).length > Object.keys(cloudProgramLabels).length || keepCustomPrograms.length > cloudCustomPrograms.length || Object.keys(keepProgramPrices).length > Object.keys(cloudProgramPrices).length) pushCloud();
     }
     setSyncStatus('Connected — last synced ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
     lastSyncAt = new Date();
@@ -1694,12 +1638,11 @@ async function resetLocalAndRepull(){
     if(!Array.isArray(db.calendarEvents)) db.calendarEvents = [];
     if(!Array.isArray(db.todos)) db.todos = [];
     if(!Array.isArray(db.todoChecks)) db.todoChecks = [];
-    if(!Array.isArray(db.quickExpenses)) db.quickExpenses = [];
     if(!db.programLabels || typeof db.programLabels !== 'object') db.programLabels = {};
     if(!Array.isArray(db.customPrograms)) db.customPrograms = [];
     if(!db.programPrices || typeof db.programPrices !== 'object') db.programPrices = {};
     deletedCalendarEventIds = []; deletedExpenseIds = []; deletedPersonalIds = []; deletedTodoIds = []; deletedTodoChecks = [];
-    deletedQuickExpenseIds = []; deletedCustomProgramIds = []; deletedStudentIds = []; deletedSessionIds = []; deletedSessionPaymentIds = [];
+    deletedCustomProgramIds = []; deletedStudentIds = []; deletedSessionIds = []; deletedSessionPaymentIds = [];
     migrateToStudentLevel(db);
     save(true);
     hasPendingChanges = false;
@@ -1742,7 +1685,6 @@ async function pushCloud(){
   const personalIdsBeingDeleted = deletedPersonalIds.slice();
   const todoIdsBeingDeleted = deletedTodoIds.slice();
   const todoChecksBeingDeleted = deletedTodoChecks.slice();
-  const quickExpenseIdsBeingDeleted = deletedQuickExpenseIds.slice();
   const customProgramIdsBeingDeleted = deletedCustomProgramIds.slice();
   const studentIdsBeingDeleted = deletedStudentIds.slice();
   const sessionIdsBeingDeleted = deletedSessionIds.slice();
@@ -1755,7 +1697,6 @@ async function pushCloud(){
       deletedPersonalIds: personalIdsBeingDeleted,
       deletedTodoIds: todoIdsBeingDeleted,
       deletedTodoChecks: todoChecksBeingDeleted,
-      deletedQuickExpenseIds: quickExpenseIdsBeingDeleted,
       deletedCustomProgramIds: customProgramIdsBeingDeleted,
       deletedStudentIds: studentIdsBeingDeleted,
       deletedSessionIds: sessionIdsBeingDeleted,
@@ -1811,7 +1752,6 @@ async function pushCloud(){
     deletedPersonalIds = deletedPersonalIds.filter(id => !personalIdsBeingDeleted.includes(id));
     deletedTodoIds = deletedTodoIds.filter(id => !todoIdsBeingDeleted.includes(id));
     deletedTodoChecks = deletedTodoChecks.filter(key => !todoChecksBeingDeleted.includes(key));
-    deletedQuickExpenseIds = deletedQuickExpenseIds.filter(id => !quickExpenseIdsBeingDeleted.includes(id));
     deletedCustomProgramIds = deletedCustomProgramIds.filter(id => !customProgramIdsBeingDeleted.includes(id));
     deletedStudentIds = deletedStudentIds.filter(id => !studentIdsBeingDeleted.includes(id));
     deletedSessionIds = deletedSessionIds.filter(id => !sessionIdsBeingDeleted.includes(id));
@@ -1842,7 +1782,7 @@ async function pushCloud(){
       storage.set(JSON.stringify(db));
     }
     // Merge the server's response back in by id (local wins on conflicts)
-    // rather than replacing db.calendarEvents/db.todos/db.quickExpenses
+    // rather than replacing db.calendarEvents/db.todos
     // outright. This request's payload was built and sent BEFORE this
     // response arrived — if something else got checked/edited locally in
     // that window, a blind overwrite here would silently erase it from
@@ -1900,17 +1840,8 @@ async function pushCloud(){
       hasPendingChanges = false;
       setSyncStatus('Connected — last synced ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
     }
-    if(Array.isArray(data.quickExpenses)){
-      const localQuickExpenses = db.quickExpenses || [];
-      const qeMap = new Map();
-      data.quickExpenses.forEach(q=>{ if(q && q.id) qeMap.set(q.id, q); });
-      localQuickExpenses.forEach(q=>{ if(q && q.id) qeMap.set(q.id, q); }); // local wins
-      db.quickExpenses = Array.from(qeMap.values());
-      storage.set(JSON.stringify(db));
-    }
     if(data.programLabels && typeof data.programLabels === 'object'){
-      // Merge by program key, local wins on conflicts — same reasoning
-      // as the quickExpenses merge above: this response reflects a
+      // Merge by program key, local wins on conflicts: this response reflects a
       // request sent before it arrived, so a rename made locally in
       // that window shouldn't get clobbered.
       db.programLabels = Object.assign({}, data.programLabels, db.programLabels || {});
@@ -2285,7 +2216,7 @@ function knownCategories(){
 }
 /* Looks up the most recently used category for a given item name, so
    typing (or picking) an item logged before quietly fills in its usual
-   category — never the price, since that's expected to vary each time. */
+   category. */
 function findLastCategoryForItem(itemName){
   const q = (itemName||'').trim().toLowerCase();
   if(!q) return '';
@@ -2293,6 +2224,21 @@ function findLastCategoryForItem(itemName){
     .filter(t => t.type !== 'income' && t.category && (t.item||'').trim().toLowerCase() === q)
     .sort((a,b)=> (b.date||'').localeCompare(a.date||''));
   return matches.length ? matches[0].category : '';
+}
+/* Looks up the most recently used PRICE for a given item name, within a
+   specific dataset (db.finance for Freediving expenses, db.personalFinance
+   for Personal Finance expenses — kept separate rather than searched
+   together, since the same item name could reasonably cost a different
+   amount in each context). Replaces the old "Quick expenses" emoji-
+   shortcut feature with something that needs no setup at all: typing an
+   item name you've logged before just remembers what it cost last time. */
+function findLastPriceForItem(itemName, list){
+  const q = (itemName||'').trim().toLowerCase();
+  if(!q) return null;
+  const matches = (list||[])
+    .filter(t => t.type !== 'income' && t.price && (t.item||'').trim().toLowerCase() === q)
+    .sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  return matches.length ? matches[0].price : null;
 }
 function knownFinanceItems(){
   return dedupeKnownCaseInsensitive([], (db.finance||[]).map(t=>t.item));
@@ -4038,9 +3984,9 @@ function openPersonalModal(kind, id, prefill){
   $('personalModal').showModal();
 }
 /* Reflects the current personalKind (Expense/Income) onto the modal: the
-   toggle's active state, title, whether the category field and
-   quick-fill row make sense to show. Called on open, and again whenever
-   the person taps the Expense/Income toggle inside the modal itself. */
+   toggle's active state, title, whether the category field makes sense
+   to show. Called on open, and again whenever the person taps the
+   Expense/Income toggle inside the modal itself. */
 function applyPersonalKindUI(){
   const label = personalKind === 'income' ? 'income' : 'expense';
   $('personalModalTitle').textContent = editingPersonalTx ? ('Edit ' + label) : ('Add ' + label);
@@ -4048,68 +3994,10 @@ function applyPersonalKindUI(){
     b.classList.toggle('active', b.dataset.kind === personalKind);
   });
   $('pTxCategoryField').style.display = personalKind === 'income' ? 'none' : '';
-  const quickList = db.quickExpenses || [];
-  const showQuickFill = !editingPersonalTx && personalKind !== 'income' && quickList.length > 0;
-  $('pTxQuickField').style.display = showQuickFill ? '' : 'none';
-  if(showQuickFill) $('pTxQuickRow').innerHTML = quickExpenseFillButtonsHtml();
   // Only makes sense for an existing expense entry — Freediving Finance
   // has no manual income concept, and there's nothing to move yet for a
   // brand-new, unsaved entry.
   $('personalMoveBtn').style.display = (editingPersonalTx && personalKind !== 'income') ? '' : 'none';
-}
-
-/* Quick expenses: emoji shortcuts for expenses logged all the time (a
-   daily coffee, a recurring gas top-up). Synced through the cloud like
-   everything else — merge-by-id, local wins on conflicts — via the
-   "QuickExpenses" sheet on the backend. Tapping one inside the Add
-   expense modal fills in the item/category/price so it can still be
-   reviewed (or the price adjusted) before saving. */
-function quickExpenseFillButtonsHtml(){
-  const list = db.quickExpenses || [];
-  return list.map(q => `
-    <button type="button" class="quick-expense-btn" data-action="fill-quick-expense" data-id="${q.id}" title="${esc(q.item)} · ${money(q.price)}">${esc(q.emoji)}</button>
-  `).join('');
-}
-function fillQuickExpense(id){
-  const q = (db.quickExpenses||[]).find(x=>x.id===id);
-  if(!q) return;
-  $('pTxItem').value = q.item;
-  $('pTxPrice').value = q.price;
-  if(q.category) $('pTxCategory').value = q.category;
-}
-function renderQuickExpenseSettingsList(){
-  const list = db.quickExpenses || [];
-  $('quickExpenseList').innerHTML = list.length ? list.map(q => `
-    <div class="quick-expense-list-row">
-      <div class="qe-emoji">${esc(q.emoji)}</div>
-      <div class="mid">
-        <div class="item">${esc(q.item)}</div>
-        <div class="txdate">${money(q.price)}${q.category ? ' · ' + esc(q.category) : ''}</div>
-      </div>
-      <div class="acts">
-        <button class="icon-btn" title="Edit" data-action="edit-quick-expense" data-id="${q.id}">✎</button>
-        <button class="icon-btn icon-btn-delete" title="Delete" data-action="delete-quick-expense" data-id="${q.id}">🗑</button>
-      </div>
-    </div>
-  `).join('') : `<div class="empty"><div class="big">No quick expenses yet</div>Add one below for something you log often, like a daily coffee or gas top-up.</div>`;
-}
-function openQuickExpenseSettings(){
-  renderQuickExpenseSettingsList();
-  $('quickExpenseSettingsModal').showModal();
-}
-
-let editingQuickExpense = null;
-function openQuickExpenseModal(id){
-  editingQuickExpense = id || null;
-  const q = id ? (db.quickExpenses||[]).find(x=>x.id===id) : null;
-  $('quickExpenseModalTitle').textContent = id ? 'Edit quick expense' : 'Add quick expense';
-  $('fQeEmoji').value = q ? q.emoji : '';
-  $('fQeItem').value = q ? q.item : '';
-  $('fQeCategory').value = q ? (q.category||'') : '';
-  $('fQePrice').value = q ? q.price : '';
-  $('quickExpenseDeleteBtn').style.display = id ? '' : 'none';
-  $('quickExpenseSettingsModal').close();
-  $('quickExpenseModal').showModal();
 }
 
 function setTodoFreqUI(freq){
@@ -4289,12 +4177,10 @@ document.addEventListener('click', e => {
   else if(a==='open-bill-check'){ $('billFileInput').value = ''; $('billFileInput').click(); }
   else if(a==='close-bill-check-modal'){ $('billCheckModal').close(); }
   else if(a==='open-finance-settings'){
-    $('settingsQuickExpensesBtn').style.display = currentTab==='personal' ? '' : 'none';
     $('settingsCleanupPaymentsBtn').style.display = currentTab==='finance' ? '' : 'none';
     $('financeSettingsModal').showModal();
   }
   else if(a==='close-finance-settings') $('financeSettingsModal').close();
-  else if(a==='settings-quick-expenses'){ $('financeSettingsModal').close(); openQuickExpenseSettings(); }
   else if(a==='settings-cleanup-payments'){
     $('financeSettingsModal').close();
     const emptyIds = [];
@@ -4393,31 +4279,6 @@ document.addEventListener('click', e => {
       currentTab = 'finance';
       render();
     }, 'Move');
-  }
-  else if(a==='fill-quick-expense') fillQuickExpense(el.dataset.id);
-  else if(a==='open-quick-expense-settings') openQuickExpenseSettings();
-  else if(a==='close-quick-expense-settings') $('quickExpenseSettingsModal').close();
-  else if(a==='new-quick-expense') openQuickExpenseModal();
-  else if(a==='edit-quick-expense') openQuickExpenseModal(el.dataset.id);
-  else if(a==='delete-quick-expense'){
-    const id = el.dataset.id;
-    db.quickExpenses = (db.quickExpenses||[]).filter(x=>x.id!==id);
-    deletedQuickExpenseIds.push(id);
-    save(); renderQuickExpenseSettingsList(); render();
-  }
-  else if(a==='delete-quick-expense-modal'){
-    const id = editingQuickExpense;
-    if(!id) return;
-    db.quickExpenses = (db.quickExpenses||[]).filter(x=>x.id!==id);
-    deletedQuickExpenseIds.push(id);
-    save();
-    $('quickExpenseModal').close();
-    openQuickExpenseSettings();
-    render();
-  }
-  else if(a==='close-quick-expense-modal'){
-    $('quickExpenseModal').close();
-    openQuickExpenseSettings();
   }
   else if(a==='new-todo') openTodoModal();
   else if(a==='edit-todo') openTodoModal(el.dataset.todo);
@@ -4575,20 +4436,30 @@ attachFilteredSuggestions('fTxItem', 'fTxItemList', knownFinanceItems);
 attachFilteredSuggestions('pTxItem', 'pTxItemList', knownPersonalItems);
 attachFilteredSuggestions('fProgStudent', 'fProgStudentList', knownStudentNames);
 // Learns from expense history: typing (or picking) an item name used
-// before quietly fills in the category it was logged under last time —
-// only when the category field is still empty, so it never overwrites
-// something already typed or an edit's existing category.
+// before quietly fills in the category AND price it was logged under
+// last time — only when each field is still empty, so it never
+// overwrites something already typed or an edit's existing values.
 $('pTxItem').addEventListener('input', ()=>{
   if(personalKind === 'income') return;
-  if($('pTxCategory').value.trim()) return;
-  const cat = findLastCategoryForItem($('pTxItem').value);
-  if(cat) $('pTxCategory').value = cat;
+  if(!$('pTxCategory').value.trim()){
+    const cat = findLastCategoryForItem($('pTxItem').value);
+    if(cat) $('pTxCategory').value = cat;
+  }
+  if(!$('pTxPrice').value){
+    const price = findLastPriceForItem($('pTxItem').value, db.personalFinance);
+    if(price) $('pTxPrice').value = price;
+  }
+});
+// Same price-memory as above, for the Freediving Finance expense form —
+// no category field there, just the price.
+$('fTxItem').addEventListener('input', ()=>{
+  if($('fTxPrice').value) return;
+  const price = findLastPriceForItem($('fTxItem').value, db.finance);
+  if(price) $('fTxPrice').value = price;
 });
 attachFilteredSuggestions('fType', 'fTypeList', knownSessionTypes);
 attachFilteredSuggestions('fCalEvType', 'fCalEvTypeList', knownCalEvTypes);
 attachFilteredSuggestions('pTxCategory', 'pTxCategoryList', knownCategories);
-attachFilteredSuggestions('fQeItem', 'fQeItemList', knownPersonalItems);
-attachFilteredSuggestions('fQeCategory', 'fQeCategoryList', knownCategories);
 
 // Pressing Enter in the to-do name field saves it immediately — same as
 // tapping Save — instead of relying on default browser form-submission
@@ -4717,30 +4588,6 @@ $('personalForm').addEventListener('submit', ()=>{
   }
   save(); render();
   if(lastBillTxns && $('billCheckModal').open) renderBillCheckResult(matchAgainstLog(lastBillTxns), lastBillPageCount);
-});
-
-$('quickExpenseForm').addEventListener('submit', ()=>{
-  if(!Array.isArray(db.quickExpenses)) db.quickExpenses = [];
-  const emoji = $('fQeEmoji').value.trim();
-  const item = $('fQeItem').value.trim();
-  const price = Math.max(0, parseFloat($('fQePrice').value)||0);
-  if(!emoji || !item) return;
-  const data = {
-    emoji,
-    item,
-    category: resolveAgainstKnown($('fQeCategory').value, knownCategories()),
-    price,
-  };
-  if(editingQuickExpense){
-    const existing = db.quickExpenses.find(x=>x.id===editingQuickExpense);
-    if(existing) Object.assign(existing, data);
-  } else {
-    db.quickExpenses.push({id: uid(), ...data});
-  }
-  save();
-  $('quickExpenseModal').close();
-  openQuickExpenseSettings();
-  render();
 });
 
 $('todoForm').addEventListener('submit', ()=>{
