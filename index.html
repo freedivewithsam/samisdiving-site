@@ -106,14 +106,6 @@
   .hero-actions{display:flex;gap:14px;flex-wrap:wrap}
   .hero-aside{font-family:"Space Mono",monospace;font-size:13px;color:var(--ink-soft);text-align:right;padding-bottom:6px}
   .hero-aside .loc{font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;display:block}
-  .scroll-cue{
-    margin-top:56px;z-index:2;display:flex;align-items:center;gap:10px;
-    font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);
-  }
-  .scroll-cue .drop{width:1px;height:34px;background:currentColor;position:relative;overflow:hidden}
-  .scroll-cue .drop::after{content:"";position:absolute;top:-100%;left:0;width:100%;height:100%;background:var(--ink);animation:drop 2.2s ease-in-out infinite}
-  @keyframes drop{ 0%{top:-100%} 60%{top:100%} 100%{top:100%} }
-  @media (prefers-reduced-motion: reduce){ .scroll-cue .drop::after{animation:none;top:0} }
   @media (max-width:900px){
     .hero-grid{grid-template-columns:1fr}
     .hero-aside{display:block;text-align:center;padding-bottom:0;margin-top:28px;margin-bottom:8px}
@@ -141,7 +133,7 @@
   }
 
   /* ================= COURSES ================= */
-  #courses{background:var(--surface);padding:130px 0}
+  #courses{background:var(--sand);padding:130px 0}
   .courses-head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:28px;flex-wrap:wrap}
   .courses-head h2{font-size:clamp(28px,3.4vw,42px);max-width:16ch}
   .courses-head p{max-width:36ch;color:var(--ink-soft);margin:0}
@@ -316,13 +308,13 @@
   .avail-cell.other-month{color:var(--ink-soft);opacity:.35}
   .avail-cell.today{box-shadow:inset 0 0 0 1.5px var(--ink)}
   .avail-cell.busy{background:#E8735C;color:#fff;font-weight:600}
-  .avail-cell.free-day{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1px var(--mist)}
+  .avail-cell.free-day{background:#DCEBD9;color:var(--ink);box-shadow:inset 0 0 0 1px #B9D6B2}
   .avail-cell.amed{background:var(--sand);color:var(--ink);cursor:help}
   .avail-legend{display:flex;flex-wrap:wrap;gap:20px;margin-top:20px;font-family:"Space Mono",monospace;font-size:12px;letter-spacing:.03em;color:var(--ink-soft)}
   .avail-legend span{display:inline-flex;align-items:center;gap:7px}
   .avail-legend .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
   .avail-legend .dot.busy{background:#E8735C}
-  .avail-legend .dot.free{background:#fff;box-shadow:inset 0 0 0 1px var(--mist)}
+  .avail-legend .dot.free{background:#DCEBD9;box-shadow:inset 0 0 0 1px #B9D6B2}
   .avail-legend .dot.amed{background:var(--sand)}
   .avail-note{margin:22px 0 0;font-size:14px;color:var(--ink-soft)}
   .avail-note a{color:var(--ink);text-decoration:underline}
@@ -428,7 +420,6 @@
       </div>
       <p class="hero-note">Currently teaching in Denpasar &amp; Amed, Bali, and online, from everywhere :)</p>
     </div>
-    <div class="scroll-cue"><span class="drop"></span> scroll to descend</div>
   </div>
 </section>
 
@@ -453,7 +444,6 @@
         <a href="https://wa.me/62811137868" class="btn btn-solid">Say hi</a>
       </div>
     </div>
-    <div class="scroll-cue"><span class="drop"></span> scroll to descend</div>
   </div>
 </section>
 
@@ -461,8 +451,7 @@
   <div class="wrap">
     <p class="eyebrow">Booking</p>
     <h2>Availability</h2>
-    <p class="lead">A quick look at which days are booked. For the exact time slot and to confirm, message me on WhatsApp.</p>
-    <a href="https://wa.me/62811137868" class="btn btn-coral" style="display:inline-flex;margin-bottom:24px">Inquire on WhatsApp</a>
+    <a href="https://wa.me/62811137868" class="btn btn-coral" style="display:inline-flex;margin-bottom:24px">Book Now</a>
     <div class="avail-card">
       <div class="avail-nav">
         <div class="avail-title" id="availTitle"></div>
@@ -479,7 +468,6 @@
         <span><span class="dot amed"></span> Available only in Amed</span>
       </div>
     </div>
-    <div class="scroll-cue"><span class="drop"></span> scroll to descend</div>
   </div>
 </section>
 
@@ -538,7 +526,6 @@
         <a href="#depth-coaching">Details</a>
       </div>
     </div>
-    <div class="scroll-cue"><span class="drop"></span> scroll to descend</div>
   </div>
 </section>
 
@@ -566,7 +553,6 @@
       <span><strong>Note</strong> &middot; Mask, snorkel and short fins are available to use</span>
     </div>
     <a href="https://wa.me/62811137868" class="btn btn-coral">Inquire</a>
-    <div class="scroll-cue"><span class="drop"></span> scroll to descend</div>
   </div>
 </section>
 
@@ -604,7 +590,6 @@
       <text x="235" y="427" text-anchor="end" class="flow-label" font-size="14.5" fill="#4C6560">upgrade fee</text>
       </svg>
     </div>
-    <div class="scroll-cue"><span class="drop"></span> scroll to descend</div>
   </div>
 </section>
 
@@ -622,7 +607,6 @@
       <span class="mini-map-label">📍 Freediving Amed &middot; open in Google Maps</span>
     </a>
     <a href="https://wa.me/62811137868" class="btn btn-coral">Inquire</a>
-    <div class="scroll-cue"><span class="drop"></span> scroll to descend</div>
   </div>
 </section>
 
@@ -640,7 +624,6 @@
       <span class="mini-map-label">📍 Freediving Amed &middot; open in Google Maps</span>
     </a>
     <a href="https://wa.me/62811137868" class="btn btn-coral">Inquire</a>
-    <div class="scroll-cue"><span class="drop"></span> scroll to descend</div>
   </div>
 </section>
 
@@ -660,7 +643,6 @@
       <span class="mini-map-label">📍 Freediving Amed &middot; open in Google Maps</span>
     </a>
     <a href="https://wa.me/62811137868" class="btn btn-coral">Inquire</a>
-    <div class="scroll-cue"><span class="drop"></span> scroll to descend</div>
   </div>
 </section>
 
@@ -683,7 +665,6 @@
     </table>
     <p class="note">For more information visit <a href="https://www.molchanovs.com/pages/molchanovs-wave-lap-1-beginner-freediving?srsltid=AfmBOoq515BrJTAHR68NKP-5pVnlDn3LP7bw6qPYOLM1UrGWaN2_jClX">Molchanovs</a> and <a href="https://www.aidainternational.org/Education/AIDAFreedivingCourses">AIDA</a> website</p>
     <a href="https://wa.me/62811137868" class="btn btn-coral">Inquire</a>
-    <div class="scroll-cue"><span class="drop"></span> scroll to descend</div>
   </div>
 </section>
 
@@ -759,7 +740,6 @@
         </a>
       </div>
     </div>
-    <div class="scroll-cue"><span class="drop"></span> scroll to descend</div>
   </div>
 </section>
 
