@@ -292,6 +292,37 @@
   .mini-map iframe{display:block;width:100%;height:200px;border:0;pointer-events:none}
   .mini-map .mini-map-label{display:flex;align-items:center;gap:8px;padding:12px 16px;font-family:"Space Mono",monospace;font-size:12px;letter-spacing:.04em;color:var(--ink)}
 
+  /* ================= AVAILABILITY ================= */
+  #availability{background:var(--surface);padding:130px 0}
+  #availability h2{font-size:clamp(26px,3.4vw,40px);max-width:24ch;margin-bottom:14px}
+  #availability .lead{color:var(--ink-soft);max-width:56ch;margin:0 0 40px;font-size:17px}
+  .avail-card{background:#fff;border:1px solid var(--mist);border-radius:var(--radius);padding:28px;max-width:640px}
+  .avail-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .avail-title{font-family:"Fraunces",serif;font-weight:600;font-size:19px;color:var(--ink)}
+  .avail-nav-btns{display:flex;gap:8px}
+  .avail-nav-btns button{
+    font-family:"Space Mono",monospace;font-size:13px;border:1px solid var(--mist);background:none;
+    color:var(--ink);border-radius:999px;width:32px;height:32px;cursor:pointer;transition:background .15s;
+  }
+  .avail-nav-btns button:hover{background:var(--surface)}
+  .avail-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+  .avail-dow{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);text-align:center;padding-bottom:6px}
+  .avail-cell{
+    aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative;
+    font-family:"Work Sans",sans-serif;font-size:13px;color:var(--ink);border-radius:10px;
+  }
+  .avail-cell.other-month{color:var(--ink-soft);opacity:.35}
+  .avail-cell.today{box-shadow:inset 0 0 0 1.5px var(--ink)}
+  .avail-cell.busy{background:var(--coral);color:var(--ink)}
+  .avail-cell.free-day{background:var(--sea);color:var(--ink)}
+  .avail-legend{display:flex;gap:20px;margin-top:20px;font-family:"Space Mono",monospace;font-size:12px;letter-spacing:.03em;color:var(--ink-soft)}
+  .avail-legend span{display:inline-flex;align-items:center;gap:7px}
+  .avail-legend .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .avail-legend .dot.busy{background:var(--coral)}
+  .avail-legend .dot.free{background:var(--sea)}
+  .avail-note{margin:22px 0 0;font-size:14px;color:var(--ink-soft)}
+  .avail-note a{color:var(--ink);text-decoration:underline}
+
   #about-me{background:#D1DBCD;padding:130px 0}
   .about-me-grid{display:grid;grid-template-columns:auto 1fr;gap:44px;align-items:center}
   .about-me-portrait{width:220px;overflow:hidden}
@@ -353,8 +384,9 @@
       <div class="tick" data-i="6"><i></i><span>depth coaching</span></div>
       <div class="tick" data-i="7"><i></i><span>molchanovs vs aida</span></div>
       <div class="tick" data-i="8"><i></i><span>trip prep</span></div>
-      <div class="tick" data-i="9"><i></i><span>about me</span></div>
-      <div class="tick" data-i="10"><i></i><span>others</span></div>
+      <div class="tick" data-i="9"><i></i><span>availability</span></div>
+      <div class="tick" data-i="10"><i></i><span>about me</span></div>
+      <div class="tick" data-i="11"><i></i><span>others</span></div>
     </div>
   </div>
 </div>
@@ -676,6 +708,31 @@
   </div>
 </section>
 
+<section id="availability">
+  <div class="wrap">
+    <p class="eyebrow">Booking</p>
+    <h2>Availability</h2>
+    <p class="lead">A quick look at which days are booked. For the exact time slot and to confirm, message me on WhatsApp.</p>
+    <div class="avail-card">
+      <div class="avail-nav">
+        <div class="avail-title" id="availTitle"></div>
+        <div class="avail-nav-btns">
+          <button type="button" id="availPrev" aria-label="Previous month">&larr;</button>
+          <button type="button" id="availToday">Today</button>
+          <button type="button" id="availNext" aria-label="Next month">&rarr;</button>
+        </div>
+      </div>
+      <div class="avail-grid" id="availGrid"></div>
+      <div class="avail-legend">
+        <span><span class="dot busy"></span> Booked</span>
+        <span><span class="dot free"></span> Available</span>
+      </div>
+    </div>
+    <p class="avail-note">Availability is updated by hand — if a day isn't marked yet, <a href="https://wa.me/62811137868">just ask on WhatsApp</a>.</p>
+    <div class="scroll-cue"><span class="drop"></span> scroll to descend</div>
+  </div>
+</section>
+
 <section id="about-me">
   <div class="wrap">
     <div class="about-me-grid">
@@ -742,7 +799,8 @@
     if (i === '6') return document.getElementById('depth-coaching');
     if (i === '7') return document.getElementById('pool-coaching');
     if (i === '8') return document.getElementById('trip-prep');
-    if (i === '9') return document.getElementById('about-me');
+    if (i === '9') return document.getElementById('availability');
+    if (i === '10') return document.getElementById('about-me');
     return document.getElementById('others');
   });
 
@@ -774,6 +832,147 @@
   document.addEventListener('scroll', onScroll, {passive:true});
   window.addEventListener('resize', onScroll);
   onScroll();
+})();
+
+(function(){
+  // ---- Availability calendar -------------------------------------------
+  // Busy days are pulled live from the CRM's Google Apps Script backend
+  // via a dedicated, token-free "busyDates" action that returns ONLY a
+  // list of "YYYY-MM-DD" strings — no student names, no session details,
+  // nothing else (see getBusyDatesRaw() in code.gs). If that fetch fails
+  // for any reason (offline, script redeployed with a new URL, etc.) the
+  // manual list below is used instead — add dates here by hand as a
+  // fallback so the calendar never just goes blank.
+  var CAL_SYNC_URL = 'https://script.google.com/macros/s/AKfycbyULNw9UH0NRW1l88BtUYb2kqhQQyG71ZPCqSJ4CF6KLQ8vkaWBkKHX8FV04isLXDMt/exec';
+  var manualBusyDates = [
+    // "2026-09-18",
+    // "2026-09-19",
+  ];
+
+  var grid = document.getElementById('availGrid');
+  if (!grid) return; // section not on this page
+
+  var titleEl = document.getElementById('availTitle');
+  var prevBtn = document.getElementById('availPrev');
+  var nextBtn = document.getElementById('availNext');
+  var todayBtn = document.getElementById('availToday');
+
+  var busySet = {};
+  manualBusyDates.forEach(function(d){ busySet[d] = true; });
+
+  // JSONP fetch — a plain fetch() gets CORS-blocked for Apps Script Web
+  // Apps called from a different site, so this loads the response via a
+  // <script> tag instead, same technique the CRM app itself uses.
+  function jsonpFetchBusyDates(onDone){
+    if (!CAL_SYNC_URL) { onDone(); return; }
+    var cbName = '__avail_cb_' + Date.now();
+    var script = document.createElement('script');
+    var settled = false;
+    var timer = setTimeout(function(){
+      if (settled) return;
+      settled = true;
+      window[cbName] = function(){};
+      onDone();
+    }, 15000);
+    window[cbName] = function(data){
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      window[cbName] = function(){};
+      if (script.parentNode) script.parentNode.removeChild(script);
+      if (data && Array.isArray(data.busyDates)) onDone(data.busyDates);
+      else onDone();
+    };
+    script.onerror = function(){
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      onDone();
+    };
+    var sep = CAL_SYNC_URL.indexOf('?') === -1 ? '?' : '&';
+    script.src = CAL_SYNC_URL + sep + 'action=busyDates&callback=' + cbName;
+    document.body.appendChild(script);
+  }
+
+  var today = new Date();
+  var viewY = today.getFullYear();
+  var viewM = today.getMonth(); // 0-based
+
+  function pad(n){ return String(n).padStart(2, '0'); }
+  function keyFor(y, m, d){ return y + '-' + pad(m + 1) + '-' + pad(d); }
+
+  function render(){
+    var first = new Date(viewY, viewM, 1);
+    var monthLabel = first.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    titleEl.textContent = monthLabel;
+
+    var firstDow = (first.getDay() + 6) % 7; // Monday-first
+    var daysInMonth = new Date(viewY, viewM + 1, 0).getDate();
+    var daysInPrevMonth = new Date(viewY, viewM, 0).getDate();
+    var todayKey = keyFor(today.getFullYear(), today.getMonth(), today.getDate());
+
+    var cells = [];
+    for (var i = firstDow - 1; i >= 0; i--) {
+      var pm = viewM === 0 ? 11 : viewM - 1;
+      var py = viewM === 0 ? viewY - 1 : viewY;
+      cells.push({ day: daysInPrevMonth - i, inMonth: false, y: py, m: pm });
+    }
+    for (var d = 1; d <= daysInMonth; d++) {
+      cells.push({ day: d, inMonth: true, y: viewY, m: viewM });
+    }
+    while (cells.length % 7 !== 0) {
+      var last = cells[cells.length - 1];
+      var nextDay = last.inMonth ? 1 : last.day + 1;
+      var nm = viewM === 11 ? 0 : viewM + 1;
+      var ny = viewM === 11 ? viewY + 1 : viewY;
+      cells.push({ day: nextDay, inMonth: false, y: ny, m: nm });
+    }
+
+    var dows = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    var html = dows.map(function(dow){ return '<div class="avail-dow">' + dow + '</div>'; }).join('');
+
+    cells.forEach(function(c){
+      var key = keyFor(c.y, c.m, c.day);
+      var classes = ['avail-cell'];
+      if (!c.inMonth) classes.push('other-month');
+      if (key === todayKey) classes.push('today');
+      var isPast = key < todayKey;
+      if (c.inMonth && !isPast) {
+        classes.push(busySet[key] ? 'busy' : 'free-day');
+      }
+      html += '<div class="' + classes.join(' ') + '">' + c.day + '</div>';
+    });
+
+    grid.innerHTML = html;
+  }
+
+  prevBtn.addEventListener('click', function(){
+    viewM -= 1;
+    if (viewM < 0) { viewM = 11; viewY -= 1; }
+    render();
+  });
+  nextBtn.addEventListener('click', function(){
+    viewM += 1;
+    if (viewM > 11) { viewM = 0; viewY += 1; }
+    render();
+  });
+  todayBtn.addEventListener('click', function(){
+    viewY = today.getFullYear();
+    viewM = today.getMonth();
+    render();
+  });
+
+  render();
+
+  // Pull live busy dates in the background; re-render once they arrive
+  // (or silently keep the manual fallback list if the fetch fails).
+  jsonpFetchBusyDates(function(dates){
+    if (dates) {
+      busySet = {};
+      dates.forEach(function(d){ busySet[d] = true; });
+      render();
+    }
+  });
 })();
 </script>
 </body>
