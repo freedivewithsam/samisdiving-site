@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -1208,8 +1207,14 @@
     var discountPct = mc.discountPct === undefined ? 0 : Number(mc.discountPct);
     if (!isFinite(discountPct) || discountPct < 0) discountPct = 0;
     var clampedDiscountPct = Math.min(discountPct, 100);
+    // Above Rp 1,000,000 the discount price is normally worked out from the
+    // % and rounded to a clean Rp 100,000, but the user can always type an
+    // exact discount price directly instead (e.g. when the rounded number
+    // isn't what they want to charge) — that override sticks until they
+    // change the discount % again, which switches it back to automatic.
+    var discountManual = !isLowPriceCourse && !!mc.discountManual;
     var discountPrice;
-    if (isLowPriceCourse) {
+    if (isLowPriceCourse || discountManual) {
       discountPrice = Number(mc.discountPriceOverride);
       if (!isFinite(discountPrice) || discountPrice < 0) discountPrice = 0;
     } else {
@@ -1226,7 +1231,8 @@
       expTotal: expTotal, margin: margin, marginPct: marginPct,
       targetMarginPct: targetMarginPct, recommendedPrice: recommendedPrice,
       discountPct: discountPct, discountPrice: discountPrice, isLowPriceCourse: isLowPriceCourse,
-      hasDiscount: isLowPriceCourse ? discountPrice > 0 : discountPct > 0,
+      discountManual: discountManual,
+      hasDiscount: (isLowPriceCourse || discountManual) ? discountPrice > 0 : discountPct > 0,
       discountExpTotal: discountExpTotal, discountMargin: discountMargin, discountMarginPct: discountMarginPct
     };
   }
@@ -1299,7 +1305,9 @@
       var summaryPriceEl = summaryRow.querySelector(".summary-price");
       if (summaryPriceEl && document.activeElement !== summaryPriceEl) summaryPriceEl.value = s.price;
       var summaryDiscount = summaryRow.querySelector(".summary-discount");
-      if (summaryDiscount) summaryDiscount.textContent = s.hasDiscount ? fmt(s.discountPrice) : "—";
+      if (summaryDiscount && document.activeElement !== summaryDiscount) {
+        summaryDiscount.value = s.hasDiscount ? s.discountPrice : "";
+      }
       summaryRow.querySelector(".summary-reco").textContent =
         fmt(s.recommendedPrice) + " (" + fmtPct(s.targetMarginPct >= 0 ? s.targetMarginPct : 0).replace("+", "") + ")";
       var summaryMargin = summaryRow.querySelector(".summary-margin");
@@ -1422,20 +1430,38 @@
       discountInput.value = mc.discountPct === undefined || mc.discountPct === 0 ? "" : mc.discountPct;
       discountInput.addEventListener("input", function () {
         mc.discountPct = discountInput.value;
+        mc.discountManual = false; // typing a % switches the price back to auto-calculated
         persist();
         renderMineStats(mc, statsRow);
       });
       wireFormulaField(discountInput, function () { return mc.discountPct === undefined ? 0 : mc.discountPct; }, function (val) {
         mc.discountPct = Math.min(Math.max(val, 0), 100);
+        mc.discountManual = false;
         persist();
         renderAll();
       });
       discountLabelRow.appendChild(discountInput);
       discountGroup.appendChild(discountLabelRow);
-      var discountHint = document.createElement("div");
-      discountHint.className = "discount-price-bar";
+      var discountHint = document.createElement("input");
+      discountHint.type = "text";
+      discountHint.inputMode = "decimal";
+      discountHint.className = "discount-price-bar formula-input";
       discountHint.dataset.discountFor = mc.id;
-      discountHint.textContent = fmt(discountSnapshot.discountPrice);
+      discountHint.value = discountSnapshot.discountPrice === 0 ? "" : discountSnapshot.discountPrice;
+      discountHint.placeholder = "0";
+      discountHint.title = "Auto-calculated from the discount % — type here to set an exact price instead";
+      discountHint.addEventListener("input", function () {
+        mc.discountManual = true;
+        mc.discountPriceOverride = discountHint.value;
+        persist();
+        renderMineStats(mc, statsRow);
+      });
+      wireFormulaField(discountHint, function () { return mc.discountPriceOverride === undefined ? 0 : mc.discountPriceOverride; }, function (val) {
+        mc.discountManual = true;
+        mc.discountPriceOverride = Math.max(val, 0);
+        persist();
+        renderAll();
+      });
       discountGroup.appendChild(discountHint);
     }
     top.appendChild(discountGroup);
@@ -1965,7 +1991,10 @@
         updateSchoolDiffsFor(mc);
         // keep the row's own price/discount/margin cells in sync while typing
         var s2 = computeMine(mc);
-        row.querySelector(".summary-discount").textContent = s2.hasDiscount ? fmt(s2.discountPrice) : "—";
+        var discountElSync = row.querySelector(".summary-discount");
+        if (discountElSync && document.activeElement !== discountElSync) {
+          discountElSync.value = s2.hasDiscount ? s2.discountPrice : "";
+        }
         row.querySelector(".summary-reco").textContent =
           fmt(s2.recommendedPrice) + " (" + fmtPct(s2.targetMarginPct >= 0 ? s2.targetMarginPct : 0).replace("+", "") + ")";
         var mEl = row.querySelector(".summary-margin:not(.summary-disc-margin)");
@@ -1984,9 +2013,30 @@
       });
       row.appendChild(priceEl);
 
-      var discountEl = document.createElement("div");
-      discountEl.className = "summary-val summary-discount";
-      discountEl.textContent = s.hasDiscount ? fmt(s.discountPrice) : "—";
+      var discountEl = document.createElement("input");
+      discountEl.type = "text";
+      discountEl.inputMode = "decimal";
+      discountEl.className = "summary-val summary-discount summary-price-input formula-input";
+      discountEl.placeholder = "—";
+      discountEl.value = s.hasDiscount ? s.discountPrice : "";
+      discountEl.title = s.isLowPriceCourse ? "Discount price" : "Auto-calculated from the discount % — type here to set an exact price instead";
+      discountEl.addEventListener("click", function (e) { e.stopPropagation(); });
+      discountEl.addEventListener("keydown", function (e) { e.stopPropagation(); });
+      discountEl.addEventListener("input", function () {
+        var val = evalFormula(discountEl.value);
+        if (isNaN(val)) return;
+        mc.discountPriceOverride = val;
+        if (!s.isLowPriceCourse) mc.discountManual = true;
+        persist();
+        var cardEl = document.getElementById("course-card-" + mc.id);
+        if (cardEl) renderMineStats(mc, cardEl.querySelector(".stats-row"));
+      });
+      wireFormulaField(discountEl, function () { return mc.discountPriceOverride === undefined ? 0 : mc.discountPriceOverride; }, function (val) {
+        mc.discountPriceOverride = Math.max(val, 0);
+        if (!s.isLowPriceCourse) mc.discountManual = true;
+        persist();
+        renderAll();
+      });
       row.appendChild(discountEl);
 
       var recoEl = document.createElement("div");
