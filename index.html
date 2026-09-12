@@ -299,14 +299,11 @@
   .avail-card{background:#fff;border:1px solid var(--mist);border-radius:var(--radius);padding:28px;max-width:640px}
   .avail-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
   .avail-title{font-family:"Fraunces",serif;font-weight:600;font-size:19px;color:var(--ink)}
-  .avail-nav-btns{display:flex;align-items:center;gap:8px}
+  .avail-nav-btns{display:flex;gap:8px}
   .avail-nav-btns button{
     font-family:"Space Mono",monospace;font-size:13px;border:1px solid var(--mist);background:none;
-    color:var(--ink);border-radius:999px;cursor:pointer;transition:background .15s;
+    color:var(--ink);border-radius:999px;width:32px;height:32px;cursor:pointer;transition:background .15s;
   }
-  .avail-nav-btns button#availPrev,
-  .avail-nav-btns button#availNext{width:32px;height:32px;flex:none;padding:0}
-  .avail-nav-btns button#availToday{height:32px;padding:0 16px;white-space:nowrap}
   .avail-nav-btns button:hover{background:var(--surface)}
   .avail-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
   .avail-dow{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);text-align:center;padding-bottom:6px}
@@ -839,18 +836,16 @@
 
 (function(){
   // ---- Availability calendar -------------------------------------------
-  // Busy days are pulled live from the CRM's Google Apps Script backend
-  // via a dedicated, token-free "busyDates" action that returns ONLY a
-  // list of "YYYY-MM-DD" strings — no student names, no session details,
-  // nothing else (see getBusyDatesRaw() in code.gs). If that fetch fails
-  // for any reason (offline, script redeployed with a new URL, etc.) the
-  // manual list below is used instead — add dates here by hand as a
-  // fallback so the calendar never just goes blank.
-  var CAL_SYNC_URL = 'https://script.google.com/macros/s/AKfycbyULNw9UH0NRW1l88BtUYb2kqhQQyG71ZPCqSJ4CF6KLQ8vkaWBkKHX8FV04isLXDMt/exec';
-  var manualBusyDates = [
-    // "2026-09-18",
-    // "2026-09-19",
-  ];
+  // Edit this list by hand to keep it up to date: one "YYYY-MM-DD" string
+  // per booked day. Fetched live from the CRM backend's token-free
+  // "busyDates" endpoint — that endpoint deliberately returns ONLY a
+  // bare list of "YYYY-MM-DD" dates, nothing else (no student names, no
+  // session details), which is what makes it safe to call from here
+  // without any login. Which days actually count as busy is controlled
+  // per-session back in the CRM app's own "Show as busy on public site"
+  // checkbox on each session.
+  var CRM_SYNC_URL = 'https://script.google.com/macros/s/AKfycbyULNw9UH0NRW1l88BtUYb2kqhQQyG71ZPCqSJ4CF6KLQ8vkaWBkKHX8FV04isLXDMt/exec';
+  var busyDates = [];
 
   var grid = document.getElementById('availGrid');
   if (!grid) return; // section not on this page
@@ -861,41 +856,7 @@
   var todayBtn = document.getElementById('availToday');
 
   var busySet = {};
-  manualBusyDates.forEach(function(d){ busySet[d] = true; });
-
-  // JSONP fetch — a plain fetch() gets CORS-blocked for Apps Script Web
-  // Apps called from a different site, so this loads the response via a
-  // <script> tag instead, same technique the CRM app itself uses.
-  function jsonpFetchBusyDates(onDone){
-    if (!CAL_SYNC_URL) { onDone(); return; }
-    var cbName = '__avail_cb_' + Date.now();
-    var script = document.createElement('script');
-    var settled = false;
-    var timer = setTimeout(function(){
-      if (settled) return;
-      settled = true;
-      window[cbName] = function(){};
-      onDone();
-    }, 15000);
-    window[cbName] = function(data){
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      window[cbName] = function(){};
-      if (script.parentNode) script.parentNode.removeChild(script);
-      if (data && Array.isArray(data.busyDates)) onDone(data.busyDates);
-      else onDone();
-    };
-    script.onerror = function(){
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      onDone();
-    };
-    var sep = CAL_SYNC_URL.indexOf('?') === -1 ? '?' : '&';
-    script.src = CAL_SYNC_URL + sep + 'action=busyDates&callback=' + cbName;
-    document.body.appendChild(script);
-  }
+  busyDates.forEach(function(d){ busySet[d] = true; });
 
   var today = new Date();
   var viewY = today.getFullYear();
@@ -965,17 +926,47 @@
     render();
   });
 
-  render();
+  render(); // shows everything as free immediately, then fills in busy days once fetchBusyDates() below resolves
 
-  // Pull live busy dates in the background; re-render once they arrive
-  // (or silently keep the manual fallback list if the fetch fails).
-  jsonpFetchBusyDates(function(dates){
-    if (dates) {
-      busySet = {};
-      dates.forEach(function(d){ busySet[d] = true; });
-      render();
+  // JSONP fetch — same mechanism the CRM app itself uses for reads, since
+  // a plain fetch() would be blocked by CORS against an Apps Script Web
+  // App. If this fails for any reason (network issue, script waking up
+  // from cold start) it just fails silently and the calendar stays as
+  // "everything free" rather than showing an error to a site visitor.
+  function fetchBusyDates(){
+    var cbName = '__busy_cb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+    var script = document.createElement('script');
+    var settled = false;
+    var timeout = setTimeout(function(){
+      if (settled) return;
+      settled = true;
+      cleanup();
+    }, 15000);
+    function cleanup(){
+      clearTimeout(timeout);
+      // Replaced with a harmless no-op rather than deleted outright — if
+      // the response arrives late (after the timeout above already gave
+      // up), the <script> tag will still try to call this function when
+      // it finally loads, and calling a function that no longer exists
+      // throws an uncaught error in the console.
+      window[cbName] = function(){};
+      if (script.parentNode) script.parentNode.removeChild(script);
     }
-  });
+    window[cbName] = function(data){
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (data && Array.isArray(data.busyDates)) {
+        busySet = {};
+        data.busyDates.forEach(function(d){ busySet[d] = true; });
+        render();
+      }
+    };
+    script.src = CRM_SYNC_URL + '?action=busyDates&callback=' + cbName;
+    script.onerror = cleanup;
+    document.body.appendChild(script);
+  }
+  fetchBusyDates();
 })();
 </script>
 </body>
