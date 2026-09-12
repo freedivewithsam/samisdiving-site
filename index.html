@@ -299,11 +299,14 @@
   .avail-card{background:#fff;border:1px solid var(--mist);border-radius:var(--radius);padding:28px;max-width:640px}
   .avail-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
   .avail-title{font-family:"Fraunces",serif;font-weight:600;font-size:19px;color:var(--ink)}
-  .avail-nav-btns{display:flex;gap:8px}
+  .avail-nav-btns{display:flex;align-items:center;gap:8px}
   .avail-nav-btns button{
     font-family:"Space Mono",monospace;font-size:13px;border:1px solid var(--mist);background:none;
-    color:var(--ink);border-radius:999px;width:32px;height:32px;cursor:pointer;transition:background .15s;
+    color:var(--ink);border-radius:999px;cursor:pointer;transition:background .15s;
   }
+  .avail-nav-btns button#availPrev,
+  .avail-nav-btns button#availNext{width:32px;height:32px;flex:none;padding:0}
+  .avail-nav-btns button#availToday{height:32px;padding:0 16px;white-space:nowrap}
   .avail-nav-btns button:hover{background:var(--surface)}
   .avail-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
   .avail-dow{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);text-align:center;padding-bottom:6px}
