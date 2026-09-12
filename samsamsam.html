@@ -651,6 +651,9 @@
       </div>
     </div>
     <div class="field"><label for="fSessPrice">Price (IDR)</label><input id="fSessPrice" type="number" min="0" step="1" placeholder="0"></div>
+    <div class="field">
+      <label class="checkbox-field"><input type="checkbox" id="fSessPublicBusy" checked> Show as busy on public site</label>
+    </div>
     <div class="modal-btns">
       <button type="button" class="btn btn-ghost" data-action="close-sess-modal">Cancel</button>
       <button type="submit" class="btn btn-primary">Save</button>
@@ -679,6 +682,9 @@
     </div>
     <div class="field">
       <div class="date-field"><input id="fCalEvEndDate" type="text" inputmode="numeric" placeholder="End date (optional)" pattern="\d{2}-\d{2}-\d{4}" title="Use DD-MM-YYYY" maxlength="10"><span class="date-pick-icon" aria-hidden="true">📅</span><input type="date" class="date-pick-overlay" data-target="fCalEvEndDate" tabindex="-1" aria-label="Pick a date"></div>
+    </div>
+    <div class="field">
+      <label class="checkbox-field"><input type="checkbox" id="fCalEvPublicBusy" checked> Show as busy on public site</label>
     </div>
     <div class="modal-btns">
       <button type="button" class="btn btn-danger" data-action="delete-cal-event" id="calEvDeleteBtn" style="display:none;margin-right:auto">Delete</button>
@@ -3910,6 +3916,11 @@ function openSessModal(studentId, sessId){
   // retroactively pulls in a program's default, so old sessions are
   // never changed just by opening them.
   $('fSessPrice').value = sess && sess.price ? sess.price : '';
+  // Defaults checked (busy) for a brand-new session, and matches the
+  // existing value for an edit — "!== false" so a session saved before
+  // this toggle existed (no publicBusy field at all) still shows
+  // checked, matching how the backend treats it (see getBusyDatesRaw()).
+  $('fSessPublicBusy').checked = !sess || sess.publicBusy !== false;
   $('sessModal').showModal();
 }
 
@@ -3953,6 +3964,9 @@ function openCalEventModal(id, prefillDate){
   $('fCalEvDate').value = ev ? dateOnlyIsoToParts(ev.date) : (prefillDate ? dateOnlyIsoToParts(prefillDate) : '');
   $('fCalEvTime').value = ev ? (ev.time || '') : '';
   $('fCalEvEndDate').value = ev && ev.endDate ? dateOnlyIsoToParts(ev.endDate) : '';
+  // Same "!== false" default as sessions — see openSessModal()'s own
+  // comment for why this matches how the backend treats it.
+  $('fCalEvPublicBusy').checked = !ev || ev.publicBusy !== false;
   $('calEvDeleteBtn').style.display = ev ? '' : 'none';
   $('calEventModal').showModal();
 }
@@ -4367,6 +4381,7 @@ $('sessForm').addEventListener('submit', ()=>{
     type: ($('fType').value.trim() || 'Pool').toLowerCase(),
     date: sessPartsToIso($('fSessDate').value, $('fSessTime').value),
     price: parseFloat($('fSessPrice').value) || 0,
+    publicBusy: $('fSessPublicBusy').checked,
   };
 
   if(editingSess){
@@ -4491,6 +4506,7 @@ $('calEventForm').addEventListener('submit', ()=>{
     // derived from the type rather than a separate checkbox the person
     // has to remember to tick.
     repeatsAnnually: isBirthdayType(type),
+    publicBusy: $('fCalEvPublicBusy').checked,
   };
   if(!Array.isArray(db.calendarEvents)) db.calendarEvents = [];
   if(editingCalEvent){
