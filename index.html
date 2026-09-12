@@ -317,11 +317,13 @@
   .avail-cell.today{box-shadow:inset 0 0 0 1.5px var(--ink)}
   .avail-cell.busy{background:#E8735C;color:#fff;font-weight:600}
   .avail-cell.free-day{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1px var(--mist)}
-  .avail-legend{display:flex;gap:20px;margin-top:20px;font-family:"Space Mono",monospace;font-size:12px;letter-spacing:.03em;color:var(--ink-soft)}
+  .avail-cell.amed{background:var(--sand);color:var(--ink);cursor:help}
+  .avail-legend{display:flex;flex-wrap:wrap;gap:20px;margin-top:20px;font-family:"Space Mono",monospace;font-size:12px;letter-spacing:.03em;color:var(--ink-soft)}
   .avail-legend span{display:inline-flex;align-items:center;gap:7px}
   .avail-legend .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
   .avail-legend .dot.busy{background:#E8735C}
   .avail-legend .dot.free{background:#fff;box-shadow:inset 0 0 0 1px var(--mist)}
+  .avail-legend .dot.amed{background:var(--sand)}
   .avail-note{margin:22px 0 0;font-size:14px;color:var(--ink-soft)}
   .avail-note a{color:var(--ink);text-decoration:underline}
 
@@ -474,6 +476,7 @@
       <div class="avail-legend">
         <span><span class="dot busy"></span> Booked</span>
         <span><span class="dot free"></span> Available</span>
+        <span><span class="dot amed"></span> Available only in Amed</span>
       </div>
     </div>
     <div class="scroll-cue"><span class="drop"></span> scroll to descend</div>
@@ -905,10 +908,22 @@
       if (!c.inMonth) classes.push('other-month');
       if (key === todayKey) classes.push('today');
       var isPast = key < todayKey;
+      var title = '';
       if (c.inMonth && !isPast) {
-        classes.push(busySet[key] ? 'busy' : 'free-day');
+        if (busySet[key]) {
+          classes.push('busy');
+        } else {
+          var dow = new Date(c.y, c.m, c.day).getDay(); // 0 = Sun, 6 = Sat
+          var isWeekend = dow === 0 || dow === 6;
+          if (isWeekend && key !== todayKey) {
+            classes.push('amed');
+            title = ' title="Available only in Amed"';
+          } else {
+            classes.push('free-day');
+          }
+        }
       }
-      html += '<div class="' + classes.join(' ') + '">' + c.day + '</div>';
+      html += '<div class="' + classes.join(' ') + '"' + title + '>' + c.day + '</div>';
     });
 
     grid.innerHTML = html;
