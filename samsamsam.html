@@ -4644,7 +4644,15 @@ function startAppAfterUnlock(){
   } else if(FREESTEP_SYNC_URL){
     syncFreestepIncome();
   }
-  setInterval(autoPullIfIdle, 20000);
+  // Checks every 8 seconds (previously 20) to pick up other devices'
+  // changes sooner — autoPullIfIdle()'s own "syncing" guard means this
+  // never actually overlaps a sync already in progress; it just means
+  // the NEXT one starts sooner after the current one finishes, instead
+  // of waiting a fixed 20s from when the last one started. A sync cycle
+  // itself currently takes roughly 20s end-to-end given how much data
+  // has accumulated, so this shortens the gap BETWEEN syncs — it doesn't
+  // make an individual sync itself any faster.
+  setInterval(autoPullIfIdle, 8000);
   document.addEventListener('visibilitychange', () => { if(!document.hidden) autoPullIfIdle(); });
   window.addEventListener('focus', autoPullIfIdle);
 }
