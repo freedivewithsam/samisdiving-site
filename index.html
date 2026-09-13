@@ -940,7 +940,7 @@
       if (settled) return;
       settled = true;
       cleanup();
-    }, 15000);
+    }, 25000); // generous timeout — Apps Script cold starts + slow mobile data can be much slower than a desktop connection
     function cleanup(){
       clearTimeout(timeout);
       // Replaced with a harmless no-op rather than deleted outright — if
@@ -961,7 +961,11 @@
         render();
       }
     };
-    script.src = CRM_SYNC_URL + '?action=busyDates&callback=' + cbName;
+    // cache-bust: some mobile browsers/CDNs cache a GET script request even
+    // across page loads, which would freeze the calendar on whatever data
+    // it first saw. The timestamp param forces every visit to hit the
+    // Apps Script endpoint fresh instead of reusing a stale cached response.
+    script.src = CRM_SYNC_URL + '?action=busyDates&callback=' + cbName + '&_=' + Date.now();
     script.onerror = cleanup;
     document.body.appendChild(script);
   }
