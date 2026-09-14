@@ -2076,8 +2076,33 @@ function normalizeFreeTextTypes(db){
   const calCanon = buildCanonMap(['Birthday','Competition','Hotel stay']);
   (db.calendarEvents||[]).forEach(ev=>{ if(ev.type) ev.type = canonicalize(ev.type, calCanon); });
 }
+/* One-time fixup for calendar event type colors assigned before
+   getEventTypeColor()'s fallback became collision-proof — it used to
+   hash the type name once the curated pastels ran out, which could (and
+   did, per a report of "hotel stay" and "busy" showing the same color)
+   land two different types on the same color. Only touches anything if
+   a real collision is actually found in the data, so types that already
+   have distinct colors are left exactly as they are; if one is found,
+   every type gets reassigned from scratch with the same pastels-first,
+   then-golden-angle scheme getEventTypeColor() itself uses now, so
+   nothing can end up sharing a color again. */
+function fixDuplicateCalEventColors(db){
+  if(!db.calTypeColors || typeof db.calTypeColors !== 'object') return;
+  const entries = Object.entries(db.calTypeColors);
+  const colorCounts = {};
+  entries.forEach(([,color])=>{ colorCounts[color] = (colorCounts[color]||0) + 1; });
+  const hasDuplicate = Object.values(colorCounts).some(c=>c>1);
+  if(!hasDuplicate) return;
+  const keys = entries.map(([key])=>key).sort(); // stable order across devices
+  const fresh = {};
+  keys.forEach((key, index)=>{
+    fresh[key] = CAL_EVENT_PASTELS[index] || `hsl(${Math.round((index * 137.508) % 360)},70%,84%)`;
+  });
+  db.calTypeColors = fresh;
+}
 function migrateToStudentLevel(db){
   normalizeFreeTextTypes(db);
+  fixDuplicateCalEventColors(db);
   (db.students||[]).forEach(st=>{
     if(!Array.isArray(st.sessionPayments)) st.sessionPayments = [];
     let priceSum = 0;
@@ -2196,13 +2221,6 @@ const CAL_EVENT_PASTELS = [
 ];
 function normEventType(t){ return (t||'').trim().toLowerCase(); }
 function isBirthdayType(t){ return normEventType(t)==='birthday'; }
-/* Simple string hash -> hue, used only once the fixed pastel palette above
-   is exhausted, so extra types still get a distinct-ish soft colour. */
-function hashHue(key){
-  let h = 0;
-  for(let i=0;i<key.length;i++) h = (h*31 + key.charCodeAt(i)) >>> 0;
-  return h % 360;
-}
 function getEventTypeColor(type){
   const key = normEventType(type) || 'event';
   if(isBirthdayType(key)){
@@ -2212,7 +2230,16 @@ function getEventTypeColor(type){
   if(!db.calTypeColors[key]){
     const used = new Set(Object.values(db.calTypeColors));
     let color = CAL_EVENT_PASTELS.find(c=>!used.has(c));
-    if(!color) color = `hsl(${hashHue(key)},70%,84%)`;
+    if(!color){
+      // Once the curated pastels run out, step by the golden angle from
+      // how many types are already assigned, rather than hashing the
+      // type name — a hash can collide (two different names landing on
+      // the same hue by coincidence), while stepping a fixed angle from
+      // an ever-incrementing count never revisits the same hue twice.
+      const index = Object.keys(db.calTypeColors).length;
+      const hue = Math.round((index * 137.508) % 360);
+      color = `hsl(${hue},70%,84%)`;
+    }
     db.calTypeColors[key] = color;
     save();
   }
