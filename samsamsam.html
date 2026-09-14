@@ -63,6 +63,10 @@
   .btn-income{background:var(--sw-mint);color:var(--ink);border:1px solid #B9D3CB}
   .btn-income:hover{filter:brightness(.96)}
   .btn-peach{background:var(--sw-blue-lt);color:var(--ink);border:1px solid #B7CBDA}
+  /* Flags the header Save button when there are local edits the sheet
+     doesn't have yet — a warmer color than its normal resting state so
+     it's clearly noticeable there's something worth pressing it for. */
+  .btn-unsaved{background:var(--accent-dark) !important;color:#fff !important;border-color:var(--accent-dark) !important}
   .btn-peach:hover{filter:brightness(.96)}
   .btn-payment{background:#FBF0C7;color:#8A6D14;border:1px solid #EDE0A0}
   .btn-payment:hover{filter:brightness(.96)}
@@ -492,7 +496,7 @@
     <div class="header-actions">
       <a class="btn btn-ghost btn-small" href="https://samisdiving.com/nav">🧭 Nav</a>
       <button class="btn btn-peach btn-small" data-action="toggle-discreet" id="discreetBtn">Show totals</button>
-      <button class="btn btn-peach btn-small" data-action="sync-now-header" id="syncNowBtn">Sync now</button>
+      <button class="btn btn-peach btn-small" data-action="sync-now-header" id="syncNowBtn">💾 Save</button>
       <button class="btn btn-primary btn-small" data-action="new-cal-event" id="addCalEventBtn" style="display:none">+ Add event</button>
       <button class="btn btn-primary btn-small" data-action="new-todo" id="newTodoBtn" style="display:none">+ Add to-do</button>
       <button class="btn btn-primary btn-small" data-action="new-student" id="newStudentBtn">+ New student</button>
@@ -1035,10 +1039,19 @@ let deletedSessionPaymentIds = [];
 let deletedCustomProgramIds = [];
 let hasPendingChanges = false;
 
+// Tracks whether this device has local edits that haven't been pushed to
+// the sheet yet, across page reloads — so if the app is closed with
+// unsaved changes and reopened later, it knows to keep showing those
+// changes instead of pulling the (older) cloud version over them. Only
+// cleared once a push actually succeeds.
+const LOCAL_DIRTY_KEY = 'samisdiving-crm-unsaved';
+function isLocalDirty(){ try { return localStorage.getItem(LOCAL_DIRTY_KEY) === '1'; } catch(e){ return false; } }
+function setLocalDirty(v){ try { if(v) localStorage.setItem(LOCAL_DIRTY_KEY, '1'); else localStorage.removeItem(LOCAL_DIRTY_KEY); } catch(e){} }
+
 // If the device goes offline mid-save, pushCloud() fails and the change
 // stays queued locally (hasPendingChanges stays true). Retry automatically
 // the moment the browser reports connectivity again, instead of making
-// the person remember to hit "Sync now" themselves.
+// the person remember to hit "Save" themselves.
 window.addEventListener('online', ()=>{
   if(hasPendingChanges) pushCloud();
 });
@@ -1072,58 +1085,59 @@ if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.clou
 
 function setSyncStatus(msg){ const el = $('syncStatus'); if(el) el.textContent = msg; }
 
-/* Keeps the header "Sync now" button labeled with when we last actually
-   talked to the cloud, so it doubles as a status readout without losing
-   its click-to-sync behavior. */
-function updateSyncNowBtnText(){
+/* Keeps the header "Save" button labeled with the current state — either
+   that there are unsaved local changes waiting to be sent, or when the
+   last successful save actually happened — so it doubles as a status
+   readout without losing its click-to-save behavior. */
+function updateSaveBtnText(){
   const btn = $('syncNowBtn');
   if(!btn) return;
-  btn.textContent = lastSyncAt
-    ? ('Last sync: ' + lastSyncAt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}))
-    : 'Sync now';
+  if(isLocalDirty()){
+    btn.textContent = 'Save changes';
+    btn.classList.add('btn-unsaved');
+  } else {
+    btn.textContent = lastSyncAt
+      ? ('Saved ' + lastSyncAt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}))
+      : 'Save changes';
+    btn.classList.remove('btn-unsaved');
+  }
 }
 
-/* Shared sync-now logic, usable from any trigger button — the header's
+/* Shared save-now logic, usable from any trigger button — the header's
    own button, or the one inside the Freediving/Personal Finance Settings
-   modal. Each caller passes its own button so it gets its own visual
-   feedback (disabled + "Syncing…"/"Synced"/"Sync failed") without the two
-   buttons interfering with each other's state. See the BUGFIX note below
-   for why this is wrapped in try/catch/finally rather than a bare
-   pullCloud().then(render).
-   BUGFIX: this used to call render() directly inside the .then() with no
-   error handling. If render() threw for any reason (e.g. unexpected data
-   shape just pulled from the cloud), every line after it — including the
-   code that resets the button text and re-enables it — never ran,
-   leaving the button permanently stuck reading "Syncing…" and unclickable. */
-function performSyncNow(btn){
+   modal. Pushes this device's current state to the sheet immediately,
+   the same pushCloud() used to run automatically on every edit — the
+   only thing that changed is WHEN it runs: now only here, on an explicit
+   tap, rather than after every single change. Each caller passes its own
+   button so it gets its own visual feedback without the two buttons
+   interfering with each other's state. */
+function performSave(btn){
   if(!syncUrl){
     setSyncStatus('Not connected — data is only saved on this device/browser.');
     $('syncModal').showModal();
     return;
   }
   const isHeaderBtn = btn && btn.id === 'syncNowBtn';
-  if(btn){ btn.disabled = true; btn.textContent = 'Syncing…'; }
-  pullCloud()
+  if(btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
+  pushCloud()
     .then(async ()=>{
       try{
-        render();
         if(FREESTEP_SYNC_URL) await syncFreestepIncome();
-        if(btn) btn.textContent = 'Synced';
+        if(btn) btn.textContent = isLocalDirty() ? 'Save failed' : 'Saved';
       } catch(err){
-        console.error('Render failed after sync:', err);
-        setSyncStatus('Synced, but something went wrong displaying the data — see browser console.');
-        if(btn) btn.textContent = 'Synced (display error)';
+        console.error('Post-save step failed:', err);
+        if(btn) btn.textContent = 'Saved (display error)';
       }
     })
     .catch(err=>{
-      console.error('Sync now failed:', err);
-      setSyncStatus('Sync failed — check your connection or the Web App URL.');
-      if(btn) btn.textContent = 'Sync failed';
+      console.error('Save failed:', err);
+      setSyncStatus('Save failed — check your connection or the Web App URL.');
+      if(btn) btn.textContent = 'Save failed';
     })
     .finally(()=>{
       setTimeout(()=>{
-        updateSyncNowBtnText();
-        if(btn){ btn.disabled = false; if(!isHeaderBtn) btn.textContent = '🔄 Sync now'; }
+        updateSaveBtnText();
+        if(btn){ btn.disabled = false; if(!isHeaderBtn) btn.textContent = '💾 Save'; }
       }, 1500);
     });
 }
@@ -1131,10 +1145,8 @@ function performSyncNow(btn){
 /* Wraps render() so that if it throws (e.g. unexpected data shape just
    pulled from the cloud) the error surfaces in the console/status text
    instead of silently aborting whatever ran right after it — which is
-   exactly what was leaving the header "Sync now" button stuck disabled
-   on "Syncing…" forever: pullCloud().then(render) with no error handling
-   meant a render() failure skipped every line after it, including the
-   code that re-enables the button. */
+   exactly the kind of thing this class of bug used to cause elsewhere
+   in this file (see performSave()'s own history). */
 function safeRender(){
   try{
     render();
@@ -1522,9 +1534,27 @@ async function pullCloud(){
         if(!local || !local.id) return;
         const cloudMatch = stMap.get(local.id);
         if(!cloudMatch){ stMap.set(local.id, local); return; } // purely local (not yet on cloud) — keep as-is
+        // Sessions/payments merge BY ID rather than trusting the cloud's
+        // list wholesale: an id present in both still prefers local, so
+        // a status/date/etc. edit made on this device between its last
+        // push and this pull landing doesn't get silently discarded just
+        // because this pull's snapshot predates that edit (a real risk
+        // now that pulls run every 8s and a save can take 20+s — this
+        // pull can easily have been in flight already when the edit
+        // happened, meaning pushCloud() only queued it via pendingPush
+        // rather than sending it immediately). An id missing from the
+        // cloud is still excluded (not revived) — same protection the
+        // wholesale version was for — since deleting it there is exactly
+        // what should make it disappear here.
+        function mergeById(localList, cloudList){
+          const map = new Map();
+          (cloudList||[]).forEach(item=>{ if(item && item.id) map.set(item.id, item); });
+          (localList||[]).forEach(item=>{ if(item && item.id && map.has(item.id)) map.set(item.id, item); });
+          return Array.from(map.values());
+        }
         stMap.set(local.id, Object.assign({}, cloudMatch, local, {
-          sessions: cloudMatch.sessions || [],
-          sessionPayments: cloudMatch.sessionPayments || []
+          sessions: mergeById(local.sessions, cloudMatch.sessions),
+          sessionPayments: mergeById(local.sessionPayments, cloudMatch.sessionPayments)
         }));
       });
       const keepStudents = Array.from(stMap.values());
@@ -1612,7 +1642,7 @@ async function pullCloud(){
     }
     setSyncStatus('Connected — last synced ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
     lastSyncAt = new Date();
-    updateSyncNowBtnText();
+    updateSaveBtnText();
   } catch(e){
   } finally {
     syncing = false;
@@ -1654,6 +1684,7 @@ async function resetLocalAndRepull(){
     migrateToStudentLevel(db);
     save(true);
     hasPendingChanges = false;
+    setLocalDirty(false); updateSaveBtnText();
     const sessionCount = (db.students||[]).reduce((a,st)=>a+(st.sessions||[]).length,0);
     const summaryHtml = `
       <p style="margin:0 0 12px;color:var(--ink-soft)">Now showing the cloud's current data:</p>
@@ -1777,13 +1808,27 @@ async function pushCloud(){
         if(!local || !local.id) return;
         const remoteMatch = stMap.get(local.id);
         if(!remoteMatch){ stMap.set(local.id, local); return; }
-        // Trusts the server's session/payment lists rather than unioning
-        // with local — see the matching note in pullCloud() above for why
-        // (a union revives anything deleted elsewhere that this device's
-        // local cache still happens to have).
+        // Merge sessions/payments BY ID rather than trusting either side
+        // wholesale. This response confirms the exact save THIS device
+        // just sent, so for any id both sides have, local wins — it's
+        // this device's own freshly-made edit (a status change, a moved
+        // date), and blindly taking the server's copy risked silently
+        // reverting it if this confirmation read landed even slightly
+        // before the backend's write had fully applied (a save can take
+        // 20+ seconds; a race here doesn't need much of a gap). An id
+        // missing from remote is still treated as deleted (not revived),
+        // since a successful save either kept or removed everything it
+        // was sent — and an id present only in remote (from another
+        // device's change landing in between) is still picked up.
+        function mergeById(localList, remoteList){
+          const map = new Map();
+          (remoteList||[]).forEach(item=>{ if(item && item.id) map.set(item.id, item); });
+          (localList||[]).forEach(item=>{ if(item && item.id && map.has(item.id)) map.set(item.id, item); });
+          return Array.from(map.values());
+        }
         stMap.set(local.id, Object.assign({}, remoteMatch, local, {
-          sessions: remoteMatch.sessions || [],
-          sessionPayments: remoteMatch.sessionPayments || []
+          sessions: mergeById(local.sessions, remoteMatch.sessions),
+          sessionPayments: mergeById(local.sessionPayments, remoteMatch.sessionPayments)
         }));
       });
       db.students = Array.from(stMap.values());
@@ -1837,6 +1882,7 @@ async function pushCloud(){
       db.todoChecks = Array.from(checkMap.values());
       storage.set(JSON.stringify(db));
       hasPendingChanges = false;
+      setLocalDirty(false); updateSaveBtnText();
       setSyncStatus('Connected — last synced ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
     } else if(Array.isArray(data.todos)){
       // Keep this flagged as unsaved server-side — the local copy is
@@ -1846,6 +1892,7 @@ async function pushCloud(){
       setSyncStatus('Backend needs redeploying — to-dos are only saving on this device for now.');
     } else {
       hasPendingChanges = false;
+      setLocalDirty(false); updateSaveBtnText();
       setSyncStatus('Connected — last synced ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
     }
     if(data.programLabels && typeof data.programLabels === 'object'){
@@ -1871,7 +1918,7 @@ async function pushCloud(){
     }
     if(currentTab==='calendar' || currentTab==='todos' || currentTab==='personal' || currentTab==='finance' || currentTab==='programs') render();
     lastSyncAt = new Date();
-    updateSyncNowBtnText();
+    updateSaveBtnText();
   } catch(e){
     hasPendingChanges = true;
     setSyncStatus('Sync failed — check your connection or the Web App URL.');
@@ -1890,7 +1937,20 @@ function save(skipPush){
   }
   try{ maybeSnapshot(storage.get()); } catch(e){}
   storage.set(next);
-  if(!skipPush) pushCloud();
+  // No longer auto-pushes to the cloud on every edit — changes stay on
+  // this device until the person explicitly presses the Save button
+  // (performSave()), which is the whole point of this model: nothing
+  // reaches the shared sheet until they've chosen to send it. skipPush
+  // is unused now but left as a harmless no-op parameter rather than
+  // touched at every one of its ~30 call sites.
+  markUnsaved();
+}
+// Marks that this device has edits the sheet doesn't have yet — updates
+// the Save button so it's visually obvious there's something to send,
+// and persists the flag so it survives a reload (see LOCAL_DIRTY_KEY).
+function markUnsaved(){
+  setLocalDirty(true);
+  updateSaveBtnText();
 }
 function uid(){ return Math.random().toString(36).slice(2,10); }
 function esc(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -2346,7 +2406,7 @@ function render(){
   // those two just get extra items (Quick expenses, Clean up payments)
   // shown/hidden inside it, same as before.
   if($('financeSettingsBtn')) $('financeSettingsBtn').style.display = '';
-  // "Sync now" always stays on the page as its own button — no longer
+  // "Save" always stays on the page as its own button — no longer
   // tucked inside Settings on any tab.
   if($('syncNowBtn')) $('syncNowBtn').style.display = '';
   if($('addCalEventBtn')) $('addCalEventBtn').style.display = onCalendar ? '' : 'none';
@@ -4227,7 +4287,7 @@ document.addEventListener('click', e => {
   }
   else if(a==='expand-list'){ listLimits[el.dataset.list] = Infinity; render(); }
   else if(a==='collapse-list'){ listLimits[el.dataset.list] = TX_PAGE_SIZE; render(); }
-  else if(a==='sync-now-header') performSyncNow($('syncNowBtn'));
+  else if(a==='sync-now-header') performSave($('syncNowBtn'));
   else if(a==='close-sess-modal') $('sessModal').close();
   else if(a==='new-expense') openFinanceModal();
   else if(a==='edit-tx') openFinanceModal(el.dataset.tx);
@@ -4643,7 +4703,7 @@ $('todoForm').addEventListener('submit', ()=>{
 });
 
 if(!storage.persistent) $('storageNote').classList.add('show');
-updateSyncNowBtnText();
+updateSaveBtnText();
 updateDiscreetBtn();
 render();
 
@@ -4652,6 +4712,26 @@ render();
 // straight away (see the optimistic-unlock check right below), or the
 // person actually enters the PIN (unlockApp() calls this once they do).
 function startAppAfterUnlock(){
+  // Manual-save model: this device's own edits stay local (see save())
+  // until the person explicitly presses "Save" (performSave()), and this
+  // is the ONLY point that talks to the cloud automatically — once, right
+  // here, when the app first opens. No periodic background pulling and
+  // no auto-push on every edit, by design: nothing is meant to reach the
+  // shared sheet, or be overwritten by it, except when asked to.
+  //
+  // If this device still has edits from last time that were never
+  // actually saved (isLocalDirty()), pulling now would silently discard
+  // them the moment the response landed — so skip the pull entirely and
+  // just keep showing what's already here, with the Save button already
+  // flagged, until the person presses it (or explicitly discards via
+  // "Discard local data & re-pull from cloud" in the sync settings).
+  if(isLocalDirty()){
+    setSyncStatus('You have unsaved changes from last time — press Save to send them.');
+    updateSaveBtnText();
+    safeRender();
+    if(FREESTEP_SYNC_URL) syncFreestepIncome();
+    return;
+  }
   if(syncUrl){
     pullCloud().then(()=>{
       safeRender();
@@ -4660,41 +4740,6 @@ function startAppAfterUnlock(){
   } else if(FREESTEP_SYNC_URL){
     syncFreestepIncome();
   }
-  // Checks every 8 seconds (previously 20) to pick up other devices'
-  // changes sooner — autoPullIfIdle()'s own "syncing" guard means this
-  // never actually overlaps a sync already in progress; it just means
-  // the NEXT one starts sooner after the current one finishes, instead
-  // of waiting a fixed 20s from when the last one started. A sync cycle
-  // itself currently takes roughly 20s end-to-end given how much data
-  // has accumulated, so this shortens the gap BETWEEN syncs — it doesn't
-  // make an individual sync itself any faster.
-  setInterval(autoPullIfIdle, 8000);
-  document.addEventListener('visibilitychange', () => { if(!document.hidden) autoPullIfIdle(); });
-  window.addEventListener('focus', autoPullIfIdle);
-}
-
-// Auto-sync: keep other devices' changes flowing in without a manual tap.
-// Pushing on every add/edit already happens via save() -> pushCloud().
-// This adds the other half — pulling — so this device also picks up
-// changes made elsewhere, automatically:
-//   1) every 20s while the tab is open and visible
-//   2) whenever the tab regains focus/visibility (e.g. switching back to it)
-// Skipped whenever a dialog is open, so an in-progress add/edit never gets
-// overwritten mid-typing by an incoming pull. Free Step's sales are pulled
-// in right after samisdiving's own pull FINISHES, not alongside it —
-// running them concurrently was a real race: pullCloud() takes a snapshot
-// of db.personalFinance early and only writes its merged result back after
-// a network round-trip, so a Free Step entry added mid-flight could get
-// silently overwritten by that stale snapshot the moment pullCloud()
-// finished — exactly the "appeared for a second, then disappeared" bug.
-function autoPullIfIdle(){
-  if(!syncUrl || syncing) return;
-  if(document.querySelector('dialog[open]')) return;
-  if(document.hidden) return;
-  pullCloud().then(()=>{
-    safeRender();
-    if(FREESTEP_SYNC_URL) syncFreestepIncome();
-  });
 }
 
 // Optimistic unlock: a token already saved from a previous successful
