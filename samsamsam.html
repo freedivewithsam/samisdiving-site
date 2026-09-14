@@ -1119,15 +1119,21 @@ function performSave(btn){
   }
   const isHeaderBtn = btn && btn.id === 'syncNowBtn';
   if(btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
+  // Sets expectations upfront — a save on this much data normally takes
+  // 20-25s end to end, which is easy to mistake for "stuck" without this.
+  // pushCloud() will overwrite this with a more specific status if a
+  // retry actually kicks in (see its own "Still saving…" message).
+  setSyncStatus('Saving — this can take 20-30 seconds…');
   pushCloud()
-    .then(async ()=>{
-      try{
-        if(FREESTEP_SYNC_URL) await syncFreestepIncome();
-        if(btn) btn.textContent = isLocalDirty() ? 'Save failed' : 'Saved';
-      } catch(err){
-        console.error('Post-save step failed:', err);
-        if(btn) btn.textContent = 'Saved (display error)';
-      }
+    .then(()=>{
+      if(btn) btn.textContent = isLocalDirty() ? 'Save failed' : 'Saved';
+      // Free Step's own sync runs independently after the main save
+      // succeeds — it's a separate backend/sheet with no shared lock
+      // contention with samisdiving's own, so there's no reason to make
+      // the person wait on it too before seeing their actual save
+      // confirmed (it used to be awaited right here, adding its own time
+      // on top of an already-slow save).
+      if(FREESTEP_SYNC_URL) syncFreestepIncome().catch(err=>console.error('Free Step sync failed:', err));
     })
     .catch(err=>{
       console.error('Save failed:', err);
@@ -1201,17 +1207,19 @@ function jsonpFetch(url){
     const sep = url.indexOf('?') === -1 ? '?' : '&';
     script.src = url + sep + 'callback=' + cbName + '&_ts=' + Date.now();
     document.body.appendChild(script);
-    // 60s, not 20s — with enough data accumulated, a single save/read on
-    // the backend can genuinely take longer than 20 seconds (confirmed
-    // directly: some saves have taken 20-25s end to end), so 20s was
-    // cutting off requests that were actually still working correctly,
-    // not stuck.
+    // 90s, not 60s — the backend's own lock-wait for a busy sheet was
+    // just raised from 20s to 30s (see readAllDataRaw()/doPost() on the
+    // backend) specifically so a read landing while a save is still
+    // running waits it out instead of failing "busy" for a save that
+    // actually succeeds. Worst case that's now up to 30s of waiting plus
+    // the ~20-25s the work itself takes — comfortably under 60s already,
+    // but 90s leaves real headroom rather than cutting it close.
     timer = setTimeout(()=>{
       if(settled) return;
       settled = true;
       cleanup();
       reject(new Error('Cloud request timed out.'));
-    }, 60000);
+    }, 90000);
   });
 }
 /* Small shim so pullCloud()/resetLocalAndRepull() below — written around
@@ -1762,25 +1770,35 @@ async function pushCloud(){
       setSyncStatus('Sync failed — check your connection.');
       return;
     }
-    // A rejected/timed-out confirmation read must be treated as a real
-    // failure, not silently waved through as "empty but fine" — that was
-    // the actual bug: {} has no .error field, so the check right below
-    // this used to treat a timeout exactly like a successful-but-empty
-    // response, incorrectly reporting the save as confirmed when nothing
-    // had actually been confirmed at all.
-    const data = await jsonpFetch(syncUrl + (syncUrl.indexOf('?')===-1?'?':'&') + 'token=' + encodeURIComponent(authToken||'')).catch(err=>({error: (err && err.message) || 'Timed out waiting for confirmation.'}));
-    if(data && data.code === 401){ handleAuthExpired(); return; }
-    if(!data || data.error){
-      // A "busy" response means another save was mid-write and holding
-      // the backend's lock — the change wasn't dropped, just not saved
-      // yet. Mark it pending and retry shortly instead of leaving it
-      // stuck until the person happens to trigger another save.
-      hasPendingChanges = true;
+    // Confirm the save landed. A "busy"/timeout response here doesn't
+    // mean the save itself failed — it means this confirmation READ
+    // couldn't get its own turn at the backend's lock yet (see the
+    // lock-wait note on readAllDataRaw()/doPost() on the backend side).
+    // Retry the confirmation itself a few times, waiting in between,
+    // rather than giving up after one attempt and reporting "failed" for
+    // a save that may have actually gone through fine — and rather than
+    // firing a detached setTimeout retry the caller never actually waits
+    // for (which was the earlier version here, and the reason
+    // performSave() could show "Save failed" right before a silent
+    // background retry succeeded moments later with no visible update).
+    let data = null;
+    const maxAttempts = 3;
+    for(let attempt = 1; attempt <= maxAttempts; attempt++){
+      data = await jsonpFetch(syncUrl + (syncUrl.indexOf('?')===-1?'?':'&') + 'token=' + encodeURIComponent(authToken||'')).catch(err=>({error: (err && err.message) || 'Timed out waiting for confirmation.'}));
+      if(data && data.code === 401){ handleAuthExpired(); return; }
+      if(data && !data.error) break; // confirmed
       const isBusy = /busy/i.test((data && data.error) || '');
       const isTimeout = /timed? ?out/i.test((data && data.error) || '');
+      if((isBusy || isTimeout) && attempt < maxAttempts){
+        setSyncStatus('Still saving — the sheet is busy, retrying…');
+        await new Promise(r => setTimeout(r, isBusy ? 4000 : 8000));
+        continue;
+      }
+      break; // a non-retryable error, or out of attempts
+    }
+    if(!data || data.error){
+      hasPendingChanges = true;
       setSyncStatus('Cloud error: ' + (data && data.error ? data.error : 'Could not confirm the save.'));
-      if(isBusy) setTimeout(()=>{ if(hasPendingChanges) pushCloud(); }, 4000);
-      else if(isTimeout) setTimeout(()=>{ if(hasPendingChanges) pushCloud(); }, 8000);
       return;
     }
     // These ids are now confirmed deleted on the backend — safe to drop
