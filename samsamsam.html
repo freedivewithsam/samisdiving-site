@@ -1871,6 +1871,31 @@ async function pushCloud(){
       db.calendarEvents = Array.from(calEventMap.values());
       storage.set(JSON.stringify(db));
     }
+    // Freediving expenses and manually-added Personal entries — merged by
+    // id, local wins on conflicts, same reasoning as calendarEvents just
+    // above: this response reflects a request sent before it arrived, so
+    // anything newer than that shouldn't get clobbered. This is also
+    // where an addition made on ANOTHER device gets pulled into this one:
+    // pushCloud() only sends this device's own current state, but its
+    // confirmation read fetches the sheet's FULL current contents, so an
+    // expense id present in the response that this device never sent is
+    // exactly that — something added elsewhere, worth keeping.
+    if(Array.isArray(data.finance)){
+      const localFinance = db.finance || [];
+      const financeMap = new Map();
+      data.finance.forEach(t=>{ if(t && t.id) financeMap.set(t.id, t); });
+      localFinance.forEach(t=>{ if(t && t.id) financeMap.set(t.id, t); }); // local wins
+      db.finance = Array.from(financeMap.values());
+      storage.set(JSON.stringify(db));
+    }
+    if(Array.isArray(data.personalFinance)){
+      const localPersonal = db.personalFinance || [];
+      const personalMap = new Map();
+      data.personalFinance.forEach(t=>{ if(t && t.id) personalMap.set(t.id, t); });
+      localPersonal.forEach(t=>{ if(t && t.id) personalMap.set(t.id, t); }); // local wins
+      db.personalFinance = Array.from(personalMap.values());
+      storage.set(JSON.stringify(db));
+    }
     // Only trust the server's to-do data if it's actually using the
     // current schema (a separate todoChecks array) — an old,
     // not-yet-redeployed backend would echo back the previous shape with
