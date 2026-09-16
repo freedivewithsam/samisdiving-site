@@ -1761,7 +1761,25 @@ async function pushCloud(){
     // has against the old (readable) write response.
     let sendFailed = false;
     try{
-      await fetch(syncUrl, {method:'POST', mode:'no-cors', body: JSON.stringify(payload)});
+      // A hard timeout on the send itself, not just the confirmation read
+      // after it — without this, a request that never resolves (a dropped
+      // mobile connection, a backgrounded tab whose network stack the OS
+      // has paused) leaves this awaiting forever with no error and no way
+      // to recover, which is exactly what "stuck on Saving…" was: nothing
+      // downstream (the retry loop, the timeout on the confirmation read)
+      // ever got a chance to run, because this line never returned at all.
+      // 60s, not something shorter — the backend's own lock-wait is 30s
+      // and actual processing can take another 20-25s on top of that in
+      // the worst case (this save arriving right after a different one
+      // that's still finishing), so anything much shorter risks aborting
+      // a save that's genuinely still working rather than actually stuck.
+      const sendController = new AbortController();
+      const sendTimeout = setTimeout(()=>sendController.abort(), 60000);
+      try{
+        await fetch(syncUrl, {method:'POST', mode:'no-cors', body: JSON.stringify(payload), signal: sendController.signal});
+      } finally {
+        clearTimeout(sendTimeout);
+      }
     } catch(sendErr){
       sendFailed = true;
     }
