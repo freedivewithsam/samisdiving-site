@@ -1055,6 +1055,22 @@ function setLocalDirty(v){ try { if(v) localStorage.setItem(LOCAL_DIRTY_KEY, '1'
 window.addEventListener('online', ()=>{
   if(hasPendingChanges) pushCloud();
 });
+// Warns before actually closing/reloading the tab if that would risk
+// losing something: a save currently in flight (closing right now could
+// cut it off partway through — unlike switching to a different app while
+// leaving this tab open in the background, which the network request
+// itself survives fine; it's specifically the tab being gone that a web
+// page has no way to work around), or local edits that haven't been
+// pushed to the sheet yet at all. Browsers show their own fixed wording
+// for this prompt — the beforeunload standard doesn't allow a custom
+// message (a security restriction so a page can't show a misleading one
+// trying to keep someone on it), only whether to ask at all.
+window.addEventListener('beforeunload', (e)=>{
+  if(syncing || isLocalDirty()){
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 let editingTx = null;
 let editingPersonalTx = null;
 let personalKind = 'expense';
@@ -2383,16 +2399,47 @@ function findLastCategoryForItem(itemName){
 }
 /* Looks up the most recently used PRICE for a given item name, within a
    specific dataset (db.finance for Freediving expenses, db.personalFinance
-   for Personal Finance expenses — kept separate rather than searched
-   together, since the same item name could reasonably cost a different
-   amount in each context). Replaces the old "Quick expenses" emoji-
-   shortcut feature with something that needs no setup at all: typing an
-   item name you've logged before just remembers what it cost last time. */
-function findLastPriceForItem(itemName, list){
+   for Personal Finance expenses/income — kept separate rather than
+   searched together, since the same item name could reasonably cost a
+   different amount in each context). matchKind narrows to entries of
+   that kind ('income' or 'expense'); omit it to match expense-type
+   entries only (t.type !== 'income'), which is what every existing
+   caller wants. Replaces the old "Quick expenses" emoji-shortcut feature
+   with something that needs no setup at all: typing an item name you've
+   logged before just remembers what it cost (or earned) last time. */
+function findLastPriceForItem(itemName, list, matchKind){
   const q = (itemName||'').trim().toLowerCase();
   if(!q) return null;
+  const wantIncome = matchKind === 'income';
   const matches = (list||[])
-    .filter(t => t.type !== 'income' && t.price && (t.item||'').trim().toLowerCase() === q)
+    .filter(t => (wantIncome ? t.type === 'income' : t.type !== 'income') && t.price && (t.item||'').trim().toLowerCase() === q)
+    .sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  return matches.length ? matches[0].price : null;
+}
+/* Same idea as findLastPriceForItem, but keyed by category instead of
+   item name — for typing/picking a category directly (independent of
+   whatever's in the item field) and having the price remembered from
+   whatever was last logged under that category. Personal Finance only,
+   since Freediving expenses have no category field to key off. */
+function findLastPriceForCategory(category){
+  const q = (category||'').trim().toLowerCase();
+  if(!q) return null;
+  const matches = (db.personalFinance||[])
+    .filter(t => t.type !== 'income' && t.price && (t.category||'').trim().toLowerCase() === q)
+    .sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  return matches.length ? matches[0].price : null;
+}
+/* Same idea again, but for session price keyed by session TYPE
+   (pool/ocean/online, or any custom type) rather than by item/category —
+   searches across every student's sessions, since a given type tends to
+   cost the same regardless of which student it's for. */
+function findLastPriceForSessionType(type){
+  const q = (type||'').trim().toLowerCase();
+  if(!q) return null;
+  const allSessions = [];
+  (db.students||[]).forEach(st=>(st.sessions||[]).forEach(s=>allSessions.push(s)));
+  const matches = allSessions
+    .filter(s => s.price && (s.type||'').trim().toLowerCase() === q)
     .sort((a,b)=> (b.date||'').localeCompare(a.date||''));
   return matches.length ? matches[0].price : null;
 }
@@ -4600,20 +4647,33 @@ $('addProgramForm').addEventListener('submit', ()=>{
 attachFilteredSuggestions('fTxItem', 'fTxItemList', knownFinanceItems);
 attachFilteredSuggestions('pTxItem', 'pTxItemList', knownPersonalItems);
 attachFilteredSuggestions('fProgStudent', 'fProgStudentList', knownStudentNames);
-// Learns from expense history: typing (or picking) an item name used
-// before quietly fills in the category AND price it was logged under
-// last time — only when each field is still empty, so it never
+// Learns from expense/income history: typing (or picking) an item name
+// used before quietly fills in the category AND price it was logged
+// under last time — only when each field is still empty, so it never
 // overwrites something already typed or an edit's existing values.
+// Income entries have no category field, but their price is remembered
+// the same way expenses' is.
 $('pTxItem').addEventListener('input', ()=>{
-  if(personalKind === 'income') return;
-  if(!$('pTxCategory').value.trim()){
+  const kind = personalKind === 'income' ? 'income' : 'expense';
+  if(kind === 'expense' && !$('pTxCategory').value.trim()){
     const cat = findLastCategoryForItem($('pTxItem').value);
     if(cat) $('pTxCategory').value = cat;
   }
   if(!$('pTxPrice').value){
-    const price = findLastPriceForItem($('pTxItem').value, db.personalFinance);
+    const price = findLastPriceForItem($('pTxItem').value, db.personalFinance, kind);
     if(price) $('pTxPrice').value = price;
   }
+});
+// Category-based price memory, independent of the item-name-based one
+// above: typing/picking a category directly (before or instead of an
+// item name) fills in the price last logged under that category — only
+// income has no category field). Applies to expenses only, same as the
+// category field itself.
+$('pTxCategory').addEventListener('input', ()=>{
+  if(personalKind === 'income') return;
+  if($('pTxPrice').value) return;
+  const price = findLastPriceForCategory($('pTxCategory').value);
+  if(price) $('pTxPrice').value = price;
 });
 // Same price-memory as above, for the Freediving Finance expense form —
 // no category field there, just the price.
@@ -4623,6 +4683,16 @@ $('fTxItem').addEventListener('input', ()=>{
   if(price) $('fTxPrice').value = price;
 });
 attachFilteredSuggestions('fType', 'fTypeList', knownSessionTypes);
+// Learns from session history: typing (or picking) a session type used
+// before quietly fills in the price last charged for that type — across
+// every student, since a given type (pool/ocean/online) tends to cost
+// the same regardless of who it's for. Only when the price field is
+// still empty, same as every other price-memory field.
+$('fType').addEventListener('input', ()=>{
+  if($('fSessPrice').value) return;
+  const price = findLastPriceForSessionType($('fType').value);
+  if(price) $('fSessPrice').value = price;
+});
 attachFilteredSuggestions('fCalEvType', 'fCalEvTypeList', knownCalEvTypes);
 attachFilteredSuggestions('pTxCategory', 'pTxCategoryList', knownCategories);
 
