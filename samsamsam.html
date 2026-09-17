@@ -4870,28 +4870,27 @@ render();
 // straight away (see the optimistic-unlock check right below), or the
 // person actually enters the PIN (unlockApp() calls this once they do).
 function startAppAfterUnlock(){
-  // Manual-save model: this device's own edits stay local (see save())
-  // until the person explicitly presses "Save" (performSave()), and this
-  // is the ONLY point that talks to the cloud automatically — once, right
-  // here, when the app first opens. No periodic background pulling and
-  // no auto-push on every edit, by design: nothing is meant to reach the
-  // shared sheet, or be overwritten by it, except when asked to.
+  // This is the ONLY point that talks to the cloud automatically — once,
+  // right here, when the app first opens. No periodic background pulling
+  // and no auto-push on every edit; this device's own edits stay local
+  // (see save()) until the person explicitly presses "Save"
+  // (performSave()).
   //
-  // If this device still has edits from last time that were never
-  // actually saved (isLocalDirty()), pulling now would silently discard
-  // them the moment the response landed — so skip the pull entirely and
-  // just keep showing what's already here, with the Save button already
-  // flagged, until the person presses it (or explicitly discards via
-  // "Discard local data & re-pull from cloud" in the sync settings).
-  if(isLocalDirty()){
-    setSyncStatus('You have unsaved changes from last time — press Save to send them.');
-    updateSaveBtnText();
-    safeRender();
-    if(FREESTEP_SYNC_URL) syncFreestepIncome();
-    return;
-  }
+  // Always pulls fresh on open, even over unsaved local changes from a
+  // previous session that never got saved — explicitly requested this
+  // way: whatever's on the Sheet wins on open, full stop, rather than
+  // this device's stale unsaved edits taking priority. Since those
+  // edits are gone the moment this pull lands, the dirty flag is cleared
+  // right after so the Save button doesn't keep reporting something to
+  // save that no longer exists.
   if(syncUrl){
+    const hadUnsaved = isLocalDirty();
     pullCloud().then(()=>{
+      if(hadUnsaved){
+        setLocalDirty(false);
+        updateSaveBtnText();
+        setSyncStatus('Loaded the Sheet\'s current data — unsaved changes from last time were discarded.');
+      }
       safeRender();
       if(FREESTEP_SYNC_URL) syncFreestepIncome();
     });
