@@ -4874,26 +4874,33 @@ function startAppAfterUnlock(){
   // right here, when the app first opens. No periodic background pulling
   // and no auto-push on every edit; this device's own edits stay local
   // (see save()) until the person explicitly presses "Save"
-  // (performSave()).
+  // (performSave()) — except for the one case right below.
   //
-  // Always pulls fresh on open, even over unsaved local changes from a
-  // previous session that never got saved — explicitly requested this
-  // way: whatever's on the Sheet wins on open, full stop, rather than
-  // this device's stale unsaved edits taking priority. Since those
-  // edits are gone the moment this pull lands, the dirty flag is cleared
-  // right after so the Save button doesn't keep reporting something to
-  // save that no longer exists.
+  // Save-before-pull: if this device still has edits from last time that
+  // never actually got saved, rather than silently discarding them (the
+  // simplest option) or blindly overwriting them with a fresh pull
+  // (risking exactly the data loss this was built to avoid), save them
+  // first. pushCloud()'s own confirmation step already merges in
+  // whatever's newer on the Sheet too (see its own comments), so this
+  // one call both protects the unsaved work AND brings in anything else
+  // that changed elsewhere — the same "fresh combined result" a plain
+  // pull would give, just without throwing anything away to get there.
+  // If the save itself fails (no connection right now, say), the local
+  // edits simply stay exactly where they are, same as any other failed
+  // Save — nothing is lost either way.
   if(syncUrl){
-    const hadUnsaved = isLocalDirty();
-    pullCloud().then(()=>{
-      if(hadUnsaved){
-        setLocalDirty(false);
-        updateSaveBtnText();
-        setSyncStatus('Loaded the Sheet\'s current data — unsaved changes from last time were discarded.');
-      }
+    if(isLocalDirty()){
+      // performSave() already handles Free Step's sync internally once
+      // its own save succeeds, so it's deliberately NOT called again
+      // right here — doing so would fire it twice.
+      performSave($('syncNowBtn'));
       safeRender();
-      if(FREESTEP_SYNC_URL) syncFreestepIncome();
-    });
+    } else {
+      pullCloud().then(()=>{
+        safeRender();
+        if(FREESTEP_SYNC_URL) syncFreestepIncome();
+      });
+    }
   } else if(FREESTEP_SYNC_URL){
     syncFreestepIncome();
   }
