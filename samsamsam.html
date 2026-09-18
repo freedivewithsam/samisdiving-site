@@ -215,6 +215,10 @@
   .stat .num{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15;overflow-wrap:break-word;word-break:break-word}
   .stat .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin-top:3px;overflow-wrap:break-word;word-break:break-word}
   .stats-mini-head{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);font-weight:700;margin:-10px 0 8px 2px}
+  /* Wraps one labeled group of stats ("All time" / "This month") — the
+     .stats div inside already carries its own bottom margin, so this
+     just needs to style the label above it. */
+  .stats-group-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);font-weight:700;margin:0 0 8px 2px}
   .stats-mini{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:22px}
   .stats-mini .stat{padding:10px 14px}
   .stats-mini .stat .num{font-size:18px}
@@ -3732,26 +3736,44 @@ function renderFinance(){
     .filter(p=>financeMonth==='all' || (p.date||'').slice(0,7)===financeMonth)
     .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
-  const income = payments.reduce((a,p)=>a+p.amount,0);
-  const expense = expenses.reduce((a,t)=>a+t.price,0);
-  const balance = income - expense;
-  const salary = income * (SALARY_MARGIN_PCT / 100);
-  const profit = income - expense - salary;
-  const profitMargin = income > 0 ? (profit / income * 100) : 0;
+  // Stats at the top always show both All time and This month, regardless
+  // of which month the dropdown below is filtering the list to — the
+  // dropdown controls the list only, not these two summaries.
+  const thisMonthKey = new Date().toISOString().slice(0,7);
+  function financeStatsFor(expList, payList){
+    const inc = payList.reduce((a,p)=>a+p.amount,0);
+    const exp = expList.reduce((a,t)=>a+t.price,0);
+    const bal = inc - exp;
+    const sal = inc * (SALARY_MARGIN_PCT / 100);
+    const prof = inc - exp - sal;
+    const profMargin = inc > 0 ? (prof / inc * 100) : 0;
+    return { income:inc, expense:exp, balance:bal, salary:sal, profit:prof, profitMargin:profMargin };
+  }
+  const allTimeStats = financeStatsFor(allExpenses, allPayments);
+  const thisMonthStats = financeStatsFor(
+    allExpenses.filter(t=>(t.date||'').slice(0,7)===thisMonthKey),
+    allPayments.filter(p=>(p.date||'').slice(0,7)===thisMonthKey)
+  );
+  function financeStatsHtml(label, s){
+    return `
+    <div class="stats-group">
+      <h3 class="stats-group-label">${label}</h3>
+      <div class="stats stats-3col">
+        <div class="stat"><div class="num" style="color:var(--income)">${moneyStat(s.income)}</div><div class="lbl">Total income</div></div>
+        <div class="stat"><div class="num" style="color:var(--expense)">${moneyStat(s.expense)}</div><div class="lbl">Total expenses</div></div>
+        <div class="stat"><div class="num" style="${s.balance<0?'color:var(--expense)':''}">${moneyStat(s.balance)}</div><div class="lbl">Balance</div></div>
+        <div class="stat"><div class="num">${moneyStat(s.salary)}</div><div class="lbl">Salary (${SALARY_MARGIN_PCT}%)</div></div>
+        <div class="stat"><div class="num" style="${s.profitMargin<0?'color:var(--expense)':'color:var(--income)'}">${pctStat(s.profitMargin)}</div><div class="lbl">Profit margin</div></div>
+      </div>
+    </div>`;
+  }
 
   const filteredExpenses = searchQuery ? expenses.filter(t=>(t.item||'').toLowerCase().includes(searchQuery) || matchesAmount(t.price, searchQuery)) : expenses;
   const filteredPaid = searchQuery ? payments.filter(p=>
     (p.name||'').toLowerCase().includes(searchQuery) || (p.pkg||'').toLowerCase().includes(searchQuery) || matchesAmount(p.amount, searchQuery)
   ) : payments;
 
-  let html = `
-  <div class="stats stats-3col">
-    <div class="stat"><div class="num" style="color:var(--income)">${moneyStat(income)}</div><div class="lbl">Total income</div></div>
-    <div class="stat"><div class="num" style="color:var(--expense)">${moneyStat(expense)}</div><div class="lbl">Total expenses</div></div>
-    <div class="stat"><div class="num" style="${balance<0?'color:var(--expense)':''}">${moneyStat(balance)}</div><div class="lbl">Balance</div></div>
-    <div class="stat"><div class="num">${moneyStat(salary)}</div><div class="lbl">Salary (${SALARY_MARGIN_PCT}%)</div></div>
-    <div class="stat"><div class="num" style="${profitMargin<0?'color:var(--expense)':'color:var(--income)'}">${pctStat(profitMargin)}</div><div class="lbl">Profit margin</div></div>
-  </div>
+  let html = financeStatsHtml('All time', allTimeStats) + financeStatsHtml('This month', thisMonthStats) + `
 
   <div class="finance-cols">
     <div class="fin-col fin-col-expense">
@@ -3852,9 +3874,31 @@ function renderPersonalFinance(){
     .filter(t=>personalMonth==='all' || (t.date||'').slice(0,7)===personalMonth)
     .sort((a,b)=> (b.date||'').localeCompare(a.date||''));
 
-  const income = incomes.reduce((a,t)=>a+(t.price||0),0);
-  const expense = expenses.reduce((a,t)=>a+(t.price||0),0);
-  const balance = income - expense;
+  // Stats at the top always show both All time and This month, regardless
+  // of which month the dropdown below is filtering the list to — same
+  // reasoning as Freediving Finance's own stats above.
+  const thisMonthKey = new Date().toISOString().slice(0,7);
+  function personalStatsFor(expList, incList){
+    const inc = incList.reduce((a,t)=>a+(t.price||0),0);
+    const exp = expList.reduce((a,t)=>a+(t.price||0),0);
+    return { income:inc, expense:exp, balance:inc-exp };
+  }
+  const allTimeStats = personalStatsFor(allExpenses, allIncomes);
+  const thisMonthStats = personalStatsFor(
+    allExpenses.filter(t=>(t.date||'').slice(0,7)===thisMonthKey),
+    allIncomes.filter(t=>(t.date||'').slice(0,7)===thisMonthKey)
+  );
+  function personalStatsHtml(label, s){
+    return `
+    <div class="stats-group">
+      <h3 class="stats-group-label">${label}</h3>
+      <div class="stats">
+        <div class="stat"><div class="num" style="color:var(--income)">${moneyStat(s.income)}</div><div class="lbl">Total income</div></div>
+        <div class="stat"><div class="num" style="color:var(--expense)">${moneyStat(s.expense)}</div><div class="lbl">Total expenses</div></div>
+        <div class="stat"><div class="num" style="${s.balance<0?'color:var(--expense)':''}">${moneyStat(s.balance)}</div><div class="lbl">Balance</div></div>
+      </div>
+    </div>`;
+  }
 
   const filteredExpenses = searchQuery ? expenses.filter(t=>(t.item||'').toLowerCase().includes(searchQuery) || matchesAmount(t.price, searchQuery)) : expenses;
   const filteredIncomes = searchQuery ? incomes.filter(t=>(t.item||'').toLowerCase().includes(searchQuery) || matchesAmount(t.price, searchQuery)) : incomes;
@@ -3879,12 +3923,7 @@ function renderPersonalFinance(){
     ? filteredExpenses.filter(t => (t.category || (t.source==='fd' ? 'Freediving' : 'Uncategorized')) === categoryFilter)
     : filteredExpenses;
 
-  let html = `
-  <div class="stats">
-    <div class="stat"><div class="num" style="color:var(--income)">${moneyStat(income)}</div><div class="lbl">Total income</div></div>
-    <div class="stat"><div class="num" style="color:var(--expense)">${moneyStat(expense)}</div><div class="lbl">Total expenses</div></div>
-    <div class="stat"><div class="num" style="${balance<0?'color:var(--expense)':''}">${moneyStat(balance)}</div><div class="lbl">Balance</div></div>
-  </div>
+  let html = personalStatsHtml('All time', allTimeStats) + personalStatsHtml('This month', thisMonthStats) + `
 
   <div class="finance-cols">
     <div class="fin-col fin-col-expense">
