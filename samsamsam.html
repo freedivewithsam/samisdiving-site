@@ -67,6 +67,10 @@
      doesn't have yet — a warmer color than its normal resting state so
      it's clearly noticeable there's something worth pressing it for. */
   .btn-unsaved{background:var(--accent-dark) !important;color:#fff !important;border-color:var(--accent-dark) !important}
+  /* Styled as busy rather than truly disabled during a save, so the
+     button still fires clicks (see performSave()'s own "already syncing"
+     check) instead of silently doing nothing when tapped mid-save. */
+  .btn-busy{opacity:.6;cursor:wait}
   .btn-peach:hover{filter:brightness(.96)}
   .btn-payment{background:#FBF0C7;color:#8A6D14;border:1px solid #EDE0A0}
   .btn-payment:hover{filter:brightness(.96)}
@@ -1137,8 +1141,21 @@ function performSave(btn){
     $('syncModal').showModal();
     return;
   }
+  if(syncing){
+    // Previously this button was set disabled while a save ran, which
+    // means clicking it did nothing at all — no feedback, easy to read
+    // as broken or unresponsive, especially since a save can legitimately
+    // take a couple of minutes with retries, and the app now sometimes
+    // triggers one automatically on open (see startAppAfterUnlock())
+    // without the person having clicked anything themselves. Telling
+    // them plainly that something IS happening beats silence.
+    setSyncStatus('Still saving — please wait a moment…');
+    return;
+  }
   const isHeaderBtn = btn && btn.id === 'syncNowBtn';
-  if(btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
+  // Styled as busy (dimmed, "wait" cursor) rather than actually disabled
+  // — see the syncing check above for why staying clickable matters here.
+  if(btn){ btn.classList.add('btn-busy'); btn.textContent = 'Saving…'; }
   // Sets expectations upfront — a save on this much data normally takes
   // 20-25s end to end, which is easy to mistake for "stuck" without this.
   // pushCloud() will overwrite this with a more specific status if a
@@ -1163,7 +1180,7 @@ function performSave(btn){
     .finally(()=>{
       setTimeout(()=>{
         updateSaveBtnText();
-        if(btn){ btn.disabled = false; if(!isHeaderBtn) btn.textContent = '💾 Save'; }
+        if(btn){ btn.classList.remove('btn-busy'); if(!isHeaderBtn) btn.textContent = '💾 Save'; }
       }, 1500);
     });
 }
