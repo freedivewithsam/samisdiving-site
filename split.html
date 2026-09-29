@@ -198,6 +198,10 @@
     .item-top input:first-child { grid-column: 1 / -1; }
   }
   .chips.mini { gap: 6px; align-items: center; }
+  .item-pay { display: flex; align-items: center; gap: 8px; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); font-weight: 600; }
+  .item-pay select { width: auto; min-width: 120px; padding: 5px 8px; font-size: 0.84rem; text-transform: none; letter-spacing: 0; }
+  .pp-head { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); font-weight: 600; }
+  .owe-head { margin-top: 10px; margin-bottom: -4px; }
   .chips.mini .chip { font-size: 0.78rem; padding: 3px 10px 3px 4px; }
   .chips.mini .chip .dot { width: 18px; height: 18px; }
   .extras { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -310,12 +314,13 @@
     state.people.forEach(function (p) { b[p.id] = { paid: 0, share: 0, sent: 0, received: 0 }; });
     state.expenses.forEach(function (e) {
       var split = (e.split || []).filter(function (id) { return b[id]; });
-      if (!b[e.paidBy] || !split.length) return;
+      if ((!b[e.paidBy] && !e.paidShares) || !split.length) return;
       if (e.kind === "payment") {
         b[e.paidBy].sent += e.amount;
         b[split[0]].received += e.amount;
       } else {
-        b[e.paidBy].paid += e.amount;
+        if (e.paidShares) Object.keys(e.paidShares).forEach(function (id) { if (b[id]) b[id].paid += Number(e.paidShares[id]) || 0; });
+        else b[e.paidBy].paid += e.amount;
         if (e.shares) {
           Object.keys(e.shares).forEach(function (id) { if (b[id]) b[id].share += Number(e.shares[id]) || 0; });
         } else {
@@ -508,7 +513,7 @@
       h += '<div><label class="label" for="f-desc">What for</label><input id="f-desc" type="text" placeholder="Dinner, scooter rental, groceries" required></div>';
       if (bill) h += '<div><span class="label">Amount (Rp)</span><div class="amt-auto money" id="amt-auto">' + fmt(computeBill(bill).total) + "</div></div>";
       else h += '<div><label class="label" for="f-amt">Amount (Rp)</label><input id="f-amt" class="formula" type="text" inputmode="decimal" placeholder="e.g. 250000 or 75000*3+50000" required></div>';
-      h += '<div><label class="label" for="f-paid">Paid by</label><select id="f-paid">';
+      h += '<div><label class="label" for="f-paid">' + (bill ? "Paid by (sets every item)" : "Paid by") + '</label><select id="f-paid">';
       state.people.forEach(function (p) { h += '<option value="' + p.id + '">' + esc(p.name) + "</option>"; });
       h += '</select></div><div><label class="label" for="f-date">Date</label><input id="f-date" type="date"></div>';
       if (bill) h += billEditor();
@@ -550,7 +555,7 @@
           var pay = e.kind === "payment";
           var split = (e.split || []).filter(person);
           var meta = pay ? "Settlement" : e.shares
-            ? "Paid by " + esc(pname(e.paidBy)) + " · by item · " + Object.keys(e.shares).filter(person).map(function (id) { return esc(pname(id)) + " " + fmt(e.shares[id]); }).join(", ")
+            ? (e.paidShares ? "Paid by " + Object.keys(e.paidShares).filter(person).map(function (id) { return esc(pname(id)) + " " + fmt(e.paidShares[id]); }).join(" + ") : "Paid by " + esc(pname(e.paidBy))) + " · by item · " + Object.keys(e.shares).filter(person).map(function (id) { return esc(pname(id)) + " " + fmt(e.shares[id]); }).join(", ")
             : "Paid by " + esc(pname(e.paidBy)) + " · " + (split.length === state.people.length ? "split by everyone" : "split by " + split.map(pname).map(esc).join(", ")) + (split.length ? " · " + fmt(e.amount / split.length) + " each" : "");
           h += '<div class="exp' + (pay ? " payment" : "") + (editingId === e.id ? " editing" : "") + '"><span class="bar" style="--c:' + pcolor(e.paidBy) + '"></span>';
           h += '<div style="min-width:0"><div class="desc">' + (pay ? esc(pname(e.paidBy)) + " paid " + esc(pname(split[0])) : esc(e.desc)) + '</div><div class="meta">' + meta + "</div></div>";
@@ -690,7 +695,7 @@
       var e = state.expenses.filter(function (x) { return x.id === id; })[0]; if (!e) return;
       editingId = id; formSplit = (e.split || []).slice();
       bill = e.items && e.items.length ? {
-        items: e.items.map(function (it) { var n = newItem(it.name, it.price); n.who = (it.who || []).slice(); return n; }),
+        items: e.items.map(function (it) { var n = newItem(it.name, it.price, it.paidBy || e.paidBy); n.who = (it.who || []).slice(); return n; }),
         service: (e.extras || {}).service || "", tax: (e.extras || {}).tax || "", discount: (e.extras || {}).discount || "", receiptTotal: e.receiptTotal || null
       } : null;
       setScan(false, 0, "");
@@ -753,8 +758,9 @@
         if (c.bad.length) { showMsg("form-msg", "Some prices or fees aren't numbers. Fix the ones marked in orange."); return; }
         if (c.unassigned) { showMsg("form-msg", "Tap who had each item. " + fmt(c.unassigned) + " isn't assigned yet."); return; }
         if (c.total <= 0) { showMsg("form-msg", "Add at least one item with a price."); return; }
-        rec = { desc: desc, amount: c.total, paidBy: document.getElementById("f-paid").value, split: Object.keys(c.shares).filter(function (id) { return c.shares[id] > 0; }), shares: c.shares,
-          items: bill.items.filter(function (it) { return it.name.trim() || String(it.price).trim(); }).map(function (it) { return { name: it.name.trim(), price: evalFormula(it.price) || 0, who: it.who.slice() }; }),
+        rec = { desc: desc, amount: c.total, paidBy: c.mainPayer || document.getElementById("f-paid").value, paidShares: c.payers.length > 1 ? c.paid : null,
+          split: Object.keys(c.shares).filter(function (id) { return c.shares[id] > 0; }), shares: c.shares,
+          items: bill.items.filter(function (it) { return it.name.trim() || String(it.price).trim(); }).map(function (it) { return { name: it.name.trim(), price: evalFormula(it.price) || 0, who: it.who.slice(), paidBy: it.paidBy }; }),
           extras: { service: bill.service, tax: bill.tax, discount: bill.discount }, receiptTotal: bill.receiptTotal || null,
           date: document.getElementById("f-date").value || today(), kind: "expense" };
       } else {
@@ -762,7 +768,7 @@
         var amt = round2(evalFormula(amtEl.value));
         if (isNaN(amt) || amt <= 0) { amtEl.classList.add("err"); showMsg("form-msg", "Enter the amount as a number or a sum like 450*3+200."); return; }
         if (!formSplit.length) { showMsg("form-msg", "Pick at least one person to split with."); return; }
-        rec = { desc: desc, amount: amt, paidBy: document.getElementById("f-paid").value, split: formSplit.slice(), shares: null, items: null, extras: null, receiptTotal: null, date: document.getElementById("f-date").value || today(), kind: "expense" };
+        rec = { desc: desc, amount: amt, paidBy: document.getElementById("f-paid").value, paidShares: null, split: formSplit.slice(), shares: null, items: null, extras: null, receiptTotal: null, date: document.getElementById("f-date").value || today(), kind: "expense" };
       }
       var saved;
       if (editingId) {
@@ -794,6 +800,7 @@
     if (ev.target.id === "f-amt") { ev.target.classList.remove("err"); updateEach(); }
   });
   app.addEventListener("change", function (ev) {
+    if (ev.target.id === "f-paid" && bill) { bill.items.forEach(function (it) { it.paidBy = ev.target.value; }); render(); return; }
     if (ev.target.id === "scan-file") { var f = ev.target.files && ev.target.files[0]; ev.target.value = ""; scanReceipt(f); return; }
     if (bill && ev.target.dataset && ev.target.dataset.item && ev.target.dataset.f === "price") {
       var pv = evalFormula(ev.target.value); if (!isNaN(pv) && /[+\-*/()]/.test(ev.target.value)) { ev.target.value = pv; findItem(ev.target.dataset.item).price = String(pv); refreshBillSummary(); }
@@ -826,7 +833,11 @@
   var bill = null;
   var scan = { busy: false, progress: 0, msg: "" };
 
-  function newItem(name, price) { return { id: uid(), name: name || "", price: price == null ? "" : String(price), who: [] }; }
+  function defaultPayer() {
+    var el = document.getElementById("f-paid");
+    return (el && el.value) || (person(me) ? me : "") || (state.people[0] ? state.people[0].id : "");
+  }
+  function newItem(name, price, paidBy) { return { id: uid(), name: name || "", price: price == null ? "" : String(price), who: [], paidBy: paidBy || defaultPayer() }; }
 
   // "10%" → percent of base, otherwise a number or quick sum. Blank = 0.
   function extraAmount(str, base) {
@@ -840,12 +851,14 @@
 
   // Works out each person's share: their items, plus service and tax in proportion, minus discount.
   function computeBill(b) {
-    var out = { subtotal: 0, unassigned: 0, perItems: {}, shares: {}, bad: [] };
-    state.people.forEach(function (p) { out.perItems[p.id] = 0; });
+    var out = { subtotal: 0, unassigned: 0, perItems: {}, shares: {}, perPayer: {}, paid: {}, bad: [] };
+    state.people.forEach(function (p) { out.perItems[p.id] = 0; out.perPayer[p.id] = 0; });
     b.items.forEach(function (it) {
       var price = evalFormula(it.price);
       if (isNaN(price)) { if (String(it.price).trim()) out.bad.push(it.id); price = 0; }
       out.subtotal += price;
+      var payer = out.perPayer[it.paidBy] != null ? it.paidBy : defaultPayer();
+      if (out.perPayer[payer] != null) out.perPayer[payer] += price;
       var who = it.who.filter(function (id) { return out.perItems[id] != null; });
       if (!who.length) { out.unassigned += price; return; }
       who.forEach(function (id) { out.perItems[id] += price / who.length; });
@@ -867,6 +880,17 @@
       if (!biggest || out.shares[id] > out.shares[biggest]) biggest = id;
     });
     if (biggest && !out.unassigned) out.shares[biggest] += out.total - sum;
+    // what each payer actually paid: their items, plus service and tax in the same proportion
+    var pf = out.subtotal > 0 ? out.total / out.subtotal : 0, psum = 0, top = null;
+    Object.keys(out.perPayer).forEach(function (id) {
+      if (out.perPayer[id] <= 0) return;
+      out.paid[id] = Math.round(out.perPayer[id] * pf);
+      psum += out.paid[id];
+      if (!top || out.paid[id] > out.paid[top]) top = id;
+    });
+    if (top) out.paid[top] += out.total - psum;
+    out.payers = Object.keys(out.paid);
+    out.mainPayer = top;
     return out;
   }
 
@@ -887,7 +911,9 @@
         h += '<button type="button" class="chip ' + (on ? "on" : "off") + '" data-act="it-who" data-item="' + it.id + '" data-id="' + p.id + '" aria-pressed="' + on + '"><span class="dot" style="--c:var(--' + p.color + ')">' + esc(initials(p.name)) + "</span>" + esc(p.name) + "</button>";
       });
       h += '<button type="button" class="linkish" data-act="it-all" data-item="' + it.id + '">' + (it.who.length === state.people.length ? "None" : "Shared by all") + "</button>";
-      h += "</div></div>";
+      h += '</div><label class="item-pay" for="it-pb-' + it.id + '"><span>Paid by</span><select id="it-pb-' + it.id + '" data-item="' + it.id + '" data-f="paidBy">';
+      state.people.forEach(function (p) { h += '<option value="' + p.id + '"' + (p.id === it.paidBy ? " selected" : "") + ">" + esc(p.name) + "</option>"; });
+      h += "</select></label></div>";
     });
     h += '</div><button type="button" class="btn ghost small" data-act="it-add">+ Add item</button>';
     h += '<div class="extras">';
@@ -919,6 +945,11 @@
         : '<p class="check warn">The receipt says ' + fmt(bill.receiptTotal) + ", " + fmt(diff) + (diff > 0 ? " more" : " less") + " than this. Check the prices, service and tax.</p>";
     }
     if (c.unassigned) h += '<p class="check warn">' + fmt(c.unassigned) + " of items isn't assigned to anyone yet.</p>";
+    if (c.payers.length > 1) {
+      h += '<div class="per-person paid-by"><div class="pp-head">Who paid</div>';
+      c.payers.forEach(function (id) { h += '<div><span class="pname"><span class="dot" style="--c:' + pcolor(id) + '"></span>' + esc(pname(id)) + '</span><b class="money">' + fmt(c.paid[id]) + "</b></div>"; });
+      h += '</div><div class="pp-head owe-head">Who owes</div>';
+    }
     var ids = Object.keys(c.shares);
     if (ids.length) {
       h += '<div class="per-person">';
