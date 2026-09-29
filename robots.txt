@@ -6,3 +6,4 @@ Disallow: /dnfonline/
 Disallow: /calculator/
 Disallow: /pb/
 Disallow: /nav.html
+Disallow: /split/
