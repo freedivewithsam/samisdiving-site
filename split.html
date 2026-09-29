@@ -122,6 +122,10 @@
   .add-person input { flex: 1; min-width: 0; }
   .people-edit { display: flex; flex-wrap: wrap; gap: 8px; }
   .people-edit .chip { padding-right: 4px; }
+  .chip.add-chip { border-style: dashed; color: var(--accent); background: transparent; padding: 5px 12px; font-weight: 600; }
+  .add-person.quick { margin-top: 10px; }
+  .add-person.quick input { padding: 8px 10px; }
+  .inline-msg.ok-msg { color: var(--good); margin-top: 6px; }
   .inline-msg { font-size: 0.8rem; color: var(--warn); margin: 0; }
 
   /* form */
@@ -166,10 +170,48 @@
   .new-trip { gap: 12px; }
   .check { display: flex; gap: 8px; align-items: flex-start; font-size: 0.86rem; color: var(--ink-soft); }
   .check input { margin-top: 4px; accent-color: var(--accent); }
-  .del-trip { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; font-size: 0.84rem; color: var(--ink-soft); }
+  .del-trip { display: flex; flex-direction: column; gap: 10px; background: var(--warn-bg); border-radius: 14px; padding: 14px 16px; font-size: 0.9rem; }
+  .del-trip p { margin: 0; }
+  .del-trip .form-actions { justify-content: flex-start; }
+  .rename-btn.del:hover { color: var(--warn); border-color: var(--warn); }
   .linkish.muted { color: var(--ink-faint); font-weight: 500; }
   .linkish.muted:hover { color: var(--warn); }
   .btn.danger { background: var(--warn); color: var(--surface); }
+  .scan-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+  .scan-btn { cursor: pointer; }
+  .scan-btn.disabled { opacity: 0.5; pointer-events: none; }
+  .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; }
+  .seg button { background: transparent; border: none; color: var(--ink-soft); font-weight: 600; font-size: 0.78rem; padding: 6px 12px; border-radius: 999px; }
+  .seg button.on { background: var(--accent); color: var(--accent-ink); }
+  .scan-status { margin: 0; font-size: 0.84rem; color: var(--ink-soft); background: var(--surface-2); border-radius: 10px; padding: 8px 12px; }
+  .scan-status.busy { color: var(--accent-ink); background: var(--good-bg); }
+  .amt-auto { background: var(--surface-2); border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px; font-size: 0.95rem; }
+  .bill-box { display: flex; flex-direction: column; gap: 12px; }
+  .items { display: flex; flex-direction: column; gap: 10px; }
+  .item { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--surface); }
+  .item.need { border-color: var(--warn); border-style: dashed; }
+  .item-top { display: grid; grid-template-columns: minmax(0, 1fr) 118px auto; gap: 8px; align-items: center; }
+  .item-top input { padding: 8px 10px; font-size: 0.9rem; }
+  .item-top input.price { text-align: right; }
+  @media (max-width: 520px) {
+    .item-top { grid-template-columns: minmax(0, 1fr) auto; }
+    .item-top input:first-child { grid-column: 1 / -1; }
+  }
+  .chips.mini { gap: 6px; align-items: center; }
+  .chips.mini .chip { font-size: 0.78rem; padding: 3px 10px 3px 4px; }
+  .chips.mini .chip .dot { width: 18px; height: 18px; }
+  .extras { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 560px) { .extras { grid-template-columns: 1fr 1fr; } .extras > div:first-child { grid-column: 1 / -1; } }
+  .sum-lines { display: flex; flex-direction: column; gap: 4px; font-size: 0.88rem; }
+  .sum-lines > div, .per-person > div { display: flex; justify-content: space-between; gap: 10px; }
+  .sum-lines .grand { font-weight: 700; border-top: 1px solid var(--line); padding-top: 6px; margin-top: 2px; }
+  .check { margin: 8px 0 0; font-size: 0.82rem; border-radius: 10px; padding: 8px 12px; }
+  .check.ok { color: var(--good); background: var(--good-bg); }
+  .check.warn { color: var(--warn); background: var(--warn-bg); }
+  .per-person { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 0.88rem; background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
+  .per-person .muted { color: var(--ink-faint); flex: 1; text-align: right; font-size: 0.78rem; }
+  .raw summary { cursor: pointer; font-size: 0.78rem; color: var(--ink-faint); }
+  .raw pre { white-space: pre-wrap; font-size: 0.72rem; color: var(--ink-soft); background: var(--surface-2); padding: 10px; border-radius: 10px; max-height: 240px; overflow: auto; }
   .readonly .edit-only { display: none !important; }
   .busy { pointer-events: none; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
@@ -200,7 +242,7 @@
   var LS_TRIP = "splitbill_trip";
   var currentId = "";
   var state = null;
-  var newTripOpen = false, confirmDelete = false, renaming = false;
+  var newTripOpen = false, confirmDelete = false, renaming = false, quickAdd = "";
   function startRename() {
     renaming = true; newTripOpen = false; render();
     var el = document.getElementById("trip-name"); if (el) { el.focus(); el.select(); }
@@ -223,7 +265,7 @@
   function pick(id) {
     var want = id || currentId || lsGet(LS_TRIP) || "";
     var t = all.trips.filter(function (x) { return x.id === want; })[0] || all.trips[all.trips.length - 1];
-    if (!state || t.id !== state.id) { editingId = null; formSplit = null; confirmDelete = false; }
+    if (!state || t.id !== state.id) { editingId = null; formSplit = null; confirmDelete = false; bill = null; }
     state = t; currentId = t.id; lsSet(LS_TRIP, t.id);
     me = lsGet(meKey()) || (t.id === "main" ? lsGet(LS_ME) || "" : "");
   }
@@ -274,8 +316,12 @@
         b[split[0]].received += e.amount;
       } else {
         b[e.paidBy].paid += e.amount;
-        var each = e.amount / split.length;
-        split.forEach(function (id) { b[id].share += each; });
+        if (e.shares) {
+          Object.keys(e.shares).forEach(function (id) { if (b[id]) b[id].share += Number(e.shares[id]) || 0; });
+        } else {
+          var each = e.amount / split.length;
+          split.forEach(function (id) { b[id].share += each; });
+        }
       }
     });
     Object.keys(b).forEach(function (id) {
@@ -367,7 +413,7 @@
     var app = document.getElementById("app");
     var focusId = document.activeElement && document.activeElement.id;
     var formVals = {};
-    ["f-desc","f-amt","f-paid","f-date","new-person","nt-name","trip-name"].forEach(function (id) { var el = document.getElementById(id); if (el) formVals[id] = el.value; });
+    ["f-desc","f-amt","f-paid","f-date","new-person","nt-name","trip-name","quick-person"].forEach(function (id) { var el = document.getElementById(id); if (el) formVals[id] = el.value; });
 
     var b = balances();
     var transfers = settle(b);
@@ -396,16 +442,21 @@
       h += '<form id="rename-form" class="rename-form"><input class="trip-name" id="trip-name" type="text" value="' + esc(state.trip) + '" aria-label="Trip name" maxlength="40" required>';
       h += '<div class="rename-actions"><button type="submit" class="btn small">Save name</button><button type="button" class="btn ghost small" data-act="rename-cancel">Cancel</button></div></form>';
     } else {
-      h += '<div class="title-row"><h1 class="trip-title">' + esc(state.trip) + '</h1><button type="button" class="rename-btn edit-only" data-act="rename" aria-label="Rename ' + esc(state.trip) + '">✎ Rename</button></div>';
+      h += '<div class="title-row"><h1 class="trip-title">' + esc(state.trip) + '</h1><button type="button" class="rename-btn edit-only" data-act="rename" aria-label="Rename ' + esc(state.trip) + '">✎ Rename</button><button type="button" class="rename-btn del edit-only" data-act="deltrip" aria-label="Delete ' + esc(state.trip) + '">🗑 Delete</button></div>';
     }
     h += '</div><div class="top-right">';
     h += '<span id="status" class="status ' + statusClass + '">' + esc(statusText) + "</span>";
     h += "</div></header>";
 
+    if (confirmDelete && !ro) {
+      var nb = state.expenses.filter(function (e) { return e.kind !== "payment"; }).length;
+      h += '<div class="del-trip" role="alertdialog" aria-label="Delete trip"><p><b>Delete ' + esc(state.trip) + '?</b> This removes its ' + state.people.length + ' people and ' + nb + ' bill' + (nb === 1 ? "" : "s") + ' from this page and from the Google Sheet. It can\'t be undone.</p>';
+      h += '<div class="form-actions"><button type="button" class="btn small danger" data-act="deltrip-yes">Delete trip</button><button type="button" class="btn ghost small" data-act="deltrip-no">Keep it</button></div></div>';
+    }
     if (ro) h += '<div class="ro-note">You\'re viewing this trip. Only the person who made it can add expenses. Pick your name below to see what you owe.</div>';
 
-    if (!state.people.length) {
-      h += '<section class="panel"><h2>Who\'s on the trip?</h2><p class="hint">Add everyone first, then log each bill with who paid and who shared it. The page works out the fewest transfers to settle up.</p>';
+    if (state.people.length < 2) {
+      h += '<section class="panel"><h2>Who\'s on the trip?</h2><p class="hint">Add at least two people, one at a time. You can add more any time later. Then log each bill with who paid and who shared it, and the page works out the fewest transfers to settle up.</p>';
       h += peopleEditor();
       h += "</section>";
     } else {
@@ -416,7 +467,9 @@
       state.people.forEach(function (p) {
         h += '<button class="chip' + (me === p.id ? " on" : "") + '" data-act="me" data-id="' + p.id + '"><span class="dot" style="--c:var(--' + p.color + ')">' + esc(initials(p.name)) + "</span>" + esc(p.name) + "</button>";
       });
+      h += '<button type="button" class="chip add-chip edit-only" data-act="quick" data-where="me">+ Add person</button>';
       h += "</div></div>";
+      if (quickAdd === "me") h += quickForm();
 
       if (me) {
         var mine = transfers.filter(function (t) { return t.from === me || t.to === me; });
@@ -449,18 +502,26 @@
       // add / edit expense
       h += '<section class="panel edit-only" id="form-panel"><h2>' + (editingId ? "Edit bill" : "Add a bill") + "</h2>";
       h += '<form id="exp-form" class="form-grid" autocomplete="off">';
+      h += '<div class="full scan-row"><label id="scan-label" class="btn ghost scan-btn' + (scan.busy ? " disabled" : "") + '" for="scan-file">📷 Scan receipt</label><input id="scan-file" type="file" accept="image/*" hidden>';
+      h += '<div class="seg" role="group" aria-label="How to split"><button type="button" class="' + (bill ? "" : "on") + '" data-act="mode-eq" aria-pressed="' + !bill + '">Split equally</button><button type="button" class="' + (bill ? "on" : "") + '" data-act="mode-item" aria-pressed="' + !!bill + '">Split by item</button></div></div>';
+      h += '<p id="scan-status" class="scan-status' + (scan.busy ? " busy" : "") + ' full"' + (scan.msg ? "" : " hidden") + ">" + esc(scan.msg) + "</p>";
       h += '<div><label class="label" for="f-desc">What for</label><input id="f-desc" type="text" placeholder="Dinner, scooter rental, groceries" required></div>';
-      h += '<div><label class="label" for="f-amt">Amount (Rp)</label><input id="f-amt" class="formula" type="text" inputmode="decimal" placeholder="e.g. 250000 or 75000*3+50000" required></div>';
+      if (bill) h += '<div><span class="label">Amount (Rp)</span><div class="amt-auto money" id="amt-auto">' + fmt(computeBill(bill).total) + "</div></div>";
+      else h += '<div><label class="label" for="f-amt">Amount (Rp)</label><input id="f-amt" class="formula" type="text" inputmode="decimal" placeholder="e.g. 250000 or 75000*3+50000" required></div>';
       h += '<div><label class="label" for="f-paid">Paid by</label><select id="f-paid">';
       state.people.forEach(function (p) { h += '<option value="' + p.id + '">' + esc(p.name) + "</option>"; });
       h += '</select></div><div><label class="label" for="f-date">Date</label><input id="f-date" type="date"></div>';
+      if (bill) h += billEditor();
+      else {
       h += '<div class="full"><div class="split-head"><span class="label">Split equally between</span><button type="button" class="linkish" data-act="all">' + (formSplit && formSplit.length === state.people.length ? "Clear" : "Everyone") + "</button></div><div class=\"chips\">";
       if (!formSplit) formSplit = state.people.map(function (p) { return p.id; });
       state.people.forEach(function (p) {
         var on = formSplit.indexOf(p.id) >= 0;
         h += '<button type="button" class="chip ' + (on ? "on" : "off") + '" data-act="split" data-id="' + p.id + '" aria-pressed="' + on + '"><span class="dot" style="--c:var(--' + p.color + ')">' + esc(initials(p.name)) + "</span>" + esc(p.name) + "</button>";
       });
-      h += '</div><div class="each" id="each"></div></div>';
+      h += '<button type="button" class="chip add-chip" data-act="quick" data-where="split">+ Add person</button>';
+      h += '</div>' + (quickAdd === "split" ? quickForm() : "") + '<div class="each" id="each"></div></div>';
+      }
       h += '<p class="inline-msg full" id="form-msg" hidden></p>';
       h += '<div class="form-actions full">' + (editingId ? '<button type="button" class="btn ghost" data-act="cancel">Cancel</button>' : "") + '<button type="submit" class="btn">' + (editingId ? "Update bill" : "Add bill") + "</button></div>";
       h += "</form></section>";
@@ -488,7 +549,9 @@
           if (e.date !== lastDay) { lastDay = e.date; h += '<div class="day">' + esc(dayLabel(e.date)) + "</div>"; }
           var pay = e.kind === "payment";
           var split = (e.split || []).filter(person);
-          var meta = pay ? "Settlement" : "Paid by " + esc(pname(e.paidBy)) + " · " + (split.length === state.people.length ? "split by everyone" : "split by " + split.map(pname).map(esc).join(", ")) + (split.length ? " · " + fmt(e.amount / split.length) + " each" : "");
+          var meta = pay ? "Settlement" : e.shares
+            ? "Paid by " + esc(pname(e.paidBy)) + " · by item · " + Object.keys(e.shares).filter(person).map(function (id) { return esc(pname(id)) + " " + fmt(e.shares[id]); }).join(", ")
+            : "Paid by " + esc(pname(e.paidBy)) + " · " + (split.length === state.people.length ? "split by everyone" : "split by " + split.map(pname).map(esc).join(", ")) + (split.length ? " · " + fmt(e.amount / split.length) + " each" : "");
           h += '<div class="exp' + (pay ? " payment" : "") + (editingId === e.id ? " editing" : "") + '"><span class="bar" style="--c:' + pcolor(e.paidBy) + '"></span>';
           h += '<div style="min-width:0"><div class="desc">' + (pay ? esc(pname(e.paidBy)) + " paid " + esc(pname(split[0])) : esc(e.desc)) + '</div><div class="meta">' + meta + "</div></div>";
           h += '<span class="amt">' + fmt(e.amount) + "</span>";
@@ -500,11 +563,6 @@
     }
 
     h += '<footer class="foot"><span>' + (mode === "sheet" ? "Synced with your Google Sheet. Friends with the link see and add to the same trips." : mode === "shared" ? "Changes save to this page, so anyone with the link sees the latest numbers." : mode === "readonly" ? "Numbers update when the trip owner saves." : "Saved in this browser only.") + "</span><span>All amounts in IDR · sums like 75000*3 work</span></footer>";
-    if (all.trips.length > 1) {
-      h += '<div class="del-trip edit-only">' + (confirmDelete
-        ? '<span>Delete ' + esc(state.trip) + ' and all its bills?</span><button type="button" class="btn ghost small" data-act="deltrip-no">Keep it</button><button type="button" class="btn small danger" data-act="deltrip-yes">Delete trip</button>'
-        : '<button type="button" class="linkish muted" data-act="deltrip">Delete this trip</button>') + "</div>";
-    }
     if (mode === "sheet") h += sheetPanel();
 
     app.innerHTML = h;
@@ -518,6 +576,36 @@
     if (paidEl && !paidEl.value && state.people[0]) paidEl.value = state.people[0].id;
     updateEach();
     if (focusId) { var f = document.getElementById(focusId); if (f && f.focus) f.focus(); }
+  }
+
+  // Adds the name typed in the main "Add person" box, or in a quick "+ Add person" box.
+  function addPerson(quick) {
+    if (mode === "readonly") return;
+    var inp = document.getElementById(quick ? "quick-person" : "new-person"); if (!inp) return;
+    var name = inp.value.trim();
+    var msgId = quick ? "quick-msg" : "person-msg";
+    if (!name) return;
+    if (state.people.some(function (p) { return p.name.toLowerCase() === name.toLowerCase(); })) { showMsg(msgId, name + " is already on the list."); return; }
+    var used = state.people.map(function (p) { return p.color; });
+    var color = PALETTE.filter(function (c) { return used.indexOf(c) < 0; })[0] || PALETTE[state.people.length % PALETTE.length];
+    var p = { id: uid(), name: name, color: color };
+    state.people.push(p);
+    if (formSplit) formSplit.push(p.id);
+    inp.value = "";
+    changed([{ type: "upsertPerson", person: p }]);
+    var again = document.getElementById(quick ? "quick-person" : "new-person"); if (again) { again.value = ""; again.focus(); }
+    if (quick) showMsg("quick-msg", "Added " + name + ". Add another, or tap Done.");
+  }
+
+  function submitQuick() { addPerson(true); }
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter" && ev.target.id === "quick-person") { ev.preventDefault(); submitQuick(); }
+  });
+
+  // small inline "add a person" form, opened from the + Add person chips
+  function quickForm() {
+    // a div, not a form: it can sit inside the bill form without nesting forms
+    return '<div class="add-person quick" id="quick-form"><input id="quick-person" type="text" placeholder="Name" aria-label="New person\'s name" enterkeyhint="done"><button class="btn small" type="button" data-act="quick-add">Add</button><button class="btn ghost small" type="button" data-act="quick-done">Done</button></div><p class="inline-msg ok-msg" id="quick-msg" hidden></p>';
   }
 
   function peopleEditor() {
@@ -566,21 +654,48 @@
     }
     if (act === "all") { formSplit = formSplit.length === state.people.length ? [] : state.people.map(function (p) { return p.id; }); render(); return; }
     if (act === "newtrip") { newTripOpen = !newTripOpen; render(); var nt = document.getElementById("nt-name"); if (nt) nt.focus(); return; }
-    if (act === "deltrip") { confirmDelete = true; render(); return; }
+    if (act === "deltrip") { confirmDelete = true; renaming = false; newTripOpen = false; render(); return; }
     if (act === "deltrip-no") { confirmDelete = false; render(); return; }
     if (act === "deltrip-yes") {
       var gone = state.id;
       all.trips = all.trips.filter(function (t) { return t.id !== gone; });
+      var dops = [{ type: "deleteTrip", tripId: gone }];
+      if (!all.trips.length) {
+        // deleted the only trip: start a fresh, empty one
+        var fresh = { id: "t" + uid(), trip: "New trip", created: Date.now(), people: [], expenses: [] };
+        all.trips.push(fresh);
+        dops.push({ type: "createTrip", tripId: fresh.id, trip: { id: fresh.id, name: fresh.trip, created: fresh.created } });
+      }
+      confirmDelete = false; renaming = false;
       state = null; currentId = ""; pick();
-      changed([{ type: "deleteTrip", tripId: gone }]);
+      changed(dops);
+      window.scrollTo(0, 0);
       return;
     }
-    if (act === "cancel") { editingId = null; formSplit = null; clearForm(); render(); return; }
+    if (act === "quick") { quickAdd = quickAdd === t.getAttribute("data-where") ? "" : t.getAttribute("data-where"); render(); var qp = document.getElementById("quick-person"); if (qp) qp.focus(); return; }
+    if (act === "quick-done") { quickAdd = ""; render(); return; }
+    if (act === "quick-add") { submitQuick(); return; }
+    if (act === "cancel") { editingId = null; formSplit = null; bill = null; setScan(false, 0, ""); clearForm(); render(); return; }
+    if (act === "mode-eq") { bill = null; render(); return; }
+    if (act === "mode-item") { if (!bill) bill = { items: [newItem()], service: "", tax: "", discount: "", receiptTotal: null }; render(); return; }
+    if (act === "it-add") { bill.items.push(newItem()); render(); var ni = document.getElementById("it-n-" + bill.items[bill.items.length - 1].id); if (ni) ni.focus(); return; }
+    if (act === "it-del") { bill.items = bill.items.filter(function (x) { return x.id !== id; }); if (!bill.items.length) bill.items.push(newItem()); render(); return; }
+    if (act === "it-who" || act === "it-all") {
+      var it = findItem(t.getAttribute("data-item")); if (!it) return;
+      if (act === "it-all") it.who = it.who.length === state.people.length ? [] : state.people.map(function (p) { return p.id; });
+      else { var k = it.who.indexOf(id); if (k >= 0) it.who.splice(k, 1); else it.who.push(id); }
+      render(); return;
+    }
     if (act === "edit") {
       var e = state.expenses.filter(function (x) { return x.id === id; })[0]; if (!e) return;
       editingId = id; formSplit = (e.split || []).slice();
+      bill = e.items && e.items.length ? {
+        items: e.items.map(function (it) { var n = newItem(it.name, it.price); n.who = (it.who || []).slice(); return n; }),
+        service: (e.extras || {}).service || "", tax: (e.extras || {}).tax || "", discount: (e.extras || {}).discount || "", receiptTotal: e.receiptTotal || null
+      } : null;
+      setScan(false, 0, "");
       render();
-      document.getElementById("f-desc").value = e.desc; document.getElementById("f-amt").value = e.amount;
+      document.getElementById("f-desc").value = e.desc; if (!bill) document.getElementById("f-amt").value = e.amount;
       document.getElementById("f-paid").value = e.paidBy; document.getElementById("f-date").value = e.date || today();
       updateEach();
       document.getElementById("form-panel").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -628,28 +743,27 @@
       window.scrollTo(0, 0);
       return;
     }
-    if (ev.target.id === "person-form") {
-      var inp = document.getElementById("new-person"); var name = inp.value.trim();
-      if (!name) return;
-      if (state.people.some(function (p) { return p.name.toLowerCase() === name.toLowerCase(); })) { showMsg("person-msg", name + " is already on the list."); return; }
-      var used = state.people.map(function (p) { return p.color; });
-      var color = PALETTE.filter(function (c) { return used.indexOf(c) < 0; })[0] || PALETTE[state.people.length % PALETTE.length];
-      var p = { id: uid(), name: name, color: color };
-      state.people.push(p);
-      if (formSplit) formSplit.push(p.id);
-      inp.value = "";
-      changed([{ type: "upsertPerson", person: p }]);
-      var again = document.getElementById("new-person"); if (again) { again.value = ""; again.focus(); }
-      return;
-    }
+    if (ev.target.id === "person-form") { addPerson(false); return; }
     if (ev.target.id === "exp-form") {
       var desc = document.getElementById("f-desc").value.trim();
-      var amtEl = document.getElementById("f-amt");
-      var amt = round2(evalFormula(amtEl.value));
       if (!desc) { showMsg("form-msg", "Add a short description."); return; }
-      if (isNaN(amt) || amt <= 0) { amtEl.classList.add("err"); showMsg("form-msg", "Enter the amount as a number or a sum like 450*3+200."); return; }
-      if (!formSplit.length) { showMsg("form-msg", "Pick at least one person to split with."); return; }
-      var rec = { desc: desc, amount: amt, paidBy: document.getElementById("f-paid").value, split: formSplit.slice(), date: document.getElementById("f-date").value || today(), kind: "expense" };
+      var rec;
+      if (bill) {
+        var c = computeBill(bill);
+        if (c.bad.length) { showMsg("form-msg", "Some prices or fees aren't numbers. Fix the ones marked in orange."); return; }
+        if (c.unassigned) { showMsg("form-msg", "Tap who had each item. " + fmt(c.unassigned) + " isn't assigned yet."); return; }
+        if (c.total <= 0) { showMsg("form-msg", "Add at least one item with a price."); return; }
+        rec = { desc: desc, amount: c.total, paidBy: document.getElementById("f-paid").value, split: Object.keys(c.shares).filter(function (id) { return c.shares[id] > 0; }), shares: c.shares,
+          items: bill.items.filter(function (it) { return it.name.trim() || String(it.price).trim(); }).map(function (it) { return { name: it.name.trim(), price: evalFormula(it.price) || 0, who: it.who.slice() }; }),
+          extras: { service: bill.service, tax: bill.tax, discount: bill.discount }, receiptTotal: bill.receiptTotal || null,
+          date: document.getElementById("f-date").value || today(), kind: "expense" };
+      } else {
+        var amtEl = document.getElementById("f-amt");
+        var amt = round2(evalFormula(amtEl.value));
+        if (isNaN(amt) || amt <= 0) { amtEl.classList.add("err"); showMsg("form-msg", "Enter the amount as a number or a sum like 450*3+200."); return; }
+        if (!formSplit.length) { showMsg("form-msg", "Pick at least one person to split with."); return; }
+        rec = { desc: desc, amount: amt, paidBy: document.getElementById("f-paid").value, split: formSplit.slice(), shares: null, items: null, extras: null, receiptTotal: null, date: document.getElementById("f-date").value || today(), kind: "expense" };
+      }
       var saved;
       if (editingId) {
         state.expenses = state.expenses.map(function (x) { if (x.id === editingId) { saved = Object.assign({}, x, rec); return saved; } return x; });
@@ -658,7 +772,7 @@
         rec.id = uid(); rec.ts = Date.now(); state.expenses.push(rec); saved = rec;
       }
       var keepPaid = rec.paidBy, keepDate = rec.date;
-      formSplit = null; clearForm();
+      formSplit = null; bill = null; setScan(false, 0, ""); clearForm();
       changed(saved ? [{ type: "upsertExpense", expense: saved }] : []);
       document.getElementById("f-paid").value = keepPaid; document.getElementById("f-date").value = keepDate;
       document.getElementById("f-desc").focus();
@@ -668,9 +782,22 @@
   function clearForm() { ["f-desc","f-amt"].forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ""; }); }
 
   app.addEventListener("input", function (ev) {
+    var tg = ev.target;
+    if (bill && tg.dataset && (tg.dataset.item || tg.dataset.extra)) {
+      if (tg.dataset.item) { var it = findItem(tg.dataset.item); if (it) it[tg.dataset.f] = tg.value; }
+      else bill[tg.dataset.extra] = tg.value;
+      tg.classList.remove("err");
+      refreshBillSummary();
+      var aa = document.getElementById("amt-auto"); if (aa) aa.textContent = fmt(computeBill(bill).total);
+      return;
+    }
     if (ev.target.id === "f-amt") { ev.target.classList.remove("err"); updateEach(); }
   });
   app.addEventListener("change", function (ev) {
+    if (ev.target.id === "scan-file") { var f = ev.target.files && ev.target.files[0]; ev.target.value = ""; scanReceipt(f); return; }
+    if (bill && ev.target.dataset && ev.target.dataset.item && ev.target.dataset.f === "price") {
+      var pv = evalFormula(ev.target.value); if (!isNaN(pv) && /[+\-*/()]/.test(ev.target.value)) { ev.target.value = pv; findItem(ev.target.dataset.item).price = String(pv); refreshBillSummary(); }
+    }
     if (mode === "readonly") return;
     if (ev.target.id === "f-amt") { var n = evalFormula(ev.target.value); if (!isNaN(n) && /[+\-*/()]/.test(ev.target.value)) ev.target.value = round2(n); updateEach(); }
   });
@@ -692,6 +819,328 @@
   function fallback(text) {
     var ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
     document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); } catch (e) {} ta.remove();
+  }
+
+  /* ---------- split by item + receipt scanning ---------- */
+  // bill = null (equal split) or { items:[{id,name,price,who:[]}], service:"", tax:"", discount:"", receiptTotal, raw }
+  var bill = null;
+  var scan = { busy: false, progress: 0, msg: "" };
+
+  function newItem(name, price) { return { id: uid(), name: name || "", price: price == null ? "" : String(price), who: [] }; }
+
+  // "10%" → percent of base, otherwise a number or quick sum. Blank = 0.
+  function extraAmount(str, base) {
+    str = String(str || "").trim();
+    if (!str) return 0;
+    var m = str.match(/^(\d+(?:[.,]\d+)?)\s*%$/);
+    if (m) return base * parseFloat(m[1].replace(",", ".")) / 100;
+    var n = evalFormula(str);
+    return isNaN(n) ? NaN : n;
+  }
+
+  // Works out each person's share: their items, plus service and tax in proportion, minus discount.
+  function computeBill(b) {
+    var out = { subtotal: 0, unassigned: 0, perItems: {}, shares: {}, bad: [] };
+    state.people.forEach(function (p) { out.perItems[p.id] = 0; });
+    b.items.forEach(function (it) {
+      var price = evalFormula(it.price);
+      if (isNaN(price)) { if (String(it.price).trim()) out.bad.push(it.id); price = 0; }
+      out.subtotal += price;
+      var who = it.who.filter(function (id) { return out.perItems[id] != null; });
+      if (!who.length) { out.unassigned += price; return; }
+      who.forEach(function (id) { out.perItems[id] += price / who.length; });
+    });
+    out.discount = extraAmount(b.discount, out.subtotal);
+    var afterDisc = out.subtotal - (out.discount || 0);
+    out.service = extraAmount(b.service, afterDisc);
+    out.tax = extraAmount(b.tax, afterDisc + (out.service || 0));
+    ["discount", "service", "tax"].forEach(function (k) { if (isNaN(out[k])) { out.bad.push(k); out[k] = 0; } });
+    out.total = Math.round(afterDisc + out.service + out.tax);
+    var assigned = out.subtotal - out.unassigned;
+    var factor = assigned > 0 ? out.total / out.subtotal : 0;
+    // round to whole rupiah, and put any leftover rupiah on the biggest share so it adds up exactly
+    var ids = Object.keys(out.perItems).filter(function (id) { return out.perItems[id] > 0; });
+    var sum = 0, biggest = null;
+    ids.forEach(function (id) {
+      out.shares[id] = Math.round(out.perItems[id] * factor);
+      sum += out.shares[id];
+      if (!biggest || out.shares[id] > out.shares[biggest]) biggest = id;
+    });
+    if (biggest && !out.unassigned) out.shares[biggest] += out.total - sum;
+    return out;
+  }
+
+  function billEditor() {
+    var c = computeBill(bill);
+    var h = '<div class="full bill-box">';
+    h += '<div class="split-head"><span class="label">Items · tap who had each one</span></div>';
+    h += '<div class="items">';
+    bill.items.forEach(function (it, i) {
+      var unassigned = !it.who.length;
+      h += '<div class="item' + (unassigned ? " need" : "") + '">';
+      h += '<div class="item-top"><input id="it-n-' + it.id + '" data-item="' + it.id + '" data-f="name" type="text" value="' + esc(it.name) + '" placeholder="Item" aria-label="Item name">';
+      h += '<input id="it-p-' + it.id + '" data-item="' + it.id + '" data-f="price" class="formula price' + (c.bad.indexOf(it.id) >= 0 ? " err" : "") + '" type="text" inputmode="decimal" value="' + esc(it.price) + '" placeholder="Price" aria-label="Price">';
+      h += '<button type="button" class="x" data-act="it-del" data-id="' + it.id + '" aria-label="Remove item">✕</button></div>';
+      h += '<div class="chips mini">';
+      state.people.forEach(function (p) {
+        var on = it.who.indexOf(p.id) >= 0;
+        h += '<button type="button" class="chip ' + (on ? "on" : "off") + '" data-act="it-who" data-item="' + it.id + '" data-id="' + p.id + '" aria-pressed="' + on + '"><span class="dot" style="--c:var(--' + p.color + ')">' + esc(initials(p.name)) + "</span>" + esc(p.name) + "</button>";
+      });
+      h += '<button type="button" class="linkish" data-act="it-all" data-item="' + it.id + '">' + (it.who.length === state.people.length ? "None" : "Shared by all") + "</button>";
+      h += "</div></div>";
+    });
+    h += '</div><button type="button" class="btn ghost small" data-act="it-add">+ Add item</button>';
+    h += '<div class="extras">';
+    [["discount", "Discount", "e.g. 10% or 20000"], ["service", "Service charge", "e.g. 5% or 12500"], ["tax", "Tax / PB1", "e.g. 10% or 25000"]].forEach(function (x) {
+      h += '<div><label class="label" for="bx-' + x[0] + '">' + x[1] + '</label><input id="bx-' + x[0] + '" data-extra="' + x[0] + '" class="formula' + (c.bad.indexOf(x[0]) >= 0 ? " err" : "") + '" type="text" inputmode="decimal" value="' + esc(bill[x[0]]) + '" placeholder="' + x[2] + '"></div>';
+    });
+    h += '</div><div id="bill-summary">' + billSummary(c) + "</div>";
+    if (bill.raw) h += '<details class="raw"><summary>What the scanner read</summary><pre>' + esc(bill.raw) + "</pre></details>";
+    return h + "</div>";
+  }
+
+  function billSummary(c) {
+    var h = '<div class="sum-lines">';
+    h += '<div><span>Items</span><span class="money">' + fmt(c.subtotal) + "</span></div>";
+    if (c.discount) h += '<div><span>Discount</span><span class="money">−' + fmt(c.discount) + "</span></div>";
+    if (c.service) h += '<div><span>Service</span><span class="money">' + fmt(c.service) + "</span></div>";
+    if (c.tax) h += '<div><span>Tax</span><span class="money">' + fmt(c.tax) + "</span></div>";
+    h += '<div class="grand"><span>Bill total</span><span class="money">' + fmt(c.total) + "</span></div></div>";
+    if (bill.receiptSubtotal) {
+      h += Math.round(bill.receiptSubtotal) === Math.round(c.subtotal)
+        ? '<p class="check ok">✓ Items add up to the receipt subtotal of ' + fmt(bill.receiptSubtotal) + "</p>"
+        : '<p class="check warn">Items add up to ' + fmt(c.subtotal) + ", but the receipt subtotal says " + fmt(bill.receiptSubtotal) + ". An item may be missing or misread.</p>";
+    }
+    if (bill.receiptTotal) {
+      var diff = Math.round(bill.receiptTotal - c.total);
+      // a few rupiah off is the scanner misreading a digit of the total, not a real difference
+      h += Math.abs(diff) <= Math.max(1, c.total * 0.0005)
+        ? '<p class="check ok">✓ Matches the receipt total of ' + fmt(c.total) + "</p>"
+        : '<p class="check warn">The receipt says ' + fmt(bill.receiptTotal) + ", " + fmt(diff) + (diff > 0 ? " more" : " less") + " than this. Check the prices, service and tax.</p>";
+    }
+    if (c.unassigned) h += '<p class="check warn">' + fmt(c.unassigned) + " of items isn't assigned to anyone yet.</p>";
+    var ids = Object.keys(c.shares);
+    if (ids.length) {
+      h += '<div class="per-person">';
+      state.people.forEach(function (p) {
+        if (!c.shares[p.id]) return;
+        var fees = c.shares[p.id] - Math.round(c.perItems[p.id]);
+        h += '<div><span class="pname"><span class="dot" style="--c:var(--' + p.color + ')"></span>' + esc(p.name) + '</span><span class="muted money">' + num(c.perItems[p.id]) + (fees ? (fees > 0 ? " + " : " − ") + num(fees) : "") + '</span><b class="money">' + fmt(c.shares[p.id]) + "</b></div>";
+      });
+      h += "</div>";
+    }
+    return h;
+  }
+
+  function refreshBillSummary() {
+    var el = document.getElementById("bill-summary");
+    if (el && bill) el.innerHTML = billSummary(computeBill(bill));
+  }
+
+  function findItem(id) { return bill && bill.items.filter(function (x) { return x.id === id; })[0]; }
+
+  /* --- receipt reading (Tesseract.js, runs on the phone; nothing is uploaded) --- */
+  var tessPromise = null;
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (tessPromise) return tessPromise;
+    tessPromise = new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+      s.onload = function () { resolve(window.Tesseract); };
+      s.onerror = function () { tessPromise = null; reject(new Error("Couldn't load the scanner. Check your internet connection.")); };
+      document.head.appendChild(s);
+    });
+    return tessPromise;
+  }
+
+  // Finds the paper, crops away the table around it, then turns it into clean black text on white
+  // (adaptive threshold, so shadows and a dark background don't swallow the print).
+  function prepareImage(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        try { resolve(cleanReceipt(img)); } catch (e) { reject(e); }
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("That file isn't a photo the browser can open. Try a JPG or PNG.")); };
+      img.src = url;
+    });
+  }
+
+  function grayOf(canvas) {
+    var g = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+    var out = new Float32Array(canvas.width * canvas.height);
+    for (var i = 0, j = 0; i < g.length; i += 4, j++) out[j] = 0.299 * g[i] + 0.587 * g[i + 1] + 0.114 * g[i + 2];
+    return out;
+  }
+
+  function cleanReceipt(img) {
+    // 1. find the bright paper on a small copy
+    var sw = Math.min(600, img.width), sh = Math.round(img.height * sw / img.width);
+    var small = document.createElement("canvas"); small.width = sw; small.height = sh;
+    small.getContext("2d").drawImage(img, 0, 0, sw, sh);
+    var s = grayOf(small), colHit = new Array(sw).fill(0), rowHit = new Array(sh).fill(0);
+    for (var y = 0; y < sh; y++) for (var x = 0; x < sw; x++) if (s[y * sw + x] > 170) { colHit[x]++; rowHit[y]++; }
+    var xs = [], ys = [];
+    colHit.forEach(function (n, x) { if (n / sh > 0.35) xs.push(x); });
+    rowHit.forEach(function (n, y) { if (n / sw > 0.25) ys.push(y); });
+    var k = img.width / sw, cx = 0, cy = 0, cw = img.width, ch = img.height;
+    if (xs.length > sw * 0.25 && ys.length > sh * 0.25) {
+      cx = Math.max(0, (xs[0] - 4) * k); cy = Math.max(0, (ys[0] - 4) * k);
+      cw = Math.min(img.width - cx, (xs[xs.length - 1] - xs[0] + 8) * k);
+      ch = Math.min(img.height - cy, (ys[ys.length - 1] - ys[0] + 8) * k);
+    }
+    // 2. draw the paper at a size the reader likes (about 1800 px wide)
+    var scale = Math.min(3, 1800 / cw);
+    var c = document.createElement("canvas");
+    c.width = Math.round(cw * scale); c.height = Math.round(ch * scale);
+    var ctx = c.getContext("2d");
+    ctx.drawImage(img, cx, cy, cw, ch, 0, 0, c.width, c.height);
+    // 3. adaptive threshold with an integral image
+    var W = c.width, H = c.height, g = grayOf(c), I = new Float64Array((W + 1) * (H + 1));
+    for (y = 1; y <= H; y++) {
+      var row = 0;
+      for (x = 1; x <= W; x++) { row += g[(y - 1) * W + x - 1]; I[y * (W + 1) + x] = I[(y - 1) * (W + 1) + x] + row; }
+    }
+    var r = Math.max(8, Math.round(W / 72)), d = ctx.getImageData(0, 0, W, H), px = d.data;
+    for (y = 0; y < H; y++) {
+      var y0 = Math.max(0, y - r), y1 = Math.min(H, y + r + 1);
+      for (x = 0; x < W; x++) {
+        var x0 = Math.max(0, x - r), x1 = Math.min(W, x + r + 1);
+        var sum = I[y1 * (W + 1) + x1] - I[y0 * (W + 1) + x1] - I[y1 * (W + 1) + x0] + I[y0 * (W + 1) + x0];
+        var mean = sum / ((x1 - x0) * (y1 - y0));
+        var v = g[y * W + x] < mean - 12 ? 0 : 255, p = (y * W + x) * 4;
+        px[p] = px[p + 1] = px[p + 2] = v; px[p + 3] = 255;
+      }
+    }
+    ctx.putImageData(d, 0, 0);
+    return c;
+  }
+
+  function setScan(busy, progress, msg) {
+    scan = { busy: busy, progress: progress, msg: msg };
+    var el = document.getElementById("scan-status");
+    if (el) { el.textContent = msg; el.hidden = !msg; el.className = "scan-status full" + (busy ? " busy" : ""); }
+    var btn = document.getElementById("scan-label");
+    if (btn) btn.classList.toggle("disabled", busy);
+  }
+
+  function scanReceipt(file) {
+    if (!file || scan.busy) return;
+    setScan(true, 0, "Loading the scanner…");
+    var canvasP = prepareImage(file);
+    loadTesseract().then(function (T) {
+      return canvasP.then(function (canvas) {
+        return T.createWorker("eng", 1, {
+          logger: function (m) {
+            if (m.status === "recognizing text") setScan(true, m.progress, "Reading receipt… " + Math.round(m.progress * 100) + "%");
+            else if (/loading|initializ/.test(m.status)) setScan(true, 0, "Getting the scanner ready…");
+          }
+        }).then(function (worker) {
+          return worker.setParameters({ tessedit_pageseg_mode: "6", preserve_interword_spaces: "1" })
+            .then(function () { return worker.recognize(canvas); })
+            .then(function (res) { worker.terminate(); return res.data.text; });
+        });
+      });
+    }).then(function (text) {
+      var r = parseReceipt(text);
+      bill = { items: r.items.length ? r.items.map(function (x) { return newItem(x.name, x.price); }) : [newItem()], service: r.service ? String(r.service) : "", tax: r.tax ? String(r.tax) : "", discount: r.discount ? String(r.discount) : "", receiptTotal: r.total || null, receiptSubtotal: r.subtotal || null, raw: text };
+      var descEl = document.getElementById("f-desc");
+      if (descEl && !descEl.value.trim() && r.merchant) descEl.value = r.merchant;
+      setScan(false, 1, r.items.length ? "Found " + r.items.length + " item" + (r.items.length === 1 ? "" : "s") + ". Check them, then tap who had what." : "Couldn't find any items. Add them below, or try a sharper, flatter photo.");
+      render();
+    }).catch(function (err) {
+      setScan(false, 0, (err && err.message) || "Couldn't read that receipt.");
+    });
+  }
+
+  // Turns receipt text into items + service / tax / discount / total.
+  function parseReceipt(text) {
+    var out = { items: [], service: 0, tax: 0, discount: 0, total: 0, subtotal: 0, merchant: "" };
+    function fixName(n) { return n.replace(/([A-Za-z])0|0([A-Za-z])/g, function (m, a, b) { return a ? a + "O" : "O" + b; }); }
+    var NUM = /(?:rp\.?\s*)?(-?\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|-?\d{4,}(?:[.,]\d{2})?)\s*-?\s*$/i;
+    function toNumber(s) {
+      s = s.replace(/\s/g, "");
+      var neg = s.charAt(0) === "-";
+      s = s.replace(/^-/, "").replace(/[.,]\d{2}$/, function (m) { return /[.,]\d{3}/.test(s) || s.length > 6 ? "" : m; });
+      var n = parseInt(s.replace(/[.,]/g, ""), 10);
+      return isNaN(n) ? 0 : (neg ? -n : n);
+    }
+    var SKIP = /\b(?:cash|tunai|change|kembali|card|kartu|debit|credit|kredit|qris|gopay|ovo|dana|shopee|bayar|payment|paid|rounding|pembulatan|table|meja|guest|tamu|pax|cashier|kasir|date|tanggal|jam|time|invoice|receipt|struk|bill\s*no|no\.|order|telp|phone|npwp|www|thank|terima\s*kasih|wifi|password|member|point|poin|bca|mandiri|bni|bri|edc|approval|trace|ref)(?![a-z])/i;
+    var lines = text.split(/\n/).map(function (l) { return l.replace(/[|_~`'"]+/g, " ").replace(/\s+/g, " ").trim(); }).filter(Boolean);
+    for (var li = 0; li < Math.min(4, lines.length); li++) {
+      if (/[a-z]{3,}/i.test(lines[li]) && !NUM.test(lines[li]) && !SKIP.test(lines[li])) { out.merchant = lines[li].replace(/[^\w &'.-]/g, "").trim().slice(0, 40); break; }
+    }
+    // Receipts that print "1x @69.000   69.000" under each item name (very common in Indonesia):
+    // take the line total from those rows and the name from the line above; skip free add-ons (@0).
+    var QTY = /(?:^|\s)(\d{1,2}|[Il|])\s*[xX×]\s+(\S*)\s*(.*)$/;
+    var qtyRows = lines.filter(function (l) { return QTY.test(l) && !/[a-z]{4,}/i.test(l.replace(QTY, "")); });
+    if (qtyRows.length >= 2) {
+      var lastName = "";
+      lines.forEach(function (line) {
+        var low = line.toLowerCase();
+        var q = line.match(QTY);
+        var before = q ? line.slice(0, q.index) : line;
+        if (q && !/[a-z]{3,}/i.test(before)) {
+          var nums = (q[2] + " " + q[3]).match(/\d{1,3}(?:[.,]\d{3})+|\d+/g) || [];
+          var lineTotal = nums.length ? toNumber(nums[nums.length - 1]) : 0;
+          if (lineTotal >= 100 && lastName) {
+            var qty = /^\d+$/.test(q[1]) ? parseInt(q[1], 10) : 1;
+            out.items.push({ name: (qty > 1 ? qty + "× " : "") + fixName(lastName), price: lineTotal });
+          }
+          lastName = "";
+          return;
+        }
+        var m = line.match(NUM), amount = m ? Math.abs(toNumber(m[1])) : 0;
+        if (m && amount >= 100) {
+          if (/sub\s*-?\s*total/i.test(low)) { out.subtotal = amount; return; }
+          if (/total|jumlah|amount\s*due|tagihan/i.test(low)) { out.total = Math.max(out.total, amount); return; }
+          if (/service|servis|srv|svc|s\/c|\bsc\b|layanan/i.test(low)) { out.service += amount; return; }
+          if (/\btax\b|pajak|pb\s*1|pbi|ppn|vat/i.test(low)) { out.tax += amount; return; }
+          if (/disc|diskon|potongan|promo|voucher/i.test(low)) { out.discount += amount; return; }
+        }
+        // a possible item name: drop stray OCR marks at the start/end
+        var nm = line.replace(/^.*?(?=[A-Za-z]{2})/, "").replace(/[^A-Za-z0-9)]+$/, "").trim();
+        if (/[a-z]{3,}/i.test(nm) && !SKIP.test(nm) && !/\bitems?\b/i.test(nm)) lastName = nm.slice(0, 40);
+      });
+      return out;
+    }
+
+    var pendingName = "";
+    lines.forEach(function (line, i) {
+      var low = line.toLowerCase();
+      var m = line.match(NUM);
+      if (!m) {
+        // a name on its own line, with the price on the next line
+        pendingName = /[a-z]{3,}/i.test(line) && !SKIP.test(line) && line.length < 40 ? line : "";
+        return;
+      }
+      var amount = Math.abs(toNumber(m[1]));
+      var label = line.slice(0, m.index).trim();
+      if (!/[a-z]{2,}/i.test(label) && pendingName) label = pendingName;
+      pendingName = "";
+      if (amount < 100) return;
+      if (/sub\s*-?\s*total|subtotal|sub tot/i.test(low)) { out.subtotal = amount; return; }
+      if (/grand\s*total|\btotal\b|jumlah|amount\s*due|tagihan|net\s*total/i.test(low)) { if (!/qty|item/i.test(low)) out.total = Math.max(out.total, amount); return; }
+      if (/service|servis|srv|svc|s\/c|layanan/i.test(low)) { out.service += amount; return; }
+      if (/\btax\b|pajak|pb\s*1|pb1|ppn|vat|resto\s*tax/i.test(low)) { out.tax += amount; return; }
+      if (/disc|diskon|potongan|promo|voucher/i.test(low)) { out.discount += amount; return; }
+      if (SKIP.test(low)) return;
+      // tidy the name: drop unit prices like "2 x 25.000" and stray symbols
+      var name = label.replace(/(?:rp\.?\s*)?\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?/gi, "").replace(/\s[x@]\s*$/i, "").replace(/[^\w &'()\/.+-]/g, " ").replace(/\s+/g, " ").trim();
+      var q = name.match(/^(\d{1,2})\s*[xX]?\s+(.+)$/) || name.match(/^(.+?)\s+[xX]?\s*(\d{1,2})$/);
+      if (q) name = /^\d/.test(q[1]) ? q[1] + "× " + q[2] : q[2] + "× " + q[1];
+      if (!/[a-z]{2,}/i.test(name)) return;
+      out.items.push({ name: fixName(name).slice(0, 40), price: amount });
+    });
+    // the biggest amount is the total, not an item, when no "total" line was read
+    if (!out.total && out.items.length > 2) {
+      var sum = 0, maxI = 0;
+      out.items.forEach(function (x, i) { sum += x.price; if (x.price > out.items[maxI].price) maxI = i; });
+      if (Math.abs(out.items[maxI].price * 2 - sum) < out.items[maxI].price * 0.05 + 2) { out.total = out.items[maxI].price; out.items.splice(maxI, 1); }
+    }
+    return out;
   }
 
   /* ---------- Google Sheet sync (standalone file only) ---------- */
