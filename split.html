@@ -211,6 +211,7 @@
   @media (max-width: 560px) { .extras { grid-template-columns: 1fr 1fr; } .extras > div:first-child { grid-column: 1 / -1; } }
   .sum-lines { display: flex; flex-direction: column; gap: 4px; font-size: 0.88rem; }
   .sum-lines > div, .per-person > div { display: flex; justify-content: space-between; gap: 10px; }
+  .sum-lines .pct { font-size: 0.78rem; color: var(--ink-faint); font-weight: 600; }
   .sum-lines .grand { font-weight: 700; border-top: 1px solid var(--line); padding-top: 6px; margin-top: 2px; }
   .check { margin: 8px 0 0; font-size: 0.82rem; border-radius: 10px; padding: 8px 12px; }
   .check.ok { color: var(--good); background: var(--good-bg); }
@@ -541,7 +542,7 @@
       // add / edit expense
       h += '<section class="panel edit-only" id="form-panel"><h2>' + (editingId ? "Edit bill" : "Add a bill") + "</h2>";
       h += '<form id="exp-form" class="form-grid" autocomplete="off">';
-      h += '<div class="full scan-row"><label id="scan-label" class="btn ghost scan-btn' + (scan.busy ? " disabled" : "") + '" for="scan-file">📷 Scan receipt</label><input id="scan-file" type="file" accept="image/*" hidden>';
+      h += '<div class="full scan-row"><label id="scan-label" class="btn ghost scan-btn' + (scan.busy ? " disabled" : "") + '" for="scan-file">📷 Scan receipt</label><input id="scan-file" type="file" accept="image/*,.heic,.heif" hidden>';
       h += '<div class="seg" role="group" aria-label="How to split"><button type="button" class="' + (bill ? "" : "on") + '" data-act="mode-eq" aria-pressed="' + !bill + '">Split equally</button><button type="button" class="' + (bill ? "on" : "") + '" data-act="mode-item" aria-pressed="' + !!bill + '">Split by item</button></div></div>';
       h += '<p id="scan-status" class="scan-status' + (scan.busy ? " busy" : "") + ' full"' + (scan.msg ? "" : " hidden") + ">" + esc(scan.msg) + "</p>";
       h += '<div><label class="label" for="f-desc">What for</label><input id="f-desc" type="text" placeholder="Dinner, scooter rental, groceries" required></div>';
@@ -812,8 +813,9 @@
         rec.id = uid(); rec.ts = Date.now(); state.expenses.push(rec); saved = rec;
       }
       var keepPaid = rec.paidBy, keepDate = rec.date;
+      var learnOps = bill && bill.scanInfo ? learnFromBill(bill.scanInfo, rec.items || [], desc, bill) : [];
       formSplit = null; bill = null; setScan(false, 0, ""); clearForm();
-      changed(saved ? [{ type: "upsertExpense", expense: saved }] : []);
+      changed((saved ? [{ type: "upsertExpense", expense: saved }] : []).concat(learnOps));
       document.getElementById("f-paid").value = keepPaid; document.getElementById("f-date").value = keepDate;
       document.getElementById("f-desc").focus();
     }
@@ -959,12 +961,23 @@
     return h + "</div>";
   }
 
+  function pctText(part, whole) {
+    if (!whole) return "";
+    var p = part / whole * 100, r = Math.round(p * 100) / 100;
+    return (Math.abs(p - Math.round(p)) < 0.02 ? String(Math.round(p)) : r.toLocaleString("en-US", { maximumFractionDigits: 2 })) + "%";
+  }
   function billSummary(c) {
     var h = '<div class="sum-lines">';
     h += '<div><span>Items</span><span class="money">' + fmt(c.subtotal) + "</span></div>";
     if (c.discount) h += '<div><span>Discount</span><span class="money">−' + fmt(c.discount) + "</span></div>";
-    if (c.service) h += '<div><span>Service</span><span class="money">' + fmt(c.service) + "</span></div>";
-    if (c.tax) h += '<div><span>Tax</span><span class="money">' + fmt(c.tax) + "</span></div>";
+    var feeBase = c.subtotal - (c.discount || 0);
+    if (c.service) h += '<div><span>Service <span class="pct">' + pctText(c.service, feeBase) + '</span></span><span class="money">' + fmt(c.service) + "</span></div>";
+    if (c.tax) {
+      // tax is usually charged on subtotal + service (PB1); show whichever base gives the rounder rate
+      var a = pctOf(c.tax, feeBase + c.service), b2 = pctOf(c.tax, feeBase);
+      var onSvc = !c.service || Math.abs(a - Math.round(a)) <= Math.abs(b2 - Math.round(b2));
+      h += '<div><span>Tax <span class="pct">' + pctText(c.tax, onSvc ? feeBase + c.service : feeBase) + (c.service ? (onSvc ? " of subtotal + service" : " of subtotal") : "") + '</span></span><span class="money">' + fmt(c.tax) + "</span></div>";
+    }
     h += '<div class="grand"><span>Bill total</span><span class="money">' + fmt(c.total) + "</span></div></div>";
     if (bill.receiptSubtotal) {
       h += Math.round(bill.receiptSubtotal) === Math.round(c.subtotal)
@@ -1005,81 +1018,184 @@
   function findItem(id) { return bill && bill.items.filter(function (x) { return x.id === id; })[0]; }
 
   /* --- receipt reading (Tesseract.js, runs on the phone; nothing is uploaded) --- */
-  var tessPromise = null;
-  function loadTesseract() {
-    if (window.Tesseract) return Promise.resolve(window.Tesseract);
-    if (tessPromise) return tessPromise;
-    tessPromise = new Promise(function (resolve, reject) {
-      var s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
-      s.onload = function () { resolve(window.Tesseract); };
-      s.onerror = function () { tessPromise = null; reject(new Error("Couldn't load the scanner. Check your internet connection.")); };
+  // How it reads a bill:
+  //  1. find the paper in the photo (even on a patterned tablecloth or with a shadow across it),
+  //  2. clean it into black text on white (works for black, blue or purple ink and dot-matrix print),
+  //  3. read it, then check the numbers add up (items = subtotal, service/tax look right);
+  //     if they don't, read it again with different settings and let the readings vote,
+  //  4. fix single misread digits (3↔5, 0↔8 …) when only one fix makes the bill add up.
+  var tessPromise = null, heicPromise = null;
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement("script"); s.src = src;
+      s.onload = resolve; s.onerror = function () { reject(new Error("Couldn't load the scanner. Check your internet connection.")); };
       document.head.appendChild(s);
     });
+  }
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (!tessPromise) tessPromise = loadScript("https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js").then(function () { return window.Tesseract; }, function (e) { tessPromise = null; throw e; });
     return tessPromise;
   }
+  function loadHeic() {
+    if (window.heic2any) return Promise.resolve(window.heic2any);
+    if (!heicPromise) heicPromise = loadScript("https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js").then(function () { return window.heic2any; }, function (e) { heicPromise = null; throw e; });
+    return heicPromise;
+  }
 
-  // Finds the paper, crops away the table around it, then turns it into clean black text on white
-  // (adaptive threshold, so shadows and a dark background don't swallow the print).
-  function prepareImage(file) {
-    return new Promise(function (resolve, reject) {
-      var url = URL.createObjectURL(file), img = new Image();
-      img.onload = function () {
-        try { resolve(cleanReceipt(img)); } catch (e) { reject(e); }
-        URL.revokeObjectURL(url);
-      };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("That file isn't a photo the browser can open. Try a JPG or PNG.")); };
-      img.src = url;
+  // Opens the photo. iPhone HEIC photos are converted first on browsers that can't show them.
+  function fileToImage(file) {
+    function open(blob) {
+      return new Promise(function (resolve, reject) {
+        var url = URL.createObjectURL(blob), img = new Image();
+        img.onload = function () { resolve(img); };
+        img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("bad image")); };
+        img.src = url;
+      });
+    }
+    var isHeic = /hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name || "");
+    return open(file).catch(function () {
+      if (!isHeic) throw new Error("That file isn't a photo the browser can open. Try a JPG or PNG.");
+      setScan(true, 0, "Converting the iPhone photo…");
+      return loadHeic().then(function (h) { return h({ blob: file, toType: "image/jpeg", quality: 0.92 }); })
+        .then(function (out) { return open(Array.isArray(out) ? out[0] : out); })
+        .catch(function () { throw new Error("Couldn't open that iPhone photo. Try a screenshot of it, or set the camera to 'Most Compatible'."); });
     });
   }
 
-  function grayOf(canvas) {
-    var g = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
-    var out = new Float32Array(canvas.width * canvas.height);
-    for (var i = 0, j = 0; i < g.length; i += 4, j++) out[j] = 0.299 * g[i] + 0.587 * g[i + 1] + 0.114 * g[i + 2];
+  // ---- image cleaning ----
+  function grabRGB(canvas) { return canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data; }
+  function morph(mask, w, h, grow, times) {
+    for (var t = 0; t < times; t++) {
+      var out = new Uint8Array(w * h);
+      for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+        var v = grow ? 0 : 1;
+        for (var dy = -1; dy <= 1 && (grow ? !v : v); dy++) for (var dx = -1; dx <= 1; dx++) {
+          var yy = y + dy, xx = x + dx, m = (yy < 0 || yy >= h || xx < 0 || xx >= w) ? 0 : mask[yy * w + xx];
+          if (grow && m) { v = 1; break; }
+          if (!grow && !m) { v = 0; break; }
+        }
+        out[y * w + x] = v;
+      }
+      mask = out;
+    }
+    return mask;
+  }
+  function largestBlob(mask, w, h) {
+    var lab = new Int32Array(w * h), best = 0, bestN = 0, id = 0, stack = [];
+    for (var i = 0; i < w * h; i++) {
+      if (!mask[i] || lab[i]) continue;
+      id++; var n = 0; stack.push(i); lab[i] = id;
+      while (stack.length) {
+        var p = stack.pop(); n++;
+        var x = p % w, y = (p - x) / w;
+        [p - 1, p + 1, p - w, p + w].forEach(function (q, k) {
+          if (q < 0 || q >= w * h || (k === 0 && x === 0) || (k === 1 && x === w - 1)) return;
+          if (mask[q] && !lab[q]) { lab[q] = id; stack.push(q); }
+        });
+      }
+      if (n > bestN) { bestN = n; best = id; }
+    }
+    var out = new Uint8Array(w * h);
+    for (i = 0; i < w * h; i++) out[i] = lab[i] === best ? 1 : 0;
+    return out;
+  }
+  function fillHoles(mask, w, h) {
+    var seen = new Uint8Array(w * h), stack = [];
+    for (var x = 0; x < w; x++) { stack.push(x, (h - 1) * w + x); }
+    for (var y = 0; y < h; y++) { stack.push(y * w, y * w + w - 1); }
+    while (stack.length) {
+      var p = stack.pop();
+      if (p < 0 || p >= w * h || seen[p] || mask[p]) continue;
+      seen[p] = 1;
+      var px = p % w;
+      if (px > 0) stack.push(p - 1);
+      if (px < w - 1) stack.push(p + 1);
+      stack.push(p - w, p + w);
+    }
+    var out = new Uint8Array(w * h);
+    for (var i = 0; i < w * h; i++) out[i] = seen[i] ? 0 : 1;
     return out;
   }
 
-  function cleanReceipt(img) {
-    // 1. find the bright paper on a small copy
-    var sw = Math.min(600, img.width), sh = Math.round(img.height * sw / img.width);
-    var small = document.createElement("canvas"); small.width = sw; small.height = sh;
-    small.getContext("2d").drawImage(img, 0, 0, sw, sh);
-    var s = grayOf(small), colHit = new Array(sw).fill(0), rowHit = new Array(sh).fill(0);
-    for (var y = 0; y < sh; y++) for (var x = 0; x < sw; x++) if (s[y * sw + x] > 170) { colHit[x]++; rowHit[y]++; }
-    var xs = [], ys = [];
-    colHit.forEach(function (n, x) { if (n / sh > 0.35) xs.push(x); });
-    rowHit.forEach(function (n, y) { if (n / sw > 0.25) ys.push(y); });
-    var k = img.width / sw, cx = 0, cy = 0, cw = img.width, ch = img.height;
-    if (xs.length > sw * 0.25 && ys.length > sh * 0.25) {
-      cx = Math.max(0, (xs[0] - 4) * k); cy = Math.max(0, (ys[0] - 4) * k);
-      cw = Math.min(img.width - cx, (xs[xs.length - 1] - xs[0] + 8) * k);
-      ch = Math.min(img.height - cy, (ys[ys.length - 1] - ys[0] + 8) * k);
+  // Finds the receipt: the biggest bright, colourless area, judged row by row so a shadow
+  // across the bottom of the bill doesn't cut it off.
+  function findPaper(img) {
+    var sw = 400, sh = Math.round(img.height * sw / img.width);
+    var c = document.createElement("canvas"); c.width = sw; c.height = sh;
+    c.getContext("2d").drawImage(img, 0, 0, sw, sh);
+    var d = grabRGB(c), mx = new Float32Array(sw * sh), sat = new Float32Array(sw * sh);
+    for (var i = 0, j = 0; j < sw * sh; i += 4, j++) {
+      var M = Math.max(d[i], d[i + 1], d[i + 2]), m = Math.min(d[i], d[i + 1], d[i + 2]);
+      mx[j] = M; sat[j] = M ? (M - m) / M : 0;
     }
-    // 2. draw the paper at a size the reader likes (about 1800 px wide)
+    var mask = new Uint8Array(sw * sh);
+    for (var y = 0; y < sh; y++) {
+      var row = Array.prototype.slice.call(mx.subarray(y * sw, y * sw + sw)).sort(function (a, b) { return a - b; });
+      var p90 = row[Math.floor(sw * 0.9)];
+      for (var x = 0; x < sw; x++) { var k = y * sw + x; mask[k] = mx[k] > Math.max(70, p90 * 0.78) && sat[k] < 0.32 ? 1 : 0; }
+    }
+    mask = morph(morph(mask, sw, sh, false, 2), sw, sh, true, 2);
+    mask = largestBlob(mask, sw, sh);
+    mask = morph(morph(mask, sw, sh, true, 4), sw, sh, false, 4);
+    mask = fillHoles(mask, sw, sh);
+    mask = morph(mask, sw, sh, false, 2);
+    var x0 = sw, x1 = -1, y0 = sh, y1 = -1, n = 0;
+    for (y = 0; y < sh; y++) for (x = 0; x < sw; x++) if (mask[y * sw + x]) { n++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (n < sw * sh * 0.08 || x1 - x0 < sw * 0.2) return { mask: null, sw: sw, sh: sh, x0: 0, y0: 0, x1: sw - 1, y1: sh - 1 };
+    return { mask: mask, sw: sw, sh: sh, x0: x0, y0: y0, x1: x1, y1: y1 };
+  }
+
+  // Draws the paper big and straight, as darkest-channel grey (so purple / blue ink turns dark).
+  function cropPaper(img, paper) {
+    var k = img.width / paper.sw;
+    var cx = paper.x0 * k, cy = paper.y0 * k, cw = (paper.x1 - paper.x0 + 1) * k, ch = (paper.y1 - paper.y0 + 1) * k;
     var scale = Math.min(3, 1800 / cw);
-    var c = document.createElement("canvas");
-    c.width = Math.round(cw * scale); c.height = Math.round(ch * scale);
-    var ctx = c.getContext("2d");
-    ctx.drawImage(img, cx, cy, cw, ch, 0, 0, c.width, c.height);
-    // 3. adaptive threshold with an integral image
-    var W = c.width, H = c.height, g = grayOf(c), I = new Float64Array((W + 1) * (H + 1));
-    for (y = 1; y <= H; y++) {
-      var row = 0;
-      for (x = 1; x <= W; x++) { row += g[(y - 1) * W + x - 1]; I[y * (W + 1) + x] = I[(y - 1) * (W + 1) + x] + row; }
+    var c = document.createElement("canvas"); c.width = Math.round(cw * scale); c.height = Math.round(ch * scale);
+    var cctx = c.getContext("2d"); cctx.imageSmoothingQuality = "high";
+    cctx.drawImage(img, cx, cy, cw, ch, 0, 0, c.width, c.height);
+    var W = c.width, H = c.height, d = grabRGB(c), g = new Float32Array(W * H), inside = new Uint8Array(W * H);
+    for (var i = 0, j = 0; j < W * H; i += 4, j++) g[j] = Math.min(d[i], d[i + 1], d[i + 2]);
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+      if (!paper.mask) { inside[y * W + x] = 1; continue; }
+      var sx = paper.x0 + Math.floor(x / W * (paper.x1 - paper.x0 + 1)), sy = paper.y0 + Math.floor(y / H * (paper.y1 - paper.y0 + 1));
+      inside[y * W + x] = paper.mask[sy * paper.sw + sx];
     }
-    var r = Math.max(8, Math.round(W / 72)), d = ctx.getImageData(0, 0, W, H), px = d.data;
-    for (y = 0; y < H; y++) {
-      var y0 = Math.max(0, y - r), y1 = Math.min(H, y + r + 1);
-      for (x = 0; x < W; x++) {
-        var x0 = Math.max(0, x - r), x1 = Math.min(W, x + r + 1);
-        var sum = I[y1 * (W + 1) + x1] - I[y0 * (W + 1) + x1] - I[y1 * (W + 1) + x0] + I[y0 * (W + 1) + x0];
-        var mean = sum / ((x1 - x0) * (y1 - y0));
-        var v = g[y * W + x] < mean - 12 ? 0 : 255, p = (y * W + x) * 4;
-        px[p] = px[p + 1] = px[p + 2] = v; px[p + 3] = 255;
+    return { W: W, H: H, g: g, inside: inside };
+  }
+
+  function boxBlur(g, W, H) {
+    var out = new Float32Array(W * H);
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+      var s = 0, n = 0;
+      for (var dy = -1; dy <= 1; dy++) { var yy = y + dy; if (yy < 0 || yy >= H) continue; for (var dx = -1; dx <= 1; dx++) { var xx = x + dx; if (xx < 0 || xx >= W) continue; s += g[yy * W + xx]; n++; } }
+      out[y * W + x] = s / n;
+    }
+    return out;
+  }
+
+  // One cleaned version of the bill. Blurring a little joins up dot-matrix print; the
+  // adaptive threshold keeps shadows from swallowing the text.
+  function variantCanvas(base, blurPasses, binarize) {
+    var W = base.W, H = base.H, g = base.g;
+    for (var b = 0; b < blurPasses; b++) g = boxBlur(g, W, H);
+    var c = document.createElement("canvas"); c.width = W; c.height = H;
+    var ctx = c.getContext("2d"), img = ctx.createImageData(W, H), px = img.data;
+    var I = binarize ? new Float64Array((W + 1) * (H + 1)) : null;
+    if (binarize) for (var y = 1; y <= H; y++) { var row = 0; for (var x = 1; x <= W; x++) { row += g[(y - 1) * W + x - 1]; I[y * (W + 1) + x] = I[(y - 1) * (W + 1) + x] + row; } }
+    var r = Math.max(8, Math.round(W / 72));
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+      var j = y * W + x, v;
+      if (!base.inside[j]) v = 255;
+      else if (!binarize) v = g[j];
+      else {
+        var y0 = Math.max(0, y - r), y1 = Math.min(H, y + r + 1), x0 = Math.max(0, x - r), x1 = Math.min(W, x + r + 1);
+        var mean = (I[y1 * (W + 1) + x1] - I[y0 * (W + 1) + x1] - I[y1 * (W + 1) + x0] + I[y0 * (W + 1) + x0]) / ((x1 - x0) * (y1 - y0));
+        v = g[j] < mean - 10 ? 0 : 255;
       }
+      px[j * 4] = px[j * 4 + 1] = px[j * 4 + 2] = v; px[j * 4 + 3] = 255;
     }
-    ctx.putImageData(d, 0, 0);
+    ctx.putImageData(img, 0, 0);
     return c;
   }
 
@@ -1091,60 +1207,262 @@
     if (btn) btn.classList.toggle("disabled", busy);
   }
 
+  var PASSES = [
+    { blur: 3, binarize: true, psm: "6", label: "Reading receipt" },
+    { blur: 1, binarize: true, psm: "6", label: "Double-checking (2nd read)" },
+    { blur: 0, binarize: false, psm: "4", label: "Double-checking (3rd read)" }
+  ];
+
+  // Small JPEG of the photo for the AI reader (keeps the upload quick on mobile data).
+  function photoForAI(img) {
+    var scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+    var c = document.createElement("canvas"); c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+    var ctx = c.getContext("2d"); ctx.imageSmoothingQuality = "high"; ctx.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.85).split(",")[1];
+  }
+
+  // First choice: Google's Gemini AI through the trip's Apps Script (if a key is set up there).
+  // It understands any bill layout. If it isn't set up, or there's no signal, the phone reads it.
+  function readWithAI(img) {
+    if (!sheetUrl || mode !== "sheet") return Promise.reject(new Error("no sheet"));
+    setScan(true, 0, "Reading the bill with Google AI…");
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 45000);
+    return fetch(sheetUrl, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "scan", mime: "image/jpeg", image: photoForAI(img) }), signal: ctrl ? ctrl.signal : undefined })
+      .then(function (res) { clearTimeout(timer); return res.json(); })
+      .then(function (res) {
+        if (!res || !res.ok || !res.receipt) throw new Error((res && res.error) || "AI reading failed");
+        var x = res.receipt, n = function (v) { v = Number(String(v == null ? 0 : v).replace(/[^\d-]/g, "")); return isNaN(v) ? 0 : Math.abs(v); };
+        var r = { items: [], service: n(x.service), tax: n(x.tax), discount: n(x.discount), total: n(x.total), subtotal: n(x.subtotal), subtotalRead: !!n(x.subtotal), merchant: String(x.merchant || "").slice(0, 40), fixed: [], viaAI: true };
+        (x.items || []).forEach(function (it) {
+          var price = n(it.price), qty = parseInt(it.qty, 10) || 1;
+          if (price > 0) r.items.push({ name: (qty > 1 ? qty + "× " : "") + String(it.name || "Item").trim().slice(0, 40), price: price });
+        });
+        if (!r.items.length) throw new Error("AI found no items");
+        return reconcile(r, true);
+      }, function (err) { clearTimeout(timer); throw err; });
+  }
+
+  /* ---------- the scanner learns from your corrections ---------- */
+  // After a scanned bill is saved, whatever you corrected is remembered (on this phone and in the
+  // Google Sheet, so everyone's phone learns): misread item names, each restaurant's menu prices,
+  // lines that aren't items, the restaurant's name, and its service and tax rates.
+  var LS_MEM = "splitbill_scan_memory";
+  var scanMem = { names: {}, prices: {}, ignore: {}, merchants: {}, fees: {} };
+  try { var m0 = JSON.parse(lsGet(LS_MEM) || "null"); if (m0) Object.keys(scanMem).forEach(function (k) { scanMem[k] = m0[k] || {}; }); } catch (e) {}
+  function saveMem() { lsSet(LS_MEM, JSON.stringify(scanMem)); }
+  function mergeMem(m) {
+    if (!m) return;
+    Object.keys(scanMem).forEach(function (k) { Object.keys(m[k] || {}).forEach(function (key) { scanMem[k][key] = m[k][key]; }); });
+    saveMem();
+  }
+  function remember(kind, key, value, ops) {
+    if (!key) return;
+    scanMem[kind][key] = value;
+    ops.push({ type: "learn", kind: kind, key: key, value: value });
+  }
+  function qtyOf(name) { var m = String(name).match(/^(\d+)×\s*/); return m ? parseInt(m[1], 10) : 1; }
+  function bareName(name) { return String(name).replace(/^\d+×\s*/, ""); }
+  // letters and digits only, so "Rib Eye 200" and "Rib Eye 300" stay different dishes
+  function memKey(n) { return String(n || "").toLowerCase().replace(/^\d+×\s*/, "").replace(/[^a-z0-9]/g, ""); }
+  function pctOf(part, whole) { return whole ? Math.round(part / whole * 10000) / 100 : 0; }
+
+  // Uses what was learned on a freshly scanned bill. Returns how many things it changed.
+  function applyMemory(r) {
+    r.rawMerchant = r.merchant;
+    var used = 0, rawKey = memKey(r.merchant);
+    if (rawKey && scanMem.merchants[rawKey]) { r.merchant = scanMem.merchants[rawKey]; used++; }
+    var m = memKey(r.merchant);
+    r.items = r.items.filter(function (it) {
+      var k = memKey(it.name);
+      if (m && k && scanMem.ignore[m + "|" + k]) { used++; return false; }
+      return true;
+    });
+    r.items.forEach(function (it) {
+      var qty = qtyOf(it.name), k = memKey(it.name);
+      // a name you've corrected before (or one very close to it)
+      var to = scanMem.names[k];
+      if (!to) {
+        var best = 0;
+        Object.keys(scanMem.names).forEach(function (key) { var s = similar(key, k); if (s >= 0.85 && s > best) { best = s; to = scanMem.names[key]; } });
+      }
+      if (to && to !== bareName(it.name)) { it.name = (qty > 1 ? qty + "× " : "") + to; used++; }
+      // this restaurant's price for it, when the scanned price is a misread of it
+      var p = m && scanMem.prices[m + "|" + memKey(it.name)];
+      if (p && p.unit) {
+        var want = p.unit * qty;
+        if (it.price !== want) {
+          var near = digitSwaps(it.price).some(function (v) { return v === want || digitSwaps(v).indexOf(want) >= 0; }) || !it.price;
+          if (near) { r.fixed.push(bareName(it.name) + " " + money(it.price) + " → " + money(want) + " (remembered)"); it.price = want; used++; }
+        }
+      }
+    });
+    // this restaurant's service and tax rates
+    var f = m && scanMem.fees[m];
+    if (f) {
+      var base = r.items.reduce(function (s, x) { return s + x.price; }, 0) - (r.discount || 0);
+      if (r.subtotalRead && Math.abs(r.subtotal - base - (r.discount || 0)) > 1) base = r.subtotal - (r.discount || 0);
+      var svc = f.svc ? Math.round(base * f.svc / 100) : 0;
+      var tax = f.tax ? Math.round((base + (f.taxOnSvc ? svc : 0)) * f.tax / 100) : 0;
+      function close(a, b) { return Math.abs(a - b) <= 2; }
+      if (f.svc && !close(r.service, svc)) { if (r.service) r.fixed.push("service " + money(r.service) + " → " + money(svc) + " (" + f.svc + "% as usual)"); r.service = svc; used++; }
+      if (f.tax && !close(r.tax, tax)) { if (r.tax) r.fixed.push("tax " + money(r.tax) + " → " + money(tax) + " (" + f.tax + "% as usual)"); r.tax = tax; used++; }
+    }
+    return used;
+  }
+
+  // Compares the bill as scanned with the bill as saved, and remembers the differences.
+  function learnFromBill(scanInfo, finalItems, desc, bill) {
+    if (!scanInfo) return [];
+    var ops = [];
+    if (scanInfo.merchant && desc && memKey(scanInfo.merchant) !== memKey(desc)) remember("merchants", memKey(scanInfo.merchant), desc, ops);
+    var m = memKey(desc);
+    scanInfo.items.forEach(function (orig) {
+      var now = bill.items.filter(function (x) { return x.id === orig.id; })[0];
+      if (!now || (!String(now.name).trim() && !String(now.price).trim())) { if (m) remember("ignore", m + "|" + memKey(orig.name), 1, ops); return; }
+      if (bareName(orig.name).trim() !== bareName(now.name).trim() && bareName(now.name).trim()) remember("names", memKey(orig.name), bareName(now.name).trim(), ops);
+    });
+    // menu prices for this restaurant (every item, so next time misreads can be caught)
+    if (m) finalItems.forEach(function (it) {
+      var unit = Math.round((Number(it.price) || 0) / qtyOf(it.name));
+      if (unit > 0) {
+        var key = m + "|" + memKey(it.name), had = scanMem.prices[key];
+        if (!had || had.unit !== unit) remember("prices", key, { unit: unit, name: bareName(it.name) }, ops);
+      }
+    });
+    // service and tax rates, worked out from what you saved
+    if (m) {
+      var c = computeBill(bill), base = c.subtotal - (c.discount || 0);
+      if (base > 0 && (c.service || c.tax)) {
+        var svc = pctOf(c.service, base);
+        var onSvc = pctOf(c.tax, base + c.service), onBase = pctOf(c.tax, base);
+        var taxOnSvc = Math.abs(onSvc - Math.round(onSvc)) <= Math.abs(onBase - Math.round(onBase));
+        var fee = { svc: svc, tax: taxOnSvc ? onSvc : onBase, taxOnSvc: taxOnSvc };
+        var had2 = scanMem.fees[m];
+        if (!had2 || had2.svc !== fee.svc || had2.tax !== fee.tax || had2.taxOnSvc !== fee.taxOnSvc) remember("fees", m, fee, ops);
+      }
+    }
+    saveMem();
+    return ops;
+  }
+
+  function finishScan(r, texts) {
+    var learned = applyMemory(r);
+    if (learned) reconcile(r, true);
+    bill = { items: r.items.length ? r.items.map(function (x) { return newItem(x.name, x.price); }) : [newItem()], service: r.service ? String(r.service) : "", tax: r.tax ? String(r.tax) : "", discount: r.discount ? String(r.discount) : "", receiptTotal: r.totalComputed ? null : (r.total || null), receiptSubtotal: r.subtotalRead ? r.subtotal : null, raw: texts && texts.length ? texts.join("\n\n—— next read ——\n\n") : "" };
+    bill.scanInfo = { merchant: r.rawMerchant || r.merchant, items: bill.items.map(function (x) { return { id: x.id, name: x.name, price: x.price }; }) };
+    var descEl = document.getElementById("f-desc");
+    if (descEl && !descEl.value.trim() && r.merchant) descEl.value = r.merchant;
+    var msg = !r.items.length ? "Couldn't find any items. Add them below, or try a sharper, flatter photo."
+      : "Found " + r.items.length + " item" + (r.items.length === 1 ? "" : "s") + (r.viaAI ? " (read by Google AI)" : "") + (r.fixed.length ? " and fixed " + r.fixed.length + " misread number" + (r.fixed.length === 1 ? "" : "s") + " (" + r.fixed.join("; ") + ")" : "") + (r.ok ? ". Everything adds up — tap who had what." : ". Check them against the bill, then tap who had what.") + (learned ? " Used " + learned + " correction" + (learned === 1 ? "" : "s") + " learned from earlier bills." : "");
+    setScan(false, 1, msg);
+    render();
+  }
+
   function scanReceipt(file) {
     if (!file || scan.busy) return;
-    setScan(true, 0, "Loading the scanner…");
-    var canvasP = prepareImage(file);
-    loadTesseract().then(function (T) {
-      return canvasP.then(function (canvas) {
-        return T.createWorker("eng", 1, {
-          logger: function (m) {
-            if (m.status === "recognizing text") setScan(true, m.progress, "Reading receipt… " + Math.round(m.progress * 100) + "%");
-            else if (/loading|initializ/.test(m.status)) setScan(true, 0, "Getting the scanner ready…");
-          }
-        }).then(function (worker) {
-          return worker.setParameters({ tessedit_pageseg_mode: "6", preserve_interword_spaces: "1" })
-            .then(function () { return worker.recognize(canvas); })
-            .then(function (res) { worker.terminate(); return res.data.text; });
-        });
-      });
-    }).then(function (text) {
-      var r = parseReceipt(text);
-      bill = { items: r.items.length ? r.items.map(function (x) { return newItem(x.name, x.price); }) : [newItem()], service: r.service ? String(r.service) : "", tax: r.tax ? String(r.tax) : "", discount: r.discount ? String(r.discount) : "", receiptTotal: r.total || null, receiptSubtotal: r.subtotal || null, raw: text };
-      var descEl = document.getElementById("f-desc");
-      if (descEl && !descEl.value.trim() && r.merchant) descEl.value = r.merchant;
-      setScan(false, 1, r.items.length ? "Found " + r.items.length + " item" + (r.items.length === 1 ? "" : "s") + ". Check them, then tap who had what." : "Couldn't find any items. Add them below, or try a sharper, flatter photo.");
-      render();
+    setScan(true, 0, "Opening the photo…");
+    fileToImage(file).then(function (img) {
+      return readWithAI(img).then(function (r) { finishScan(r, []); }, function () { return scanOnPhone(img); });
     }).catch(function (err) {
       setScan(false, 0, (err && err.message) || "Couldn't read that receipt.");
     });
   }
 
-  // Turns receipt text into items + service / tax / discount / total.
+  function scanOnPhone(img) {
+    setScan(true, 0, "Loading the scanner…");
+    var worker = null, base = null, results = [], texts = [], passNo = 0;
+    var tP = loadTesseract();
+    return Promise.resolve(img).then(function (img) {
+      setScan(true, 0, "Finding the receipt in the photo…");
+      return new Promise(function (res) { setTimeout(res, 30); }).then(function () { base = cropPaper(img, findPaper(img)); return tP; });
+    }).then(function (T) {
+      return T.createWorker("eng", 1, {
+        logger: function (m) {
+          if (m.status === "recognizing text") setScan(true, m.progress, PASSES[passNo].label + "… " + Math.round(m.progress * 100) + "%");
+          else if (/loading|initializ/.test(m.status)) setScan(true, 0, "Getting the scanner ready…");
+        }
+      });
+    }).then(function (w) {
+      worker = w;
+      function next() {
+        var pass = PASSES[passNo];
+        return worker.setParameters({ tessedit_pageseg_mode: pass.psm, preserve_interword_spaces: "1" })
+          .then(function () { return worker.recognize(variantCanvas(base, pass.blur, pass.binarize)); })
+          .then(function (res) {
+            texts.push(res.data.text);
+            results.push(parseReceipt(res.data.text));
+            var best = reconcile(results.length > 1 ? mergeReads(results) : clone(results[0]));
+            if (best.ok || passNo === PASSES.length - 1) return best;
+            passNo++;
+            return next();
+          });
+      }
+      return next();
+    }).then(function (r) {
+      if (worker) worker.terminate();
+      finishScan(r, texts);
+    }, function (err) {
+      if (worker) worker.terminate();
+      throw err;
+    });
+  }
+
+  function clone(r) { return JSON.parse(JSON.stringify(r)); }
+
+  // ---- turning text into a bill ----
+  function toNumber(s) {
+    s = String(s).replace(/\s/g, "");
+    // "1.250.000" / "1,250,000" → 1250000; "25.000,00" → 25000
+    s = s.replace(/[.,]\d{2}$/, function (m) { return /[.,]\d{3}/.test(s.slice(0, -3)) || s.length > 6 ? "" : m; });
+    var n = parseInt(s.replace(/[.,]/g, ""), 10);
+    return isNaN(n) ? 0 : n;
+  }
+  var AMOUNT = /(?:rp\.?\s*)?(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|\d{4,}(?:[.,]\d{2})?|\d{1,3})(?![\d.,]*\d)/gi;
+  var SKIP = /\b(?:cash|tunai|change|kembali|card|kartu|debit|credit|kredit|qris|gopay|ovo|dana|shopee|bayar|payment|paid|rounding|pembulatan|table|meja|waiter|guest|tamu|pax|cashier|kasir|date|tanggal|jam|time|invoice|receipt|struk|bill\s*no|no\.|order|telp|tel|phone|npwp|www|thank|terima\s*kasih|wifi|password|member|point|poin|bca|mandiri|bni|bri|edc|approval|trace|ref|jl|jalan|unit|mall)(?![a-z])/i;
+  function kindOf(label) {
+    var l = label.toLowerCase();
+    if (/\bsub\s*-?\s*t|subt|sub\s*tot/.test(l)) return "subtotal";
+    if (/disc|diskon|potongan|promo|voucher/.test(l)) return "discount";
+    if (/serv|svc|srv|s\/c|\bs\.?c\b|charg|chrg|charn|layanan/.test(l)) return "service";
+    if (/\bta[xw]\b|pajak|pb\s*[1il]\b|pb1|ppn|vat|resto\s*tax/.test(l)) return "tax";
+    if (/total|t[o0]tal|jumlah|amount\s*due|tagihan|grand|jotad|\btot\b/.test(l)) return "total";
+    return "";
+  }
+  function fixName(n) {
+    return n.replace(/([A-Za-z])0|0([A-Za-z])/g, function (m, a, b) { return a ? a + "O" : "O" + b; })
+      .replace(/^[^A-Za-z0-9(]+/, "").replace(/[^A-Za-z0-9)]+$/, "").replace(/\s+/g, " ").trim()
+      .replace(/^[IiLl|]\s+(?=[A-Z]{2})/, "")   // a misread "1" in front of the name
+      .slice(0, 40);
+  }
+  function qtyName(name) {
+    // "2 PREM RIB EYE" → "2× PREM RIB EYE"; "1 NACHOS" → "NACHOS"
+    var q = name.match(/^(\d{1,2})\s*[xX×]?\s+(.+)$/) || name.match(/^(.+?)\s+[xX×]\s*(\d{1,2})$/);
+    if (!q) return name;
+    var n = /^\d/.test(q[1]) ? q[1] : q[2], rest = /^\d/.test(q[1]) ? q[2] : q[1];
+    return (parseInt(n, 10) > 1 ? parseInt(n, 10) + "× " : "") + rest;
+  }
+
   function parseReceipt(text) {
-    var out = { items: [], service: 0, tax: 0, discount: 0, total: 0, subtotal: 0, merchant: "" };
-    function fixName(n) { return n.replace(/([A-Za-z])0|0([A-Za-z])/g, function (m, a, b) { return a ? a + "O" : "O" + b; }); }
-    var NUM = /(?:rp\.?\s*)?(-?\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|-?\d{4,}(?:[.,]\d{2})?)\s*-?\s*$/i;
-    function toNumber(s) {
-      s = s.replace(/\s/g, "");
-      var neg = s.charAt(0) === "-";
-      s = s.replace(/^-/, "").replace(/[.,]\d{2}$/, function (m) { return /[.,]\d{3}/.test(s) || s.length > 6 ? "" : m; });
-      var n = parseInt(s.replace(/[.,]/g, ""), 10);
-      return isNaN(n) ? 0 : (neg ? -n : n);
+    var out = { items: [], service: 0, tax: 0, discount: 0, total: 0, subtotal: 0, subtotalRead: false, merchant: "", fixed: [] };
+    var lines = text.split(/\n/).map(function (l) { return l.replace(/[|_~`'"“”‘’§©®°¥£€\[\]{}]+/g, " ").replace(/\s+/g, " ").trim(); }).filter(Boolean);
+    for (var li = 0; li < Math.min(6, lines.length); li++) {
+      var mline = lines[li].replace(/^[^A-Za-z]+/, "");
+      if (/[a-z]{3,}/i.test(mline) && !/\d{3,}/.test(mline) && !SKIP.test(mline) && mline.length >= 4 && !/\b(?:untuk|dalam|silahkan|silakan|hubungi|pesanan|alamat|cabang|lantai|floor|level|street|road)\b/i.test(mline)) { out.merchant = fixName(mline); break; }
     }
-    var SKIP = /\b(?:cash|tunai|change|kembali|card|kartu|debit|credit|kredit|qris|gopay|ovo|dana|shopee|bayar|payment|paid|rounding|pembulatan|table|meja|guest|tamu|pax|cashier|kasir|date|tanggal|jam|time|invoice|receipt|struk|bill\s*no|no\.|order|telp|phone|npwp|www|thank|terima\s*kasih|wifi|password|member|point|poin|bca|mandiri|bni|bri|edc|approval|trace|ref)(?![a-z])/i;
-    var lines = text.split(/\n/).map(function (l) { return l.replace(/[|_~`'"]+/g, " ").replace(/\s+/g, " ").trim(); }).filter(Boolean);
-    for (var li = 0; li < Math.min(4, lines.length); li++) {
-      if (/[a-z]{3,}/i.test(lines[li]) && !NUM.test(lines[li]) && !SKIP.test(lines[li])) { out.merchant = lines[li].replace(/[^\w &'.-]/g, "").trim().slice(0, 40); break; }
+    function setFee(kind, amount) {
+      if (kind === "subtotal") { out.subtotal = amount; out.subtotalRead = true; }
+      else if (kind === "total") out.total = Math.max(out.total, amount);
+      else out[kind] += amount;
     }
-    // Receipts that print "1x @69.000   69.000" under each item name (very common in Indonesia):
-    // take the line total from those rows and the name from the line above; skip free add-ons (@0).
+
+    // Receipts that print "1x @69.000   69.000" under each item name: take the line total from
+    // those rows and the name from the line above; skip free add-ons (@0).
     var QTY = /(?:^|\s)(\d{1,2}|[Il|])\s*[xX×]\s+(\S*)\s*(.*)$/;
     var qtyRows = lines.filter(function (l) { return QTY.test(l) && !/[a-z]{4,}/i.test(l.replace(QTY, "")); });
     if (qtyRows.length >= 2) {
       var lastName = "";
       lines.forEach(function (line) {
-        var low = line.toLowerCase();
         var q = line.match(QTY);
         var before = q ? line.slice(0, q.index) : line;
         if (q && !/[a-z]{3,}/i.test(before)) {
@@ -1157,54 +1475,223 @@
           lastName = "";
           return;
         }
-        var m = line.match(NUM), amount = m ? Math.abs(toNumber(m[1])) : 0;
-        if (m && amount >= 100) {
-          if (/sub\s*-?\s*total/i.test(low)) { out.subtotal = amount; return; }
-          if (/total|jumlah|amount\s*due|tagihan/i.test(low)) { out.total = Math.max(out.total, amount); return; }
-          if (/service|servis|srv|svc|s\/c|\bsc\b|layanan/i.test(low)) { out.service += amount; return; }
-          if (/\btax\b|pajak|pb\s*1|pbi|ppn|vat/i.test(low)) { out.tax += amount; return; }
-          if (/disc|diskon|potongan|promo|voucher/i.test(low)) { out.discount += amount; return; }
-        }
-        // a possible item name: drop stray OCR marks at the start/end
+        var nums2 = line.match(/\d{1,3}(?:[.,]\d{3})+|\d{4,}/g);
+        var amount = nums2 ? toNumber(nums2[nums2.length - 1]) : 0, kind = kindOf(line);
+        if (amount >= 100 && kind) { setFee(kind, amount); return; }
         var nm = line.replace(/^.*?(?=[A-Za-z]{2})/, "").replace(/[^A-Za-z0-9)]+$/, "").trim();
         if (/[a-z]{3,}/i.test(nm) && !SKIP.test(nm) && !/\bitems?\b/i.test(nm)) lastName = nm.slice(0, 40);
       });
       return out;
     }
 
-    var pendingName = "";
-    lines.forEach(function (line, i) {
-      var low = line.toLowerCase();
-      var m = line.match(NUM);
-      if (!m) {
-        // a name on its own line, with the price on the next line
-        pendingName = /[a-z]{3,}/i.test(line) && !SKIP.test(line) && line.length < 40 ? line : "";
+    // Everything else: "[qty] name ... price" on one line, with fee lines after the items.
+    var pendingName = "", pendingAmount = 0, pendingKind = "", afterSub = false, unknownFees = [];
+    lines.forEach(function (raw) {
+      // drop OCR crumbs before a leading quantity, e.g. "ed 1 SIG T TENDER" → "1 SIG T TENDER"
+      var line = raw.replace(/^[^A-Za-z0-9]*(?:[A-Za-z]{1,2}\s+)?(?=\d{1,2}\s+[A-Za-z]{2})/, "");
+      var matches = [], m;
+      AMOUNT.lastIndex = 0;
+      while ((m = AMOUNT.exec(line))) matches.push(m);
+      // the price is the last proper amount on the line; ignore crumbs after it
+      var pm = null;
+      for (var i = matches.length - 1; i >= 0; i--) {
+        var tail = line.slice(matches[i].index + matches[i][0].length);
+        if (/[a-z]{3,}/i.test(tail)) break;
+        if (/[.,]\d{3}/.test(matches[i][1]) || matches[i][1].replace(/\D/g, "").length >= 4) { pm = matches[i]; break; }
+        if (matches[i][1] === "0") { pm = matches[i]; break; }   // free add-on
+      }
+      if (/\b\d{1,2}[-\/.][A-Za-z]{3}[-\/.]\d{2,4}\b|\b\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b/.test(line) && !kindOf(line)) return;   // dates and times
+      var label = pm ? line.slice(0, pm.index).trim() : line;
+      var amount = pm ? toNumber(pm[1]) : 0;
+      var kind = kindOf(label);
+      var hasWords = /[a-z]{3,}/i.test(label);
+
+      if (!pm) {
+        if (kind) { if (pendingAmount && (kind === "total" || afterSub)) { setFee(kind, pendingAmount); pendingAmount = 0; if (kind === "subtotal") afterSub = true; } else pendingKind = kind; return; }
+        pendingName = hasWords && !SKIP.test(line) && line.length < 40 ? line : "";
         return;
       }
-      var amount = Math.abs(toNumber(m[1]));
-      var label = line.slice(0, m.index).trim();
-      if (!/[a-z]{2,}/i.test(label) && pendingName) label = pendingName;
-      pendingName = "";
+      if (!hasWords && !kind) {
+        // a number on its own line: belongs to a label just above or just below it
+        if (pendingKind) { if (amount >= 100) setFee(pendingKind, amount); if (pendingKind === "subtotal") afterSub = true; pendingKind = ""; return; }
+        if (pendingName && amount >= 100 && !afterSub) { out.items.push({ name: fixName(qtyName(pendingName)), price: amount }); pendingName = ""; return; }
+        if (amount >= 100) { if (afterSub) unknownFees.push(amount); else pendingAmount = amount; }
+        return;
+      }
+      pendingName = ""; pendingKind = "";
       if (amount < 100) return;
-      if (/sub\s*-?\s*total|subtotal|sub tot/i.test(low)) { out.subtotal = amount; return; }
-      if (/grand\s*total|\btotal\b|jumlah|amount\s*due|tagihan|net\s*total/i.test(low)) { if (!/qty|item/i.test(low)) out.total = Math.max(out.total, amount); return; }
-      if (/service|servis|srv|svc|s\/c|layanan/i.test(low)) { out.service += amount; return; }
-      if (/\btax\b|pajak|pb\s*1|pb1|ppn|vat|resto\s*tax/i.test(low)) { out.tax += amount; return; }
-      if (/disc|diskon|potongan|promo|voucher/i.test(low)) { out.discount += amount; return; }
-      if (SKIP.test(low)) return;
-      // tidy the name: drop unit prices like "2 x 25.000" and stray symbols
+      if (kind) { setFee(kind, amount); if (kind === "subtotal") afterSub = true; return; }
+      if (SKIP.test(label)) return;
+      if (afterSub) { unknownFees.push(amount); return; }   // after the subtotal, unlabelled amounts are fees
       var name = label.replace(/(?:rp\.?\s*)?\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?/gi, "").replace(/\s[x@]\s*$/i, "").replace(/[^\w &'()\/.+-]/g, " ").replace(/\s+/g, " ").trim();
-      var q = name.match(/^(\d{1,2})\s*[xX]?\s+(.+)$/) || name.match(/^(.+?)\s+[xX]?\s*(\d{1,2})$/);
-      if (q) name = /^\d/.test(q[1]) ? q[1] + "× " + q[2] : q[2] + "× " + q[1];
+      name = fixName(qtyName(name));
       if (!/[a-z]{2,}/i.test(name)) return;
-      out.items.push({ name: fixName(name).slice(0, 40), price: amount });
+      out.items.push({ name: name, price: amount });
     });
-    // the biggest amount is the total, not an item, when no "total" line was read
-    if (!out.total && out.items.length > 2) {
+    if (pendingAmount && !out.total && afterSub) out.total = pendingAmount;
+    // unlabelled amounts after the subtotal: bigger than the subtotal = total, else service then tax
+    unknownFees.forEach(function (a) {
+      if (out.subtotal && a > out.subtotal) { if (!out.total) out.total = a; }
+      else if (!out.service) out.service = a;
+      else if (!out.tax) out.tax = a;
+    });
+    // no subtotal or total line read: the biggest amount is probably the total, not an item
+    if (!out.total && !out.subtotalRead && out.items.length > 2) {
       var sum = 0, maxI = 0;
       out.items.forEach(function (x, i) { sum += x.price; if (x.price > out.items[maxI].price) maxI = i; });
       if (Math.abs(out.items[maxI].price * 2 - sum) < out.items[maxI].price * 0.05 + 2) { out.total = out.items[maxI].price; out.items.splice(maxI, 1); }
     }
+    return out;
+  }
+
+  // ---- checking the numbers ----
+  var LOOKALIKE = { "0": "689", "1": "74", "2": "7", "3": "5896", "4": "169", "5": "3689", "6": "58034", "7": "12", "8": "365904", "9": "0853" };
+  function digitSwaps(n) {
+    var s = String(n), out = [];
+    for (var i = 0; i < s.length; i++) (LOOKALIKE[s[i]] || "").split("").forEach(function (c) {
+      if (i === 0 && c === "0") return;
+      out.push(parseInt(s.slice(0, i) + c + s.slice(i + 1), 10));
+    });
+    return out;
+  }
+  function cleanPct(x, base) {
+    if (!x || !base) return false;
+    for (var p = 1; p <= 25; p += 0.5) { var v = base * p / 100; if (Math.abs(x - v) <= 1.5 || Math.abs(x - Math.round(v)) <= 1 || Math.abs(x - Math.floor(v)) <= 1 || Math.abs(x - Math.ceil(v)) <= 1) return true; }
+    return false;
+  }
+  function sumItems(r) { return r.items.reduce(function (s, x) { return s + x.price; }, 0); }
+  function money(n) { return n.toLocaleString("id-ID"); }
+
+  function reconcile(r, checkOnly) {
+    r.fixed = r.fixed || [];
+    // menu prices are whole thousands or 500s: 25.009 is a misread 25.000
+    if (!checkOnly) r.items.forEach(function (x) {
+      if (x.price >= 1000 && x.price % 500) { var n = Math.round(x.price / 500) * 500; if (Math.abs(n - x.price) <= 20) x.price = n; }
+    });
+    // a subtotal is a sum of menu prices, so it ends in 000 or 500: "1.007.008" is a misread "1.007.000"
+    if (!checkOnly && r.subtotalRead && r.subtotal % 500) {
+      var nice = digitSwaps(r.subtotal).filter(function (v) { return v % 500 === 0; });
+      if (nice.length === 1) { r.fixed.push("subtotal " + money(r.subtotal) + " → " + money(nice[0])); r.subtotal = nice[0]; }
+    }
+    if (!r.subtotalRead) r.subtotal = sumItems(r);
+    var itemsOk = !r.subtotalRead || sumItems(r) === r.subtotal;
+    if (!itemsOk && !checkOnly) {
+      // one misread digit in one item (or in the subtotal) that makes everything add up
+      var diff = r.subtotal - sumItems(r), cands = [];
+      r.items.forEach(function (x, i) { digitSwaps(x.price).forEach(function (v) { if (v - x.price === diff) cands.push({ i: i, v: v }); }); });
+      digitSwaps(r.subtotal).forEach(function (v) { if (v === sumItems(r)) cands.push({ i: -1, v: v }); });
+      if (cands.length === 1) {
+        var c = cands[0];
+        if (c.i >= 0) { r.fixed.push(r.items[c.i].name + " " + money(r.items[c.i].price) + " → " + money(c.v)); r.items[c.i].price = c.v; }
+        else { r.fixed.push("subtotal " + money(r.subtotal) + " → " + money(c.v)); r.subtotal = c.v; }
+        itemsOk = true;
+      } else if (cands.length > 1) r.suspects = cands.map(function (c) { return c.i >= 0 ? r.items[c.i].name : "subtotal"; });
+    }
+    // service / tax / total must hang together: service is a round % of the subtotal, tax a round %
+    // of subtotal (+ service), and together they make the total. Misread digits are fixed only when
+    // exactly one fix (at most two digits per number) makes all of that true.
+    var base = r.subtotal - (r.discount || 0);
+    function rateOk(x, b, rates) {
+      if (!x) return true;
+      if (!b) return false;
+      return rates.some(function (p) { var v = b * p / 100; return Math.abs(x - v) <= 1.5 || x === Math.round(v) || x === Math.floor(v) || x === Math.ceil(v); });
+    }
+    var SVC = [], TAX = [5, 10, 11, 12];
+    for (var p = 1; p <= 20; p += 0.5) SVC.push(p);
+    function svcOk(x) { return rateOk(x, base, SVC); }
+    function taxOk(t, s) { return rateOk(t, base + s, TAX) || rateOk(t, base, TAX); }
+    function totOk(s, t, tot) { return !tot || Math.abs(base + s + t - tot) <= 2; }
+    var feesOk = svcOk(r.service) && taxOk(r.tax, r.service) && totOk(r.service, r.tax, r.total);
+    if (!feesOk && base > 0 && !checkOnly) {
+      // every value any reading saw for this fee, plus versions with one or two digits changed
+      function variants(n, alts) {
+        var starts = [n].concat(alts || []).filter(function (v, i, a) { return v && a.indexOf(v) === i; });
+        if (!starts.length) return [{ v: 0, c: 0 }];
+        var cost = {};
+        starts.forEach(function (v0) {
+          cost[v0] = 0;
+          digitSwaps(v0).forEach(function (v1) {
+            if (!(v1 in cost) || cost[v1] > 1) cost[v1] = 1;
+            digitSwaps(v1).forEach(function (v2) { if (!(v2 in cost)) cost[v2] = 2; });
+          });
+        });
+        return Object.keys(cost).map(function (k) { return { v: Number(k), c: cost[k] }; });
+      }
+      var best = null, bestCost = 99, ties = 0;
+      var alt = r.altFees || {};
+      var tVars = variants(r.tax, alt.tax);
+      variants(r.service, alt.service).forEach(function (sv) {
+        if (!svcOk(sv.v)) return;
+        tVars.forEach(function (tv) {
+          if (!taxOk(tv.v, sv.v)) return;
+          var cost = sv.c + tv.c - (r.total && totOk(sv.v, tv.v, r.total) ? 0.5 : 0);
+          if (cost < bestCost - 1e-9) { bestCost = cost; best = { s: sv.v, t: tv.v }; ties = 0; }
+          else if (Math.abs(cost - bestCost) < 1e-9 && (best.s !== sv.v || best.t !== tv.v)) ties++;
+        });
+      });
+      if (best && !ties && bestCost <= 3) {
+        if (best.s !== r.service) r.fixed.push("service " + money(r.service) + " → " + money(best.s));
+        if (best.t !== r.tax) r.fixed.push("tax " + money(r.tax) + " → " + money(best.t));
+        r.service = best.s; r.tax = best.t;
+        if (r.total && !totOk(r.service, r.tax, r.total)) { r.fixed.push("total " + money(r.total) + " → " + money(base + r.service + r.tax)); r.total = 0; }
+        feesOk = true;
+      }
+    }
+    if (!r.total && r.subtotalRead && feesOk) { r.total = base + r.service + r.tax; r.totalComputed = true; }   // printed total unreadable: work it out
+    r.ok = r.items.length > 0 && r.subtotalRead && itemsOk && feesOk;
+    return r;
+  }
+
+  // ---- combining several readings of the same bill ----
+  function nameKey(n) { return String(n).toLowerCase().replace(/^\d+×\s*/, "").replace(/[^a-z]/g, ""); }
+  function similar(a, b) {
+    a = nameKey(a); b = nameKey(b);
+    if (!a || !b) return 0;
+    if (a === b) return 1;
+    function grams(s) { var g = {}; for (var i = 0; i < s.length - 1; i++) { var k = s.substr(i, 2); g[k] = (g[k] || 0) + 1; } return g; }
+    var ga = grams(a), gb = grams(b), inter = 0, na = 0, nb = 0, k;
+    for (k in ga) { na += ga[k]; if (gb[k]) inter += Math.min(ga[k], gb[k]); }
+    for (k in gb) nb += gb[k];
+    return na + nb ? 2 * inter / (na + nb) : 0;
+  }
+  function vote(values) {
+    var count = {}, best = 0, bestN = 0;
+    values.forEach(function (v) { if (!v) return; count[v] = (count[v] || 0) + 1; if (count[v] > bestN) { bestN = count[v]; best = v; } });
+    return best;
+  }
+  function mergeReads(reads) {
+    reads = reads.map(function (r) { return reconcile(clone(r)); });
+    // start from the reading that found the most items
+    var baseIdx = 0;
+    reads.forEach(function (r, i) { if (r.items.length > reads[baseIdx].items.length) baseIdx = i; });
+    var out = clone(reads[baseIdx]);
+    out.fixed = [];
+    out.items.forEach(function (it) {
+      var prices = [it.price], names = [it.name];
+      reads.forEach(function (r, ri) {
+        if (ri === baseIdx) return;
+        var best = null, bestS = 0.55;
+        r.items.forEach(function (x) { var s = similar(x.name, it.name); if (s > bestS) { bestS = s; best = x; } });
+        if (best) { prices.push(best.price); names.push(best.name); }
+      });
+      it.alts = prices;
+      var v = vote(prices);
+      if (prices.filter(function (p) { return p === v; }).length > 1) it.price = v;
+    });
+    out.altFees = { service: reads.map(function (r) { return r.service; }), tax: reads.map(function (r) { return r.tax; }) };
+    ["subtotal", "service", "tax", "total", "discount"].forEach(function (k) {
+      var v = vote(reads.map(function (r) { return k === "subtotal" && !r.subtotalRead ? 0 : r[k]; }));
+      if (v) out[k] = v;
+    });
+    out.subtotalRead = reads.some(function (r) { return r.subtotalRead; });
+    out.merchant = out.merchant || reads.map(function (r) { return r.merchant; }).filter(Boolean)[0] || "";
+    // still not adding up: try the other readings' price for one item
+    if (out.subtotalRead && sumItems(out) !== out.subtotal) {
+      var diff = out.subtotal - sumItems(out), fixes = [];
+      out.items.forEach(function (it, i) { (it.alts || []).forEach(function (p) { if (p !== it.price && p - it.price === diff) fixes.push({ i: i, p: p }); }); });
+      if (fixes.length >= 1 && fixes.every(function (f) { return f.i === fixes[0].i; })) out.items[fixes[0].i].price = fixes[0].p;
+    }
+    out.items.forEach(function (it) { delete it.alts; });
     return out;
   }
 
@@ -1258,6 +1745,7 @@
       if (!res || !res.ok) throw new Error("The sheet replied with an error: " + ((res && res.error) || "unknown"));
       gotSheetInfo(res);
       if (outbox.length) return; // this phone's edits are still on their way
+      if (res.state && res.state.memory) mergeMem(res.state.memory);
       var incoming = normalize(res.state);
       if (!hasTrip(incoming) && hasTrip(all)) {
         // The sheet is empty but this phone already has a trip: send it up, never wipe it.
