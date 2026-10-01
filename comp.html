@@ -1,0 +1,1009 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Competition Points</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --yellow: #FBF6C4; --peach: #FCE1C2; --pink: #FFC7CE; --orchid: #F1C6EF; --lav: #D6C3F0;
+    --blue: #AEC1F2; --sky: #97DCF5; --cyan: #8EF0F0; --aqua: #97F5D9; --green: #B3F5C0;
+    --bg: #fbfaf6; --surface: #ffffff; --surface-2: #f4f2ea; --ink: #1e2b2a; --ink-soft: #4b5957;
+    --ink-faint: #8a938e; --line: #e2ded0; --accent: #4fb8a8; --accent-ink: #0d3d38;
+    --good: #2f8f5b; --good-bg: #e1f3e6; --warn: #b5791f; --warn-bg: #f7ecd8; --shadow: rgba(30,43,42,0.08);
+    --gold: #c9a227; --silver: #9aa3a8; --bronze: #b87333;
+    --women: var(--pink); --men: var(--sky);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #10161a; --surface: #182124; --surface-2: #1e2a2d; --ink: #eef2ee; --ink-soft: #b6c2bd;
+      --ink-faint: #7c8b86; --line: #2b3a3c; --accent: #6fd0bd; --accent-ink: #0d3d38;
+      --good: #6fd08a; --good-bg: #1e3324; --warn: #e0ac52; --warn-bg: #3a2f18; --shadow: rgba(0,0,0,0.35);
+      --yellow: #6b6635; --peach: #6b5636; --pink: #6b3d43; --orchid: #5e3d5c; --lav: #473d5e;
+      --blue: #37456b; --sky: #2f5566; --cyan: #2c5f5f; --aqua: #2f5f4f; --green: #3c5f43;
+      --gold: #e2c04f; --silver: #b9c2c6; --bronze: #d99559;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #10161a; --surface: #182124; --surface-2: #1e2a2d; --ink: #eef2ee; --ink-soft: #b6c2bd;
+    --ink-faint: #7c8b86; --line: #2b3a3c; --accent: #6fd0bd; --accent-ink: #0d3d38;
+    --good: #6fd08a; --good-bg: #1e3324; --warn: #e0ac52; --warn-bg: #3a2f18; --shadow: rgba(0,0,0,0.35);
+    --yellow: #6b6635; --peach: #6b5636; --pink: #6b3d43; --orchid: #5e3d5c; --lav: #473d5e;
+    --blue: #37456b; --sky: #2f5566; --cyan: #2c5f5f; --aqua: #2f5f4f; --green: #3c5f43;
+    --gold: #e2c04f; --silver: #b9c2c6; --bronze: #d99559;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 900px; margin: 0 auto; padding-block: clamp(16px, 4vw, 44px) 72px; padding-inline: clamp(16px, 4vw, 32px); display: flex; flex-direction: column; gap: 20px; }
+  .money, .mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  button { font-family: inherit; cursor: pointer; }
+  h2 { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 1.2rem; margin: 0; text-wrap: balance; }
+  h3 { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 1.05rem; margin: 0; }
+  .hint { font-size: 0.84rem; color: var(--ink-soft); margin: 0; }
+  .label { display: block; font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); font-weight: 600; }
+  textarea { resize: none; overflow: hidden; line-height: 1.4; min-height: 42px; }
+  input[type="text"], select, textarea { width: 100%; font-family: inherit; font-size: 0.95rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--ink); }
+  input:focus, select:focus, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  input::placeholder { color: var(--ink-faint); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--accent); color: var(--accent-ink); border: none; border-radius: 999px; font-weight: 600; font-size: 0.88rem; padding: 10px 18px; text-decoration: none; }
+  .btn:hover { filter: brightness(1.05); }
+  .btn.ghost { background: var(--surface-2); color: var(--ink-soft); border: 1px solid var(--line); }
+  .btn.ghost:hover { color: var(--ink); border-color: var(--accent); filter: none; }
+  .btn.small { font-size: 0.78rem; padding: 6px 12px; }
+  .btn.danger { background: var(--warn); color: var(--surface); }
+  .x { background: transparent; border: none; color: var(--ink-faint); padding: 4px 8px; border-radius: 8px; font-size: 0.95rem; line-height: 1; }
+  .x:hover { background: var(--surface-2); color: var(--warn); }
+  .pill-btn { background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-soft); border-radius: 999px; font-size: 0.76rem; font-weight: 600; padding: 4px 10px; white-space: nowrap; }
+  .pill-btn:hover { color: var(--ink); border-color: var(--accent); }
+  .pill-btn.del:hover { color: var(--warn); border-color: var(--warn); }
+
+  .topbar { display: flex; margin-bottom: -8px; }
+  .nav-btn { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft); border-radius: 999px; padding: 6px 14px; font-size: 0.84rem; font-weight: 600; }
+  .nav-btn:hover { color: var(--ink); border-color: var(--accent); }
+  .tab-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: -6px; }
+  .tab { flex: none; max-width: 70vw; overflow: hidden; text-overflow: ellipsis; background: transparent; border: 1px solid var(--line); color: var(--ink-soft); border-radius: 999px; padding: 7px 14px; font-size: 0.84rem; font-weight: 600; white-space: nowrap; }
+  .tab:hover { color: var(--ink); border-color: var(--accent); }
+  .tab.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .tab.add { border-style: dashed; color: var(--accent); }
+
+  header.top { display: flex; flex-direction: column; gap: 4px; }
+  .eyebrow { text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.72rem; color: var(--accent); font-weight: 600; margin: 0; }
+  .title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .comp-title { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: clamp(1.9rem, 4.2vw, 2.7rem); letter-spacing: -0.01em; line-height: 1.15; margin: 0; overflow-wrap: anywhere; text-wrap: balance; }
+  .rename-form { display: flex; flex-direction: column; gap: 8px; }
+  .rename-form input[type="text"] { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: clamp(1.4rem, 4vw, 2rem); background: var(--surface); border: 1px solid var(--accent); border-radius: 12px; max-width: 24ch; }
+  .row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .saved-note { font-size: 0.78rem; color: var(--ink-faint); }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: clamp(16px, 2.6vw, 24px); box-shadow: 0 1px 2px var(--shadow); display: flex; flex-direction: column; gap: 14px; }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .eyebrow-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .status { font-size: 0.74rem; color: var(--ink-faint); padding: 4px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); white-space: nowrap; }
+  .status.busy, .status.warn { color: var(--warn); background: var(--warn-bg); border-color: transparent; }
+  .status.ok { color: var(--good); background: var(--good-bg); border-color: transparent; }
+  .sheet-panel summary { cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 10px; font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 1.05rem; list-style: none; }
+  .sheet-panel summary::-webkit-details-marker { display: none; }
+  .sheet-panel summary::before { content: "▸"; color: var(--accent); margin-right: 8px; }
+  .sheet-panel[open] summary::before { content: "▾"; }
+  .sheet-panel summary > span:first-child { flex: 1; }
+  .sheet-panel code { font-family: "JetBrains Mono", monospace; font-size: 0.85em; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+  .confirm { display: flex; flex-direction: column; gap: 10px; background: var(--warn-bg); border-radius: 14px; padding: 14px 16px; font-size: 0.9rem; }
+  .confirm p { margin: 0; }
+
+  /* athletes */
+  .genders { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 620px) { .genders { grid-template-columns: 1fr; } }
+  .gcol { border-radius: 14px; padding: 12px; background: var(--surface-2); display: flex; flex-direction: column; gap: 10px; }
+  .gtitle { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9rem; }
+  .gdot { width: 12px; height: 12px; border-radius: 50%; background: var(--g); flex: none; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 4px 4px 12px; font-size: 0.86rem; font-weight: 500; }
+  .add-row { display: flex; gap: 8px; }
+  .add-row input { flex: 1; min-width: 0; }
+  .muted { color: var(--ink-faint); font-size: 0.82rem; }
+  .msg { font-size: 0.8rem; color: var(--warn); margin: 0; }
+  .msg.ok { color: var(--good); }
+  .add-row { align-items: flex-start; }
+  .add-row .btn { min-height: 42px; }
+  .elsewhere-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* podiums */
+  .pods { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 620px) { .pods { grid-template-columns: 1fr; } }
+  .pod { border: 1px solid var(--line); border-top: 4px solid var(--g); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; background: var(--surface); }
+  .pod-title { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--ink-soft); }
+  .place { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 0.92rem; }
+  .medal { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 0.7rem; font-weight: 700; color: #fff; background: var(--m); }
+  .place .nm { font-weight: 600; overflow-wrap: break-word; min-width: 0; }
+  .place .pts { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; font-weight: 500; }
+  .pod .empty { color: var(--ink-faint); font-size: 0.84rem; }
+  .full-list { font-size: 0.82rem; }
+  .full-list summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 0.78rem; }
+  .full-list ol { margin: 6px 0 0; padding-left: 22px; display: flex; flex-direction: column; gap: 2px; }
+  .full-list li { display: flex; justify-content: space-between; gap: 10px; }
+
+  /* days & events */
+  .day-head { display: flex; flex-direction: column; gap: 4px; }
+  .day-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .day-tabs { margin-bottom: 0; }
+  .day-tab { display: inline-flex; flex-direction: column; align-items: flex-start; line-height: 1.25; padding: 7px 14px; border-radius: 14px; }
+  .tab-count { font-size: 0.66rem; font-weight: 500; opacity: 0.8; letter-spacing: 0.02em; }
+  .tab-count:empty { display: none; }
+  .days-panel { gap: 16px; }
+  .day-name { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 1.2rem; background: transparent; border: 1px dashed transparent; border-radius: 8px; padding: 2px 6px; color: var(--ink); flex: 1; min-width: 0; }
+  .day-name:hover { border-color: var(--line); }
+  .day-name:focus { border-color: var(--accent); outline: none; background: var(--surface-2); }
+  .add-disc { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .add-disc .btn { background: var(--surface-2); color: var(--ink); border: 1px dashed var(--accent); }
+  .event { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .ev-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--d); flex-wrap: wrap; }
+  .ev-head .disc { font-family: "Fraunces", Georgia, serif; font-weight: 700; font-size: 1.15rem; }
+  .ev-head .rule { font-size: 0.78rem; color: var(--ink-soft); flex: 1; min-width: 140px; }
+  .ev-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 14px; }
+  .results { display: flex; flex-direction: column; gap: 6px; }
+  .rgroup-title { display: flex; align-items: center; gap: 8px; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--ink-soft); margin-top: 4px; }
+  .res { display: grid; grid-template-columns: minmax(0, 1fr) auto 76px auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .res:last-child { border-bottom: none; }
+  .res .nm { font-weight: 600; font-size: 0.92rem; overflow-wrap: break-word; hyphens: auto; min-width: 0; }
+  .nm-wrap { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; }
+  .also { font-size: 0.72rem; color: var(--ink-faint); font-weight: 600; }
+
+  .rm-confirm { grid-column: 1 / -1; }
+  .row-tools { display: inline-flex; align-items: center; gap: 4px; justify-self: end; }
+  .disc-sel { -webkit-appearance: none; appearance: none; text-align: center; text-align-last: center; cursor: pointer; width: 5em !important; padding: 5px 6px !important; font-weight: 700; color: var(--accent); border-style: dashed; border-color: var(--accent); }
+  .disc-sel { width: auto; padding: 4px 6px; font-size: 0.76rem; font-weight: 600; border-radius: 8px; background: var(--surface-2); }
+  .disc-tabs { margin-bottom: 0; }
+  .stand-tabs { margin-bottom: 0; }
+  #overall { display: flex; flex-direction: column; gap: 10px; }
+  .stand-tab.on[style] { background: var(--d); border-color: var(--d); color: var(--ink); }
+  .disc-tab { font-family: "Fraunces", Georgia, serif; font-size: 0.95rem; }
+  .disc-tab.on { background: var(--d); border-color: var(--d); color: var(--ink); }
+  .tab-n { font-family: "Space Grotesk", sans-serif; font-size: 0.7rem; font-weight: 600; background: var(--surface); color: var(--ink-soft); border-radius: 999px; padding: 1px 7px; margin-left: 4px; }
+  .elsewhere { display: flex; flex-direction: column; gap: 6px; border-top: 1px dashed var(--line); padding-top: 10px; }
+  .move-chip { padding: 5px 12px; gap: 6px; color: var(--ink); cursor: pointer; }
+  .move-chip:hover { border-color: var(--accent); }
+  .res .in { display: flex; align-items: center; gap: 4px; }
+  .res input { width: 58px; padding: 7px 8px; text-align: right; font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; font-size: 0.92rem; }
+  .res input.dist { width: 78px; }
+  .res .unit { font-size: 0.74rem; color: var(--ink-faint); }
+  .res .pt { text-align: right; font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 0.9rem; }
+  .res .pt small { display: block; font-weight: 400; color: var(--ink-faint); font-size: 0.68rem; }
+  .res.is-dq .nm { text-decoration: line-through; color: var(--ink-faint); }
+  .dq { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; border: 1px solid var(--line); background: transparent; color: var(--ink-faint); border-radius: 8px; padding: 6px 8px; }
+  .dq.on { background: var(--warn); border-color: var(--warn); color: var(--surface); }
+  .ev-foot { display: flex; justify-content: flex-end; }
+
+  footer.foot { color: var(--ink-faint); font-size: 0.78rem; border-top: 1px solid var(--line); padding-top: 14px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .empty-box { text-align: center; color: var(--ink-faint); font-size: 0.88rem; padding: 18px 10px; border: 1px dashed var(--line); border-radius: 14px; }
+
+  @media (max-width: 560px) {
+    input[type="text"], select, textarea, .res input { font-size: 16px; }
+    .x { min-width: 36px; min-height: 36px; }
+    .res { grid-template-columns: minmax(0, 1fr) auto auto; row-gap: 6px; }
+    .res .nm-wrap { grid-column: 1 / -1; }
+    .res { padding: 8px 0; row-gap: 4px; }
+    .comp-title { font-size: 1.7rem; }
+    .day-name-row { flex-direction: column; align-items: stretch; }
+    .day-name-row .day-name { width: 100%; font-size: 1.15rem; padding: 4px 8px; border-color: var(--line); }
+    .day-name-row .pill-btn { align-self: flex-start; }
+    .ev-head { padding: 10px 12px; }
+    .ev-body { padding: 10px 12px; }
+    .panel { padding: 16px 14px; border-radius: 16px; }
+    .wrap { gap: 16px; }
+    .add-disc .btn { flex: 1 1 calc(50% - 6px); }
+    .add-disc .label { flex-basis: 100%; }
+    .disc-sel { font-size: 16px; width: 4.4em !important; }
+    .res .pt { text-align: left; }
+    .dq { min-height: 34px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div id="app" class="wrap"></div>
+
+<script>
+(function () {
+  "use strict";
+  var LS_KEY = "comppoints_state", LS_CUR = "comppoints_current";
+
+  // Scoring rules. STA: total seconds × 0.2. Pool distance disciplines: metres × 0.5.
+  var DISC = {
+    STA:  { name: "Static apnea", kind: "time", factor: 0.2, rule: "Total seconds × 0.2", color: "var(--lav)" },
+    DYN:  { name: "Dynamic with fins", kind: "dist", factor: 0.5, rule: "Metres × 0.5", color: "var(--sky)" },
+    DNF:  { name: "Dynamic no fins", kind: "dist", factor: 0.5, rule: "Metres × 0.5", color: "var(--aqua)" },
+    DYNB: { name: "Dynamic bi-fins", kind: "dist", factor: 0.5, rule: "Metres × 0.5", color: "var(--peach)" }
+  };
+  var GENDERS = [{ key: "F", label: "Women", color: "var(--women)" }, { key: "M", label: "Men", color: "var(--men)" }];
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+  function uid() { return Math.random().toString(36).slice(2, 9); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]; }); }
+  function fmtPts(n) { return (Math.round(n * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 }); }
+  function num(v) { var n = parseFloat(String(v == null ? "" : v).replace(",", ".")); return isNaN(n) ? null : n; }
+
+  function newComp(name) {
+    return { id: "c" + uid(), name: name || "New competition", created: Date.now(), athletes: [], days: [{ id: "d" + uid(), name: "Day 1", events: [] }] };
+  }
+
+  var all;
+  try { all = JSON.parse(lsGet(LS_KEY) || "null"); } catch (e) { all = null; }
+  if (!all || !all.comps || !all.comps.length) all = { comps: [newComp("My competition")] };
+  var cur = null, currentId = lsGet(LS_CUR) || "";
+  var ui = { newOpen: false, renaming: false, confirmDel: false, confirmDay: "", confirmEv: "", confirmRm: "", confirmRmAllEv: "", confirmRmAllAth: false, savedOk: true };
+
+  function pick(id) {
+    var c = all.comps.filter(function (x) { return x.id === (id || currentId); })[0] || all.comps[all.comps.length - 1];
+    cur = c; currentId = c.id; lsSet(LS_CUR, c.id);
+  }
+  pick();
+
+  function save(ops) {
+    ui.savedOk = lsSet(LS_KEY, JSON.stringify(all));
+    var el = document.getElementById("saved-note"); if (el) el.textContent = saveText();
+    if (ops && ops.length) queue(ops);
+  }
+  function saveText() {
+    if (sheetUrl) return "Synced with the Google Sheet · also kept on this device";
+    return ui.savedOk ? "Saved on this device" : "Couldn't save in this browser. Your entries last until you close the page.";
+  }
+  function resultOp(ev, athId) {
+    var r = (ev.results || {})[athId] || {};
+    return { type: "setResult", compId: cur.id, eventId: ev.id, athleteId: athId, result: { min: r.min || "", sec: r.sec || "", dist: r.dist || "", dq: !!r.dq } };
+  }
+
+  // the day tab chosen for each competition (remembered on this device)
+  var dayPick = {};
+  try { dayPick = JSON.parse(lsGet("comppoints_days") || "{}") || {}; } catch (e) { dayPick = {}; }
+  function curDay() {
+    var d = cur.days.filter(function (x) { return x.id === dayPick[cur.id]; })[0] || cur.days[0];
+    if (!d) { d = { id: "d" + uid(), name: "Day 1", events: [] }; cur.days.push(d); queue([{ type: "upsertDay", compId: cur.id, day: { id: d.id, name: d.name, order: 0 } }]); }
+    return d;
+  }
+  function setDay(id) { dayPick[cur.id] = id; lsSet("comppoints_days", JSON.stringify(dayPick)); }
+
+  // Which discipline tab is open on each day (remembered on this device)
+  var evPick = {};
+  try { evPick = JSON.parse(lsGet("comppoints_events") || "{}") || {}; } catch (e) { evPick = {}; }
+  function curEvent(d) { return d.events.filter(function (x) { return x.id === evPick[d.id]; })[0] || d.events[0] || null; }
+  function setEvent(d, id) { evPick[d.id] = id; lsSet("comppoints_events", JSON.stringify(evPick)); }
+
+  // An athlete can swim several disciplines on the same day. They're in a discipline when:
+  // added by hand (entries = true), or they have a result there, or, if nothing has been set
+  // for them that day yet, it's the day's first discipline. entries = false means taken out.
+  function inEvent(d, ev, athId) {
+    var e = ev.entries ? ev.entries[athId] : undefined;
+    if (e === true) return true;
+    if (e === false) return false;
+    if (score(ev, athId).entered) return true;
+    var legacy = d.assign ? d.assign[athId] : undefined;   // from the one-discipline-per-day version
+    if (legacy) return legacy === ev.id;
+    var placed = d.events.some(function (x) { return (x.entries && x.entries[athId] !== undefined) || score(x, athId).entered; });
+    return !placed && d.events[0] && d.events[0].id === ev.id;
+  }
+  function discsOf(d, athId) { return d.events.filter(function (x) { return inEvent(d, x, athId); }); }
+
+  // Before changing anything, write down where the athlete currently is, so defaults don't shift.
+  function pin(d, athId, ops) {
+    d.events.forEach(function (x) {
+      x.entries = x.entries || {};
+      if (x.entries[athId] === undefined) {
+        var on = inEvent(d, x, athId);
+        x.entries[athId] = on;
+        ops.push({ type: "setEntry", compId: cur.id, dayId: d.id, eventId: x.id, athleteId: athId, on: on });
+      }
+    });
+  }
+  function addTo(d, athId, ev, ops) {
+    pin(d, athId, ops);
+    if (ev.entries[athId] === true) return;
+    ev.entries[athId] = true;
+    ops.push({ type: "setEntry", compId: cur.id, dayId: d.id, eventId: ev.id, athleteId: athId, on: true });
+  }
+  function removeFrom(d, athId, ev, ops) {
+    pin(d, athId, ops);
+    ev.entries[athId] = false;
+    ops.push({ type: "setEntry", compId: cur.id, dayId: d.id, eventId: ev.id, athleteId: athId, on: false });
+    if (ev.results && ev.results[athId]) { delete ev.results[athId]; ops.push({ type: "setResult", compId: cur.id, eventId: ev.id, athleteId: athId, result: {} }); }
+  }
+  function ensureEvent(d, disc, ops) {
+    var x = d.events.filter(function (e2) { return e2.disc === disc; })[0];
+    if (x) return x;
+    x = { id: "e" + uid(), disc: disc, results: {}, entries: {} };
+    d.events.push(x);
+    ops.push({ type: "upsertEvent", compId: cur.id, dayId: d.id, event: { id: x.id, disc: disc, order: d.events.length - 1 } });
+    return x;
+  }
+  function dayOfEvent(evId) { return cur.days.filter(function (d) { return d.events.some(function (ev) { return ev.id === evId; }); })[0]; }
+  function athletesIn(d, ev) { return cur.athletes.filter(function (a) { return inEvent(d, ev, a.id); }); }
+
+  function athlete(id) { return cur.athletes.filter(function (a) { return a.id === id; })[0]; }
+  function findEvent(evId) {
+    for (var i = 0; i < cur.days.length; i++) for (var j = 0; j < cur.days[i].events.length; j++) if (cur.days[i].events[j].id === evId) return cur.days[i].events[j];
+    return null;
+  }
+
+  /* ---------- scoring ---------- */
+  // Returns {entered, dq, seconds|metres, points} for one athlete in one event.
+  function score(ev, athId) {
+    var r = (ev.results || {})[athId] || {};
+    var d = DISC[ev.disc];
+    if (d.kind === "time") {
+      var m = num(r.min), s = num(r.sec);
+      var entered = m != null || s != null;
+      var secs = (m || 0) * 60 + (s || 0);
+      return { entered: entered || !!r.dq, dq: !!r.dq, secs: secs, points: r.dq ? 0 : secs * d.factor };
+    }
+    var dist = num(r.dist);
+    return { entered: dist != null || !!r.dq, dq: !!r.dq, dist: dist || 0, points: r.dq ? 0 : (dist || 0) * d.factor };
+  }
+
+  // Ranks rows of {id, points}; equal points share a place (1, 1, 3).
+  function rank(rows) {
+    rows.sort(function (a, b) { return b.points - a.points; });
+    var place = 0, prev = null;
+    rows.forEach(function (r, i) { if (prev === null || Math.abs(r.points - prev) > 1e-9) place = i + 1; r.place = place; prev = r.points; });
+    return rows;
+  }
+
+  function eventRanking(ev, g) {
+    var d = dayOfEvent(ev.id);
+    return rank(cur.athletes.filter(function (a) { return a.gender === g && (!d || inEvent(d, ev, a.id)); }).map(function (a) {
+      var s = score(ev, a.id); return { id: a.id, points: s.points, entered: s.entered, dq: s.dq };
+    }).filter(function (r) { return r.entered; }));
+  }
+
+  function overallRanking(g) {
+    return rank(cur.athletes.filter(function (a) { return a.gender === g; }).map(function (a) {
+      var total = 0, any = false;
+      cur.days.forEach(function (d) { d.events.forEach(function (ev) { if (!inEvent(d, ev, a.id)) return; var s = score(ev, a.id); if (s.entered) { any = true; total += s.points; } }); });
+      return { id: a.id, points: total, entered: any };
+    }).filter(function (r) { return r.entered; }));
+  }
+
+  /* ---------- rendering ---------- */
+  var MEDAL = ["var(--gold)", "var(--silver)", "var(--bronze)"];
+  var ORD = ["1st", "2nd", "3rd"];
+
+  function podium(rows, g, title) {
+    var h = '<div class="pod" style="--g:' + g.color + '"><div class="pod-title">' + esc(title) + "</div>";
+    var top = rows.filter(function (r) { return r.place <= 3 && !r.dq && r.points > 0; });
+    if (!top.length) h += '<div class="empty">No results yet</div>';
+    top.forEach(function (r) {
+      h += '<div class="place"><span class="medal" style="--m:' + MEDAL[r.place - 1] + '" title="' + ORD[r.place - 1] + ' place">' + r.place + '</span><span class="nm">' + esc(athlete(r.id).name) + '</span><span class="pts">' + fmtPts(r.points) + "</span></div>";
+    });
+    if (rows.length > top.length) {
+      h += '<details class="full-list"><summary>Full ranking (' + rows.length + ")</summary><ol>";
+      rows.forEach(function (r) { h += "<li><span>" + r.place + ". " + esc(athlete(r.id).name) + (r.dq ? " (DQ)" : "") + '</span><span class="mono">' + fmtPts(r.points) + "</span></li>"; });
+      h += "</ol></details>";
+    }
+    return h + "</div>";
+  }
+
+  // disciplines swum in this competition, in the usual order
+  function compDiscs() {
+    var seen = {};
+    cur.days.forEach(function (d) { d.events.forEach(function (ev) { seen[ev.disc] = true; }); });
+    return Object.keys(DISC).filter(function (k) { return seen[k]; });
+  }
+
+  // Standings for one discipline across the whole competition (points added up if it's swum on more than one day)
+  function disciplineRanking(disc, g) {
+    return rank(cur.athletes.filter(function (a) { return a.gender === g; }).map(function (a) {
+      var total = 0, any = false, allDq = true;
+      cur.days.forEach(function (d) { d.events.forEach(function (ev) {
+        if (ev.disc !== disc || !inEvent(d, ev, a.id)) return;
+        var s = score(ev, a.id);
+        if (s.entered) { any = true; total += s.points; if (!s.dq) allDq = false; }
+      }); });
+      return { id: a.id, points: total, entered: any, dq: any && allDq };
+    }).filter(function (r) { return r.entered; }));
+  }
+
+  var standPick = lsGet("comppoints_stand") || "ALL";
+  function overallHtml() {
+    var discs = compDiscs();
+    if (standPick !== "ALL" && discs.indexOf(standPick) < 0) standPick = "ALL";
+    var h = "";
+    if (discs.length) {
+      h += '<div class="tab-row stand-tabs" role="tablist" aria-label="Standings">';
+      ["ALL"].concat(discs).forEach(function (k) {
+        var on = k === standPick;
+        h += '<button type="button" role="tab" aria-selected="' + on + '" class="tab stand-tab' + (on ? " on" : "") + '"' + (k !== "ALL" ? ' style="--d:' + DISC[k].color + '"' : "") + ' data-act="stand" data-id="' + k + '">' + (k === "ALL" ? "Overall" : k) + "</button>";
+      });
+      h += "</div>";
+    }
+    if (standPick === "ALL") {
+      h += '<p class="hint">Points added up across every discipline and day.</p>';
+      h += '<div class="pods">' + GENDERS.map(function (g) { return podium(overallRanking(g.key), g, g.label + " · overall"); }).join("") + "</div>";
+    } else {
+      var d = DISC[standPick];
+      h += '<p class="hint">' + d.name + " · " + d.rule + (cur.days.filter(function (x) { return x.events.some(function (ev) { return ev.disc === standPick; }); }).length > 1 ? " · points added up across the days it's swum" : "") + "</p>";
+      h += '<div class="pods">' + GENDERS.map(function (g) { return podium(disciplineRanking(standPick, g.key), g, g.label + " · " + standPick); }).join("") + "</div>";
+    }
+    return h;
+  }
+  function eventPodsHtml(ev) {
+    return '<div class="pods">' + GENDERS.map(function (g) { return podium(eventRanking(ev, g.key), g, g.label + " · " + ev.disc); }).join("") + "</div>";
+  }
+
+  function pointsCell(ev, athId) {
+    var s = score(ev, athId);
+    if (!s.entered) return '<span class="muted">–</span>';
+    if (s.dq) return "0<small>DQ</small>";
+    var sub = DISC[ev.disc].kind === "time" ? s.secs + " s" : s.dist + " m";
+    return fmtPts(s.points) + "<small>" + sub + "</small>";
+  }
+
+  function resultRow(ev, a) {
+    var r = (ev.results || {})[a.id] || {}, kind = DISC[ev.disc].kind;
+    var k = ev.id + "-" + a.id;
+    var d = dayOfEvent(ev.id);
+    var h = '<div class="res' + (r.dq ? " is-dq" : "") + '" id="row-' + k + '"><span class="nm-wrap"><span class="nm">' + esc(a.name) + "</span>";
+    if (d) {
+      // menu to add this athlete to another discipline today
+      h += '<span class="row-tools"><select class="disc-sel" data-addto="' + a.id + '" data-day="' + d.id + '" aria-label="Add ' + esc(a.name) + ' to another discipline"><option value="">+ Add</option>';
+      Object.keys(DISC).forEach(function (k) {
+        var x = d.events.filter(function (e2) { return e2.disc === k; })[0];
+        if (x && inEvent(d, x, a.id)) return;
+        h += '<option value="' + k + '">' + k + (x ? "" : " (new on " + esc(d.name) + ")") + "</option>";
+      });
+      h += '</select><button type="button" class="x rm-entry" data-act="rm-entry" data-day="' + d.id + '" data-ev="' + ev.id + '" data-ath="' + a.id + '" aria-label="Take ' + esc(a.name) + " out of " + ev.disc + '" title="Take out of ' + ev.disc + '">✕</button></span>';
+    }
+    h += "</span>";
+    if (ui.confirmRm === k) {
+      h += '<div class="confirm rm-confirm"><p>Take <b>' + esc(a.name) + "</b> out of " + ev.disc + "? Their result here is removed.</p><div class=\"row-actions\"><button class=\"btn small danger\" data-act=\"rm-entry-yes\" data-day=\"" + d.id + '" data-ev="' + ev.id + '" data-ath="' + a.id + '">Take out</button><button class="btn ghost small" data-act="rm-entry-no">Keep</button></div></div>';
+    }
+    h += '<span class="in">';
+    if (kind === "time") {
+      h += '<input id="mn-' + k + '" type="text" inputmode="numeric" data-ev="' + ev.id + '" data-ath="' + a.id + '" data-f="min" value="' + esc(r.min) + '" placeholder="0" aria-label="' + esc(a.name) + ' minutes"><span class="unit">min</span>';
+      h += '<input id="sc-' + k + '" type="text" inputmode="numeric" data-ev="' + ev.id + '" data-ath="' + a.id + '" data-f="sec" value="' + esc(r.sec) + '" placeholder="00" aria-label="' + esc(a.name) + ' seconds"><span class="unit">s</span>';
+    } else {
+      h += '<input id="ds-' + k + '" class="dist" type="text" inputmode="decimal" data-ev="' + ev.id + '" data-ath="' + a.id + '" data-f="dist" value="' + esc(r.dist) + '" placeholder="0" aria-label="' + esc(a.name) + ' metres"><span class="unit">m</span>';
+    }
+    h += '</span><span class="pt" id="pt-' + k + '">' + pointsCell(ev, a.id) + "</span>";
+    h += '<button type="button" class="dq' + (r.dq ? " on" : "") + '" data-act="dq" data-ev="' + ev.id + '" data-ath="' + a.id + '" aria-pressed="' + !!r.dq + '" title="Disqualified: 0 points">DQ</button></div>';
+    return h;
+  }
+
+  function render() {
+    var app = document.getElementById("app");
+    var focusId = document.activeElement && document.activeElement.id;
+    var keep = {};
+    ["new-comp", "rename-in", "ath-F", "ath-M", "sheet-url"].forEach(function (id) { var el = document.getElementById(id); if (el) keep[id] = el.value; });
+    var h = "";
+    h += '<div class="topbar"><a class="nav-btn" href="https://samisdiving.com/nav" aria-label="Back to the nav page">← Nav</a></div>';
+
+    // competition tabs
+    h += '<nav aria-label="Competitions"><div class="tab-row">';
+    all.comps.slice().reverse().forEach(function (c) {
+      h += '<button type="button" class="tab' + (c.id === cur.id ? " on" : "") + '" data-act="tab" data-id="' + c.id + '"' + (c.id === cur.id ? ' aria-current="page"' : "") + ">" + esc(c.name) + "</button>";
+    });
+    h += '<button type="button" class="tab add" data-act="new">+ New competition</button></div></nav>';
+    if (ui.newOpen) {
+      h += '<form class="panel" id="new-form"><h2>New competition</h2><div><label class="label" for="new-comp">Name</label><input id="new-comp" type="text" placeholder="e.g. Bali Pool Cup 2026" required></div>';
+      if (cur.athletes.length) h += '<label class="hint" style="display:flex;gap:8px;align-items:center"><input id="copy-ath" type="checkbox" checked> Same athletes as ' + esc(cur.name) + " (" + cur.athletes.length + ")</label>";
+      h += '<div class="row-actions"><button type="submit" class="btn">Create</button><button type="button" class="btn ghost" data-act="new">Cancel</button></div></form>';
+    }
+
+    // header
+    h += '<header class="top"><div class="eyebrow-row"><p class="eyebrow">Competition points</p><span id="sync-status" class="status ' + sync.cls + '"' + (sync.text ? "" : " hidden") + ">" + esc(sync.text) + "</span></div>";
+    if (ui.renaming) {
+      h += '<form class="rename-form" id="rename-form"><input id="rename-in" type="text" value="' + esc(cur.name) + '" aria-label="Competition name" required><div class="row-actions"><button class="btn small" type="submit">Save name</button><button class="btn ghost small" type="button" data-act="rename-cancel">Cancel</button></div></form>';
+    } else {
+      h += '<div class="title-row"><h1 class="comp-title">' + esc(cur.name) + '</h1><button type="button" class="pill-btn" data-act="rename">✎ Rename</button><button type="button" class="pill-btn del" data-act="del">🗑 Delete</button></div>';
+    }
+    h += "</header>";
+    if (ui.confirmDel) {
+      h += '<div class="confirm"><p><b>Delete ' + esc(cur.name) + "?</b> Its " + cur.athletes.length + " athletes and all results go too. This can't be undone.</p>";
+      h += '<div class="row-actions"><button class="btn small danger" data-act="del-yes">Delete competition</button><button class="btn ghost small" data-act="del-no">Keep it</button></div></div>';
+    }
+
+    // overall
+    h += '<section class="panel"><div class="panel-head"><h2>Standings</h2><button class="btn ghost small" data-act="copy">Copy results</button></div>';
+    h += '<div id="overall">' + overallHtml() + "</div></section>";
+
+    // athletes
+    h += '<section class="panel"><div class="panel-head"><h2>Athletes</h2><div class="row-actions"><span class="muted">' + cur.athletes.length + " entered</span>" + (cur.athletes.length ? '<button type="button" class="btn ghost small" data-act="rm-all-ath">Remove all</button>' : "") + "</div></div>";
+    if (ui.confirmRmAllAth) {
+      var nRes = 0;
+      cur.days.forEach(function (d) { d.events.forEach(function (ev) { nRes += Object.keys(ev.results || {}).length; }); });
+      h += '<div class="confirm"><p>Remove all <b>' + cur.athletes.length + " athletes</b> from " + esc(cur.name) + (nRes ? " and their " + nRes + " result" + (nRes === 1 ? "" : "s") : "") + "? This can't be undone.</p>";
+      h += '<div class="row-actions"><button class="btn small danger" data-act="rm-all-ath-yes">Remove all athletes</button><button class="btn ghost small" data-act="rm-all-ath-no">Keep them</button></div></div>';
+    }
+    h += '<div class="genders">';
+    GENDERS.forEach(function (g) {
+      var list = cur.athletes.filter(function (a) { return a.gender === g.key; });
+      h += '<div class="gcol"><div class="gtitle"><span class="gdot" style="--g:' + g.color + '"></span>' + g.label + ' <span class="muted">(' + list.length + ")</span></div>";
+      h += '<div class="chips">' + (list.length ? list.map(function (a) { return '<span class="chip">' + esc(a.name) + '<button class="x" data-act="rm-ath" data-id="' + a.id + '" aria-label="Remove ' + esc(a.name) + '">✕</button></span>'; }).join("") : '<span class="muted">No ' + g.label.toLowerCase() + " yet</span>") + "</div>";
+      h += '<form class="add-row" data-gender="' + g.key + '"><textarea id="ath-' + g.key + '" rows="1" placeholder="Name, or paste a list" aria-label="Add ' + g.label.toLowerCase() + ', one name per line or separated by commas"></textarea><button class="btn small" type="submit">Add</button></form>';
+      h += '<p class="msg" id="msg-' + g.key + '" hidden></p></div>';
+    });
+    h += "</div></section>";
+
+    // days as tabs; only the chosen day is shown
+    var d = curDay();
+    h += '<section class="panel days-panel"><nav aria-label="Days"><div class="tab-row day-tabs">';
+    cur.days.forEach(function (x) {
+      var on = x.id === d.id;
+      h += '<button type="button" class="tab day-tab' + (on ? " on" : "") + '" data-act="day-tab" data-id="' + x.id + '"' + (on ? ' aria-current="page"' : "") + ">" + esc(x.name) + '<span class="tab-count">' + x.events.map(function (ev) { return ev.disc; }).join(" · ") + "</span></button>";
+    });
+    h += '<button type="button" class="tab add" data-act="add-day">+ Add day</button></div></nav>';
+    h += '<div class="day-head"><label class="label" for="day-' + d.id + '">Day name</label><div class="day-name-row"><input class="day-name" id="day-' + d.id + '" data-day="' + d.id + '" value="' + esc(d.name) + '" aria-label="Day name">';
+    if (cur.days.length > 1) h += '<button class="pill-btn del" data-act="rm-day" data-id="' + d.id + '">🗑 Delete day</button>';
+    h += "</div></div>";
+    if (ui.confirmDay === d.id) {
+      h += '<div class="confirm"><p>Delete <b>' + esc(d.name) + "</b> and its " + d.events.length + " discipline" + (d.events.length === 1 ? "" : "s") + "? Their results go too.</p><div class=\"row-actions\"><button class=\"btn small danger\" data-act=\"rm-day-yes\" data-id=\"" + d.id + '">Delete day</button><button class="btn ghost small" data-act="rm-day-no">Keep it</button></div></div>';
+    }
+    if (!d.events.length) h += '<div class="empty-box">Add the disciplines swum on this day.</div>';
+    var ev = curEvent(d);
+    if (d.events.length) {
+      h += '<nav aria-label="Disciplines"><div class="tab-row disc-tabs">';
+      d.events.forEach(function (x) {
+        var on = x.id === ev.id, n = athletesIn(d, x).length;
+        h += '<button type="button" class="tab disc-tab' + (on ? " on" : "") + '" style="--d:' + DISC[x.disc].color + '" data-act="ev-tab" data-day="' + d.id + '" data-id="' + x.id + '"' + (on ? ' aria-current="page"' : "") + ">" + x.disc + ' <span class="tab-n">' + n + "</span></button>";
+      });
+      h += "</div></nav>";
+    }
+    if (ev) {
+      var disc = DISC[ev.disc];
+      h += '<div class="event" id="ev-' + ev.id + '"><div class="ev-head" style="--d:' + disc.color + '"><span class="disc">' + ev.disc + '</span><span class="rule">' + disc.name + " · " + disc.rule + '</span><button class="x" data-act="rm-ev" data-id="' + ev.id + '" aria-label="Remove ' + ev.disc + '">✕</button></div><div class="ev-body">';
+      if (ui.confirmEv === ev.id) {
+        h += '<div class="confirm"><p>Remove <b>' + ev.disc + "</b> from " + esc(d.name) + "? Its results go too.</p><div class=\"row-actions\"><button class=\"btn small danger\" data-act=\"rm-ev-yes\" data-id=\"" + ev.id + '">Remove</button><button class="btn ghost small" data-act="rm-ev-no">Keep it</button></div></div>';
+      }
+      if (!cur.athletes.length) h += '<p class="hint">Add athletes above, then enter their results here.</p>';
+      var inHere = athletesIn(d, ev);
+      if (inHere.length) {
+        var withResHere = inHere.filter(function (a) { return score(ev, a.id).entered; }).length;
+        h += '<div class="elsewhere-head"><span class="label">' + inHere.length + " in " + ev.disc + '</span><button type="button" class="btn ghost small" data-act="rm-all-ev" data-day="' + d.id + '" data-ev="' + ev.id + '" data-risky="' + withResHere + '">Remove all</button></div>';
+        if (ui.confirmRmAllEv === ev.id) {
+          h += '<div class="confirm"><p>Take all ' + inHere.length + " athletes out of " + ev.disc + "? " + withResHere + " result" + (withResHere === 1 ? "" : "s") + " here will be removed. They stay in the competition and in their other disciplines.</p>";
+          h += '<div class="row-actions"><button class="btn small danger" data-act="rm-all-ev-yes" data-day="' + d.id + '" data-ev="' + ev.id + '">Take all out</button><button class="btn ghost small" data-act="rm-all-ev-no">Keep them</button></div></div>';
+        }
+      }
+      h += '<div class="results">';
+      GENDERS.forEach(function (g) {
+        var list = inHere.filter(function (a) { return a.gender === g.key; });
+        if (!list.length) return;
+        h += '<div class="rgroup-title"><span class="gdot" style="--g:' + g.color + '"></span>' + g.label + "</div>";
+        list.forEach(function (a) { h += resultRow(ev, a); });
+      });
+      h += "</div>";
+      var elsewhere = cur.athletes.filter(function (a) { return !inEvent(d, ev, a.id); });
+      if (elsewhere.length) {
+        h += '<div class="elsewhere"><div class="elsewhere-head"><span class="label">Not in ' + ev.disc + ' · tap to add</span><button type="button" class="btn small" data-act="add-all" data-day="' + d.id + '" data-ev="' + ev.id + '">Add all ' + elsewhere.length + "</button></div>";
+        h += '<div class="chips">';
+        elsewhere.forEach(function (a) {
+          var other = discsOf(d, a.id).map(function (x) { return x.disc; });
+          h += '<button type="button" class="chip move-chip" data-act="add-here" data-ath="' + a.id + '" data-day="' + d.id + '" data-ev="' + ev.id + '"><span class="gdot" style="--g:' + (a.gender === "M" ? "var(--men)" : "var(--women)") + '"></span>' + esc(a.name) + (other.length ? ' <span class="muted">' + other.join(", ") + "</span>" : "") + "</button>";
+        });
+        h += "</div></div>";
+      }
+      h += '<div id="pods-' + ev.id + '">' + eventPodsHtml(ev) + "</div></div></div>";
+    }
+    h += '<div class="add-disc"><span class="label">Add discipline</span>';
+    Object.keys(DISC).forEach(function (k) { h += '<button class="btn small" data-act="add-ev" data-day="' + d.id + '" data-disc="' + k + '">+ ' + k + "</button>"; });
+    h += "</div></section>";
+
+    h += '<footer class="foot"><span id="saved-note">' + saveText() + '</span><span>STA: seconds × 0.2 · DYN, DNF, DYNB: metres × 0.5</span></footer>';
+    h += sheetPanel();
+    app.innerHTML = h;
+    Object.keys(keep).forEach(function (id) { var el = document.getElementById(id); if (el && keep[id] != null) el.value = keep[id]; });
+    if (focusId) { var f = document.getElementById(focusId); if (f) f.focus(); }
+  }
+
+  // Live update while typing: only the points, podiums and overall change, so the keyboard stays put.
+  function refreshEvent(ev, athId) {
+    var k = ev.id + "-" + athId;
+    var pt = document.getElementById("pt-" + k); if (pt) pt.innerHTML = pointsCell(ev, athId);
+    var row = document.getElementById("row-" + k); if (row) row.classList.toggle("is-dq", !!((ev.results || {})[athId] || {}).dq);
+    var pods = document.getElementById("pods-" + ev.id); if (pods) pods.innerHTML = eventPodsHtml(ev);
+    var ov = document.getElementById("overall"); if (ov) ov.innerHTML = overallHtml();
+  }
+
+  /* ---------- events ---------- */
+  var app = document.getElementById("app");
+
+  app.addEventListener("input", function (e) {
+    var t = e.target;
+    if (t.dataset.ev) {
+      var ev = findEvent(t.dataset.ev); if (!ev) return;
+      ev.results = ev.results || {};
+      var r = ev.results[t.dataset.ath] = ev.results[t.dataset.ath] || {};
+      r[t.dataset.f] = t.value.replace(/[^\d.,]/g, "");
+      if (t.value !== r[t.dataset.f]) t.value = r[t.dataset.f];
+      refreshEvent(ev, t.dataset.ath);
+      save([resultOp(ev, t.dataset.ath)]);
+    }
+  });
+
+  app.addEventListener("change", function (e) {
+    var t = e.target;
+    if (t.dataset.addto) {
+      var dd = cur.days.filter(function (x) { return x.id === t.dataset.day; })[0], disc = t.value;
+      if (!dd || !disc) return;
+      var aops = [], target = ensureEvent(dd, disc, aops);
+      addTo(dd, t.dataset.addto, target, aops);
+      save(aops); render();
+      return;
+    }
+    if (t.dataset.day && t.classList.contains("day-name")) {
+      var d = cur.days.filter(function (x) { return x.id === t.dataset.day; })[0];
+      if (d) { d.name = t.value.trim() || d.name; t.value = d.name; save([{ type: "upsertDay", compId: cur.id, day: { id: d.id, name: d.name, order: cur.days.indexOf(d) } }]); render(); }
+    }
+    // tidy STA seconds: 75 s becomes 1 min 15 s
+    if (t.dataset.f === "sec" || t.dataset.f === "min") {
+      var ev = findEvent(t.dataset.ev), r = ev.results[t.dataset.ath];
+      var s = num(r.sec), m = num(r.min);
+      if (s != null && s >= 60) {
+        r.min = String((m || 0) + Math.floor(s / 60)); r.sec = String(Math.round((s % 60) * 100) / 100);
+        var k = ev.id + "-" + t.dataset.ath, mi = document.getElementById("mn-" + k), si = document.getElementById("sc-" + k);
+        if (mi) mi.value = r.min; if (si) si.value = r.sec;
+        refreshEvent(ev, t.dataset.ath); save([resultOp(ev, t.dataset.ath)]);
+      }
+    }
+  });
+
+  app.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var f = e.target;
+    if (f.id === "new-form") {
+      var name = document.getElementById("new-comp").value.trim(); if (!name) return;
+      var c = newComp(name), copy = document.getElementById("copy-ath");
+      if (copy && copy.checked) c.athletes = cur.athletes.map(function (a) { return { id: "a" + uid(), name: a.name, gender: a.gender }; });
+      all.comps.push(c); ui.newOpen = false; document.getElementById("new-comp").value = "";
+      var cops = [{ type: "upsertComp", comp: { id: c.id, name: c.name, created: c.created } }];
+      c.athletes.forEach(function (a) { cops.push({ type: "upsertAthlete", compId: c.id, athlete: a }); });
+      c.days.forEach(function (d, i) { cops.push({ type: "upsertDay", compId: c.id, day: { id: d.id, name: d.name, order: i } }); });
+      pick(c.id); save(cops); render(); window.scrollTo(0, 0); return;
+    }
+    if (f.id === "rename-form") {
+      var v = document.getElementById("rename-in").value.trim();
+      if (v) cur.name = v;
+      ui.renaming = false; save([{ type: "upsertComp", comp: { id: cur.id, name: cur.name, created: cur.created } }]); render(); return;
+    }
+    if (f.dataset.gender) {
+      // one name, or a whole list: one per line, or separated by commas / semicolons
+      var g = f.dataset.gender, inp = document.getElementById("ath-" + g);
+      var names = inp.value.split(/[\n,;]+/).map(function (x) { return x.replace(/^\s*(\d+[.)]\s*|[-•*]\s*)/, "").trim(); }).filter(Boolean);
+      if (!names.length) return;
+      var added = [], dupes = [], aops = [];
+      names.forEach(function (nm) {
+        if (cur.athletes.some(function (a) { return a.name.toLowerCase() === nm.toLowerCase() && a.gender === g; })) { dupes.push(nm); return; }
+        var na = { id: "a" + uid(), name: nm, gender: g };
+        cur.athletes.push(na); added.push(nm);
+        aops.push({ type: "upsertAthlete", compId: cur.id, athlete: na });
+      });
+      inp.value = ""; save(aops); render();
+      var again = document.getElementById("ath-" + g); if (again) { again.value = ""; again.focus(); }
+      var msg = document.getElementById("msg-" + g);
+      if (msg && (dupes.length || added.length > 1)) {
+        msg.textContent = (added.length > 1 ? "Added " + added.length + ". " : "") + (dupes.length ? "Already on the list: " + dupes.join(", ") + "." : "");
+        msg.className = "msg" + (dupes.length ? "" : " ok"); msg.hidden = false;
+      }
+    }
+  });
+
+  app.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-act]"); if (!t) return;
+    var act = t.dataset.act, id = t.dataset.id;
+    if (act === "tab") { if (id === cur.id) { ui.renaming = true; render(); var ri = document.getElementById("rename-in"); if (ri) { ri.focus(); ri.select(); } return; } ui = { newOpen: false, renaming: false, confirmDel: false, confirmDay: "", savedOk: ui.savedOk }; pick(id); render(); window.scrollTo(0, 0); return; }
+    if (act === "new") { ui.newOpen = !ui.newOpen; render(); var nc = document.getElementById("new-comp"); if (nc) nc.focus(); return; }
+    if (act === "rename") { ui.renaming = true; ui.confirmDel = false; render(); var r = document.getElementById("rename-in"); if (r) { r.focus(); r.select(); } return; }
+    if (act === "rename-cancel") { ui.renaming = false; render(); return; }
+    if (act === "del") { ui.confirmDel = true; ui.renaming = false; render(); return; }
+    if (act === "del-no") { ui.confirmDel = false; render(); return; }
+    if (act === "del-yes") {
+      var gone = cur.id, dops = [{ type: "deleteComp", id: gone }];
+      all.comps = all.comps.filter(function (c) { return c.id !== gone; });
+      if (!all.comps.length) {
+        var fresh = newComp("New competition"); all.comps.push(fresh);
+        dops.push({ type: "upsertComp", comp: { id: fresh.id, name: fresh.name, created: fresh.created } }, { type: "upsertDay", compId: fresh.id, day: { id: fresh.days[0].id, name: fresh.days[0].name, order: 0 } });
+      }
+      ui.confirmDel = false; currentId = ""; pick(); save(dops); render(); window.scrollTo(0, 0); return;
+    }
+    if (act === "rm-ath") {
+      cur.athletes = cur.athletes.filter(function (a) { return a.id !== id; });
+      cur.days.forEach(function (d) { d.events.forEach(function (ev) { if (ev.results) delete ev.results[id]; }); });
+      save([{ type: "deleteAthlete", compId: cur.id, id: id }]); render(); return;
+    }
+    if (act === "add-ev") {
+      var day = cur.days.filter(function (d) { return d.id === t.dataset.day; })[0];
+      var ne = { id: "e" + uid(), disc: t.dataset.disc, results: {} };
+      day.events.push(ne);
+      setEvent(day, ne.id);
+      save([{ type: "upsertEvent", compId: cur.id, dayId: day.id, event: { id: ne.id, disc: ne.disc, order: day.events.length - 1 } }]); render();
+      return;
+    }
+    if (act === "rm-ev") { var rev = findEvent(id); if (rev && !Object.keys(rev.results || {}).length) { removeEvent(id); return; } ui.confirmEv = id; render(); return; }
+    if (act === "rm-ev-no") { ui.confirmEv = ""; render(); return; }
+    if (act === "rm-ev-yes") { removeEvent(id); return; }
+    if (act === "ev-tab") { var dd0 = cur.days.filter(function (d) { return d.id === t.dataset.day; })[0]; ui.confirmEv = ""; setEvent(dd0, id); render(); return; }
+    if (act === "add-here" || act === "add-all" || act === "rm-entry" || act === "rm-entry-yes") {
+      var dy = cur.days.filter(function (x) { return x.id === t.dataset.day; })[0];
+      var evx = dy && dy.events.filter(function (x) { return x.id === t.dataset.ev; })[0];
+      if (!evx) return;
+      var eops = [];
+      if (act === "add-here") addTo(dy, t.dataset.ath, evx, eops);
+      if (act === "add-all") cur.athletes.forEach(function (a) { if (!inEvent(dy, evx, a.id)) addTo(dy, a.id, evx, eops); });
+      if (act === "rm-entry" && score(evx, t.dataset.ath).entered) { ui.confirmRm = evx.id + "-" + t.dataset.ath; render(); return; }
+      if (act === "rm-entry" || act === "rm-entry-yes") { removeFrom(dy, t.dataset.ath, evx, eops); ui.confirmRm = ""; }
+      save(eops); render(); return;
+    }
+    if (act === "rm-entry-no") { ui.confirmRm = ""; render(); return; }
+    if (act === "rm-all-ev" || act === "rm-all-ev-yes") {
+      var dz = cur.days.filter(function (x) { return x.id === t.dataset.day; })[0];
+      var evz = dz && dz.events.filter(function (x) { return x.id === t.dataset.ev; })[0];
+      if (!evz) return;
+      // results are typed without a re-render, so check for them now rather than when the button was drawn
+      if (act === "rm-all-ev" && athletesIn(dz, evz).some(function (a) { return score(evz, a.id).entered; })) { ui.confirmRmAllEv = evz.id; render(); return; }
+      var zops = [];
+      athletesIn(dz, evz).forEach(function (a) { removeFrom(dz, a.id, evz, zops); });
+      ui.confirmRmAllEv = ""; save(zops); render(); return;
+    }
+    if (act === "rm-all-ev-no") { ui.confirmRmAllEv = ""; render(); return; }
+    if (act === "rm-all-ath") { ui.confirmRmAllAth = true; render(); return; }
+    if (act === "rm-all-ath-no") { ui.confirmRmAllAth = false; render(); return; }
+    if (act === "rm-all-ath-yes") {
+      var gops = cur.athletes.map(function (a) { return { type: "deleteAthlete", compId: cur.id, id: a.id }; });
+      cur.athletes = [];
+      cur.days.forEach(function (d) { d.assign = {}; d.events.forEach(function (ev) { ev.results = {}; ev.entries = {}; }); });
+      ui.confirmRmAllAth = false; save(gops); render(); return;
+    }
+    if (act === "day-tab") { ui.confirmDay = ""; setDay(id); render(); return; }
+    if (act === "add-day") {
+      var nd = { id: "d" + uid(), name: "Day " + (cur.days.length + 1), events: [] };
+      cur.days.push(nd); setDay(nd.id);
+      save([{ type: "upsertDay", compId: cur.id, day: { id: nd.id, name: nd.name, order: cur.days.length - 1 } }]); render();
+      var dn = document.getElementById("day-" + nd.id); if (dn) { dn.focus(); dn.select(); }
+      return;
+    }
+    if (act === "rm-day") { var dd = cur.days.filter(function (d) { return d.id === id; })[0]; if (dd && !dd.events.length) { removeDay(id); return; } ui.confirmDay = id; render(); return; }
+    if (act === "rm-day-no") { ui.confirmDay = ""; render(); return; }
+    if (act === "rm-day-yes") { removeDay(id); return; }
+    if (act === "dq") {
+      var ev = findEvent(t.dataset.ev); ev.results = ev.results || {};
+      var rr = ev.results[t.dataset.ath] = ev.results[t.dataset.ath] || {};
+      rr.dq = !rr.dq; t.classList.toggle("on", rr.dq); t.setAttribute("aria-pressed", rr.dq);
+      refreshEvent(ev, t.dataset.ath); save([resultOp(ev, t.dataset.ath)]); return;
+    }
+    if (act === "copy") { copyResults(t); return; }
+    if (act === "stand") { standPick = id; lsSet("comppoints_stand", id); var ov = document.getElementById("overall"); if (ov) ov.innerHTML = overallHtml(); return; }
+  });
+
+  // athlete boxes: Enter adds, Shift+Enter starts a new line; the box grows with a pasted list
+  app.addEventListener("keydown", function (e) {
+    if (e.target.tagName === "TEXTAREA" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.target.form.requestSubmit ? e.target.form.requestSubmit() : e.target.form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true })); }
+  });
+  app.addEventListener("input", function (e) {
+    if (e.target.tagName === "TEXTAREA") { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && (ui.renaming || ui.newOpen || ui.confirmDel)) { ui.renaming = ui.newOpen = ui.confirmDel = false; render(); }
+  });
+
+  function removeEvent(id) {
+    cur.days.forEach(function (d) {
+      d.events = d.events.filter(function (ev) { return ev.id !== id; });
+      Object.keys(d.assign || {}).forEach(function (a) { if (d.assign[a] === id) delete d.assign[a]; });   // old-style entries
+    });
+    ui.confirmEv = "";
+    save([{ type: "deleteEvent", compId: cur.id, id: id }]); render();
+  }
+
+
+
+  function removeDay(id) {
+    var i = cur.days.map(function (d) { return d.id; }).indexOf(id);
+    cur.days = cur.days.filter(function (d) { return d.id !== id; });
+    ui.confirmDay = "";
+    if (cur.days[Math.max(0, i - 1)]) setDay(cur.days[Math.max(0, i - 1)].id);
+    save([{ type: "deleteDay", compId: cur.id, id: id }]); render();
+  }
+
+  function copyResults(btn) {
+    var lines = [cur.name];
+    function block(title, rows) {
+      lines.push("", title);
+      var top = rows.filter(function (r) { return r.place <= 3 && !r.dq && r.points > 0; });
+      if (!top.length) lines.push("  no results yet");
+      top.forEach(function (r) { lines.push("  " + ORD[r.place - 1] + "  " + athlete(r.id).name + " · " + fmtPts(r.points) + " pts"); });
+    }
+    GENDERS.forEach(function (g) { block("OVERALL · " + g.label, overallRanking(g.key)); });
+    compDiscs().forEach(function (k) { GENDERS.forEach(function (g) { block(k + " · " + g.label, disciplineRanking(k, g.key)); }); });
+    // per-day results only add something when a discipline is swum on more than one day
+    var times = {};
+    cur.days.forEach(function (d) { d.events.forEach(function (ev) { times[ev.disc] = (times[ev.disc] || 0) + 1; }); });
+    cur.days.forEach(function (d) { d.events.forEach(function (ev) { if (times[ev.disc] > 1) GENDERS.forEach(function (g) { block(d.name + " · " + ev.disc + " · " + g.label, eventRanking(ev, g.key)); }); }); });
+    var text = lines.join("\n");
+    function ok() { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy results"; }, 1600); }
+    function fallback() { var ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); } catch (e) {} ta.remove(); ok(); }
+    try { navigator.clipboard.writeText(text).then(ok, fallback); } catch (e) { fallback(); }
+  }
+
+  /* ---------- Google Sheet sync ---------- */
+  // Paste the Web app URL of the Apps Script deployment here (ends in /exec) to share one set of results.
+  var SHEET_URL = "https://script.google.com/macros/s/AKfycbxp0nSYefhr1VWuBrRgGsB3HcFVKosQCnw9U1U2iwaoabaD1-lEyXYBn7Z2W6r2kCUA/exec";
+  var sheetUrl = SHEET_URL || lsGet("comppoints_sheet_url") || "";
+  var LS_OUT = "comppoints_outbox";
+  var outbox = [];
+  try { outbox = JSON.parse(lsGet(LS_OUT) || "[]") || []; } catch (e) { outbox = []; }
+  var sync = { text: "", cls: "", link: lsGet("comppoints_sheet_link") || "", error: "" };
+
+  function setSync(text, cls) {
+    sync.text = text; sync.cls = cls || "";
+    var el = document.getElementById("sync-status");
+    if (el) { el.textContent = text; el.className = "status " + sync.cls; el.hidden = !text; }
+  }
+
+  function sheetPanel() {
+    var h = '<details class="panel sheet-panel"' + (!sheetUrl || sync.error ? " open" : "") + '><summary><span>Google Sheet</span><span class="muted">' + (sheetUrl ? (sync.error ? "Problem" : "Connected") : "Not connected") + "</span></summary>";
+    if (!SHEET_URL) {
+      h += '<p class="hint">Paste the Web app URL from your Apps Script deployment (it ends in <code>/exec</code>) so every phone shares the same results.</p>';
+      h += '<form class="add-row" id="sheet-form"><input id="sheet-url" type="text" placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(sheetUrl) + '" aria-label="Web app URL"><button class="btn small" type="submit">Connect</button></form>';
+    } else {
+      h += '<p class="hint">Every result saves to the Google Sheet, and the page checks for other judges\' changes every 30 seconds.</p>';
+    }
+    if (sync.error) h += '<p class="msg">' + esc(sync.error) + "</p>";
+    if (sheetUrl) {
+      h += '<div class="row-actions">';
+      if (sync.link) h += '<a class="btn ghost small" href="' + esc(sync.link) + '" target="_blank" rel="noopener">Open the sheet</a>';
+      h += '<button type="button" class="btn ghost small" data-act="upload">Send this phone\'s results to the sheet</button><button type="button" class="btn ghost small" data-act="sync-now">Refresh now</button></div>';
+    }
+    return h + "</details>";
+  }
+
+  function jsonp(url) {
+    return new Promise(function (resolve, reject) {
+      var cb = "__cp_" + Math.random().toString(36).slice(2), tag = document.createElement("script");
+      var timer = setTimeout(function () { done(); reject(new Error("The sheet didn't answer in time.")); }, 20000);
+      function done() { clearTimeout(timer); delete window[cb]; tag.remove(); }
+      window[cb] = function (d) { done(); resolve(d); };
+      tag.onerror = function () { done(); reject(new Error("Couldn't reach the sheet. Check the Web app access is set to Anyone.")); };
+      tag.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "callback=" + cb + "&t=" + Date.now();
+      document.head.appendChild(tag);
+    });
+  }
+
+  function gotInfo(res) {
+    if (res.sheet && res.sheet !== sync.link) { sync.link = res.sheet; lsSet("comppoints_sheet_link", res.sheet); }
+    if (sync.error) { sync.error = ""; render(); }
+  }
+  function failed(err) {
+    sync.error = (err && err.message) || String(err);
+    setSync(navigator.onLine === false ? "Offline · saved on this phone" : "Sheet problem · see below", "warn");
+    render();
+  }
+
+  // Results change on every keystroke: keep only the newest unsent value per athlete per discipline.
+  var inFlight = 0;
+  function queue(ops) {
+    if (!sheetUrl || !ops.length) return;
+    ops.forEach(function (op) {
+      if (op.type === "setResult") {
+        for (var i = outbox.length - 1; i >= inFlight; i--) {
+          var o = outbox[i];
+          if (o.type === "setResult" && o.eventId === op.eventId && o.athleteId === op.athleteId) outbox.splice(i, 1);
+        }
+      }
+      outbox.push(op);
+    });
+    lsSet(LS_OUT, JSON.stringify(outbox));
+    clearTimeout(flushTimer);
+    flushTimer = setTimeout(flush, 600);
+  }
+
+  function nextBatch() {
+    var batch = [];
+    for (var i = 0; i < outbox.length; i++) {
+      var trial = batch.concat([outbox[i]]);
+      if (batch.length && encodeURIComponent(JSON.stringify(trial)).length > 1500) break;
+      batch = trial;
+    }
+    return batch;
+  }
+
+  var flushing = false, flushTimer = null, retryTimer = null;
+  function flush() {
+    if (flushing || !outbox.length || !sheetUrl) return;
+    flushing = true;
+    var batch = nextBatch(); inFlight = batch.length;
+    setSync("Saving… " + outbox.length + " left", "busy");
+    jsonp(sheetUrl + "?action=write&ops=" + encodeURIComponent(JSON.stringify(batch))).then(function (res) {
+      if (!res || !res.ok) throw new Error("The sheet refused the change: " + ((res && res.error) || "unknown"));
+      gotInfo(res);
+      outbox = outbox.slice(batch.length); inFlight = 0;
+      lsSet(LS_OUT, JSON.stringify(outbox));
+      flushing = false;
+      if (outbox.length) flush();
+      else { setSync("Saved to sheet", "ok"); setTimeout(pull, 1500); }
+    }).catch(function (err) {
+      flushing = false; inFlight = 0;
+      failed(err);
+      setSync(outbox.length + " change" + (outbox.length === 1 ? "" : "s") + " waiting to save", "warn");
+      clearTimeout(retryTimer); retryTimer = setTimeout(flush, 20000);
+    });
+  }
+
+  function hasData(a) { return a.comps.some(function (c) { return c.athletes.length || c.days.some(function (d) { return d.events.length; }); }); }
+
+  function uploadAll() {
+    var ops = [];
+    all.comps.forEach(function (c) {
+      ops.push({ type: "upsertComp", comp: { id: c.id, name: c.name, created: c.created } });
+      c.athletes.forEach(function (a) { ops.push({ type: "upsertAthlete", compId: c.id, athlete: a }); });
+      c.days.forEach(function (d, i) {
+        ops.push({ type: "upsertDay", compId: c.id, day: { id: d.id, name: d.name, order: i } });
+        Object.keys(d.assign || {}).forEach(function (aid) { ops.push({ type: "setAssign", compId: c.id, dayId: d.id, athleteId: aid, eventId: d.assign[aid] }); });
+        d.events.forEach(function (ev, j) {
+          ops.push({ type: "upsertEvent", compId: c.id, dayId: d.id, event: { id: ev.id, disc: ev.disc, order: j } });
+          Object.keys(ev.entries || {}).forEach(function (aid) { ops.push({ type: "setEntry", compId: c.id, dayId: d.id, eventId: ev.id, athleteId: aid, on: !!ev.entries[aid] }); });
+          Object.keys(ev.results || {}).forEach(function (aid) {
+            var r = ev.results[aid];
+            ops.push({ type: "setResult", compId: c.id, eventId: ev.id, athleteId: aid, result: { min: r.min || "", sec: r.sec || "", dist: r.dist || "", dq: !!r.dq } });
+          });
+        });
+      });
+    });
+    queue(ops); // upserts by id, so sending twice never duplicates
+  }
+
+  var lastJson = "";
+  function pull(force) {
+    if (!sheetUrl || (outbox.length && !force)) return;
+    jsonp(sheetUrl).then(function (res) {
+      if (!res || !res.ok) throw new Error("The sheet replied with an error: " + ((res && res.error) || "unknown"));
+      gotInfo(res);
+      if (outbox.length) return;
+      var incoming = res.state || { comps: [] };
+      if (!incoming.comps.length || (!hasData(incoming) && hasData(all))) { uploadAll(); return; } // empty sheet: fill it, never wipe this phone
+      var js = JSON.stringify(incoming);
+      if (js === lastJson) { setSync("Synced", "ok"); return; }
+      // don't swap the page out from under someone typing; the next check picks it up
+      var a = document.activeElement;
+      if (a && a.tagName === "INPUT" && document.getElementById("app").contains(a) && !force) return;
+      lastJson = js;
+      all = incoming;
+      all.comps.forEach(function (c) { c.days.forEach(function (d) { d.events.forEach(function (ev) { ev.results = ev.results || {}; ev.entries = ev.entries || {}; }); }); });
+      pick(); lsSet(LS_KEY, JSON.stringify(all));
+      render(); setSync("Synced", "ok");
+    }).catch(failed);
+  }
+
+  function startSync() {
+    if (!sheetUrl) return;
+    setSync("Connecting…", "busy");
+    if (outbox.length) flush(); else pull();
+    if (!startSync.timer) {
+      startSync.timer = setInterval(function () { if (!document.hidden) { if (outbox.length) flush(); else pull(); } }, 30000);
+      document.addEventListener("visibilitychange", function () { if (!document.hidden) pull(); });
+      window.addEventListener("online", flush);
+    }
+  }
+
+  app.addEventListener("submit", function (e) {
+    if (e.target.id !== "sheet-form") return;
+    var url = document.getElementById("sheet-url").value.trim();
+    if (!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(url)) { sync.error = "That doesn't look like an Apps Script Web app URL. It should start with https://script.google.com/"; render(); return; }
+    sheetUrl = url; lsSet("comppoints_sheet_url", url); sync.error = ""; render(); startSync();
+  });
+  app.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-act]"); if (!t) return;
+    if (t.dataset.act === "upload") { uploadAll(); t.textContent = "Sending…"; }
+    if (t.dataset.act === "sync-now") { if (outbox.length) flush(); else pull(true); }
+  });
+
+  render();
+  startSync();
+})();
+</script>
+</body>
+</html>
