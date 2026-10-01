@@ -7,3 +7,4 @@ Disallow: /calculator/
 Disallow: /pb/
 Disallow: /nav.html
 Disallow: /split/
+Disallow: /comp/
