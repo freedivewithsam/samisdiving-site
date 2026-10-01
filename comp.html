@@ -111,6 +111,12 @@
   .msg.ok { color: var(--good); }
   .add-row { align-items: flex-start; }
   .add-row .btn { min-height: 42px; }
+  .ath-pill { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 10px 16px; font-size: 0.88rem; color: var(--ink-soft); box-shadow: 0 1px 2px var(--shadow); }
+  .ath-pill b { color: var(--ink); }
+  .ath-pill:hover { border-color: var(--accent); }
+  .ath-pill > span:nth-child(2) { flex: 1; min-width: 0; }
+  .ath-pill-edit { font-weight: 700; color: var(--accent); white-space: nowrap; font-size: 0.8rem; }
+  .ath-save { display: flex; justify-content: flex-end; }
   .elsewhere-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 
   /* podiums */
@@ -260,6 +266,10 @@
   }
 
   // the day tab chosen for each competition (remembered on this device)
+  var athFolded = {};
+  try { athFolded = JSON.parse(lsGet("comppoints_ath_folded") || "{}") || {}; } catch (e) { athFolded = {}; }
+  function setFolded(v) { athFolded[cur.id] = v; lsSet("comppoints_ath_folded", JSON.stringify(athFolded)); }
+
   var dayPick = {};
   try { dayPick = JSON.parse(lsGet("comppoints_days") || "{}") || {}; } catch (e) { dayPick = {}; }
   function curDay() {
@@ -510,23 +520,30 @@
     h += '<section class="panel"><div class="panel-head"><h2>Standings</h2><button class="btn ghost small" data-act="copy">Copy results</button></div>';
     h += '<div id="overall">' + overallHtml() + "</div></section>";
 
-    // athletes
-    h += '<section class="panel"><div class="panel-head"><h2>Athletes</h2><div class="row-actions"><span class="muted">' + cur.athletes.length + " entered</span>" + (cur.athletes.length ? '<button type="button" class="btn ghost small" data-act="rm-all-ath">Remove all</button>' : "") + "</div></div>";
-    if (ui.confirmRmAllAth) {
-      var nRes = 0;
-      cur.days.forEach(function (d) { d.events.forEach(function (ev) { nRes += Object.keys(ev.results || {}).length; }); });
-      h += '<div class="confirm"><p>Remove all <b>' + cur.athletes.length + " athletes</b> from " + esc(cur.name) + (nRes ? " and their " + nRes + " result" + (nRes === 1 ? "" : "s") : "") + "? This can't be undone.</p>";
-      h += '<div class="row-actions"><button class="btn small danger" data-act="rm-all-ath-yes">Remove all athletes</button><button class="btn ghost small" data-act="rm-all-ath-no">Keep them</button></div></div>';
+    // athletes: after Save the list folds into one small button
+    if (athFolded[cur.id] && cur.athletes.length && !ui.confirmRmAllAth) {
+      var nf = cur.athletes.filter(function (a) { return a.gender === "F"; }).length;
+      h += '<button type="button" class="ath-pill" data-act="ath-open" aria-expanded="false"><span class="ath-pill-ico">👥</span><span><b>' + cur.athletes.length + " athletes</b> · " + nf + " women · " + (cur.athletes.length - nf) + ' men</span><span class="ath-pill-edit">✎ Edit</span></button>';
+    } else {
+      h += '<section class="panel"><div class="panel-head"><h2>Athletes</h2><div class="row-actions"><span class="muted">' + cur.athletes.length + " entered</span>" + (cur.athletes.length ? '<button type="button" class="btn ghost small" data-act="rm-all-ath">Remove all</button>' : "") + "</div></div>";
+      if (ui.confirmRmAllAth) {
+        var nRes = 0;
+        cur.days.forEach(function (d) { d.events.forEach(function (ev) { nRes += Object.keys(ev.results || {}).length; }); });
+        h += '<div class="confirm"><p>Remove all <b>' + cur.athletes.length + " athletes</b> from " + esc(cur.name) + (nRes ? " and their " + nRes + " result" + (nRes === 1 ? "" : "s") : "") + "? This can't be undone.</p>";
+        h += '<div class="row-actions"><button class="btn small danger" data-act="rm-all-ath-yes">Remove all athletes</button><button class="btn ghost small" data-act="rm-all-ath-no">Keep them</button></div></div>';
+      }
+      h += '<div class="genders">';
+      GENDERS.forEach(function (g) {
+        var list = cur.athletes.filter(function (a) { return a.gender === g.key; });
+        h += '<div class="gcol"><div class="gtitle"><span class="gdot" style="--g:' + g.color + '"></span>' + g.label + ' <span class="muted">(' + list.length + ")</span></div>";
+        h += '<div class="chips">' + (list.length ? list.map(function (a) { return '<span class="chip">' + esc(a.name) + '<button class="x" data-act="rm-ath" data-id="' + a.id + '" aria-label="Remove ' + esc(a.name) + '">✕</button></span>'; }).join("") : '<span class="muted">No ' + g.label.toLowerCase() + " yet</span>") + "</div>";
+        h += '<form class="add-row" data-gender="' + g.key + '"><textarea id="ath-' + g.key + '" rows="1" placeholder="Name, or paste a list" aria-label="Add ' + g.label.toLowerCase() + ', one name per line or separated by commas"></textarea><button class="btn small" type="submit">Add</button></form>';
+        h += '<p class="msg" id="msg-' + g.key + '" hidden></p></div>';
+      });
+      h += "</div>";
+      if (cur.athletes.length) h += '<div class="ath-save"><button type="button" class="btn" data-act="ath-save">Save athletes</button></div>';
+      h += "</section>";
     }
-    h += '<div class="genders">';
-    GENDERS.forEach(function (g) {
-      var list = cur.athletes.filter(function (a) { return a.gender === g.key; });
-      h += '<div class="gcol"><div class="gtitle"><span class="gdot" style="--g:' + g.color + '"></span>' + g.label + ' <span class="muted">(' + list.length + ")</span></div>";
-      h += '<div class="chips">' + (list.length ? list.map(function (a) { return '<span class="chip">' + esc(a.name) + '<button class="x" data-act="rm-ath" data-id="' + a.id + '" aria-label="Remove ' + esc(a.name) + '">✕</button></span>'; }).join("") : '<span class="muted">No ' + g.label.toLowerCase() + " yet</span>") + "</div>";
-      h += '<form class="add-row" data-gender="' + g.key + '"><textarea id="ath-' + g.key + '" rows="1" placeholder="Name, or paste a list" aria-label="Add ' + g.label.toLowerCase() + ', one name per line or separated by commas"></textarea><button class="btn small" type="submit">Add</button></form>';
-      h += '<p class="msg" id="msg-' + g.key + '" hidden></p></div>';
-    });
-    h += "</div></section>";
 
     // days as tabs; only the chosen day is shown
     var d = curDay();
@@ -749,6 +766,12 @@
       ui.confirmRmAllEv = ""; save(zops); render(); return;
     }
     if (act === "rm-all-ev-no") { ui.confirmRmAllEv = ""; render(); return; }
+    if (act === "ath-save") {
+      // anything still typed in the boxes gets added first
+      ["F", "M"].forEach(function (g) { var el = document.getElementById("ath-" + g); if (el && el.value.trim()) { var f = el.form; if (f.requestSubmit) f.requestSubmit(); else f.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true })); } });
+      setFolded(true); if (typeof flush === "function") flush(); render(); return;
+    }
+    if (act === "ath-open") { setFolded(false); render(); var fa = document.getElementById("ath-F"); if (fa) fa.focus(); return; }
     if (act === "rm-all-ath") { ui.confirmRmAllAth = true; render(); return; }
     if (act === "rm-all-ath-no") { ui.confirmRmAllAth = false; render(); return; }
     if (act === "rm-all-ath-yes") {
