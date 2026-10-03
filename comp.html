@@ -111,6 +111,16 @@
   .msg.ok { color: var(--good); }
   .add-row { align-items: flex-start; }
   .add-row .btn { min-height: 42px; }
+  .new-toggle { border: 1px dashed var(--line); background: transparent; color: var(--ink-faint); font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; border-radius: 999px; padding: 2px 6px; margin-left: 4px; }
+  .new-toggle.on { background: var(--green); border: 1px solid var(--green); color: var(--accent-ink); }
+  .chip.is-new { border-color: var(--green); }
+  .new-tag { display: inline-block; vertical-align: middle; background: var(--green); color: var(--accent-ink); font-size: 0.58rem; font-weight: 700; letter-spacing: 0.06em; border-radius: 999px; padding: 1px 6px; margin-left: 4px; font-family: "Space Grotesk", sans-serif; }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 0.84rem; color: var(--ink-soft); cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+  .new-check { margin-top: -2px; }
+  .new-hint { font-size: 0.78rem; color: var(--ink-faint); }
+  .new-hint .new-toggle { pointer-events: none; }
+  .stand-tab.new-tab.on { background: var(--green); border-color: var(--green); color: var(--ink); }
   .ath-pill { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 10px 16px; font-size: 0.88rem; color: var(--ink-soft); box-shadow: 0 1px 2px var(--shadow); }
   .ath-pill b { color: var(--ink); }
   .ath-pill:hover { border-color: var(--accent); }
@@ -370,13 +380,17 @@
     }).filter(function (r) { return r.entered; }));
   }
 
-  function overallRanking(g) {
-    return rank(cur.athletes.filter(function (a) { return a.gender === g; }).map(function (a) {
+  // onlyNew: the newcomers' own overall ranking
+  function overallRanking(g, onlyNew) {
+    return rank(cur.athletes.filter(function (a) { return a.gender === g && (!onlyNew || a.newcomer); }).map(function (a) {
       var total = 0, any = false;
       cur.days.forEach(function (d) { d.events.forEach(function (ev) { if (!inEvent(d, ev, a.id)) return; var s = score(ev, a.id); if (s.entered) { any = true; total += s.points; } }); });
       return { id: a.id, points: total, entered: any };
     }).filter(function (r) { return r.entered; }));
   }
+
+  function newTag(a) { return a && a.newcomer ? ' <span class="new-tag" title="Newcomer">NEW</span>' : ""; }
+  function hasNewcomers() { return cur.athletes.some(function (a) { return a.newcomer; }); }
 
   /* ---------- rendering ---------- */
   var MEDAL = ["var(--gold)", "var(--silver)", "var(--bronze)"];
@@ -387,7 +401,7 @@
     var top = rows.filter(function (r) { return r.place <= 3 && !r.dq && r.points > 0; });
     if (!top.length) h += '<div class="empty">No results yet</div>';
     top.forEach(function (r) {
-      h += '<div class="place"><span class="medal" style="--m:' + MEDAL[r.place - 1] + '" title="' + ORD[r.place - 1] + ' place">' + r.place + '</span><span class="nm">' + esc(athlete(r.id).name) + '</span><span class="pts">' + fmtPts(r.points) + "</span></div>";
+      h += '<div class="place"><span class="medal" style="--m:' + MEDAL[r.place - 1] + '" title="' + ORD[r.place - 1] + ' place">' + r.place + '</span><span class="nm">' + esc(athlete(r.id).name) + newTag(athlete(r.id)) + '</span><span class="pts">' + fmtPts(r.points) + "</span></div>";
     });
     if (rows.length > top.length) {
       h += '<details class="full-list"><summary>Full ranking (' + rows.length + ")</summary><ol>";
@@ -420,17 +434,20 @@
   var standPick = lsGet("comppoints_stand") || "ALL";
   function overallHtml() {
     var discs = compDiscs();
-    if (standPick !== "ALL" && discs.indexOf(standPick) < 0) standPick = "ALL";
+    if (standPick !== "ALL" && discs.indexOf(standPick) < 0 && !(standPick === "NEW" && hasNewcomers())) standPick = "ALL";
     var h = "";
     if (discs.length) {
       h += '<div class="tab-row stand-tabs" role="tablist" aria-label="Standings">';
-      ["ALL"].concat(discs).forEach(function (k) {
-        var on = k === standPick;
-        h += '<button type="button" role="tab" aria-selected="' + on + '" class="tab stand-tab' + (on ? " on" : "") + '"' + (k !== "ALL" ? ' style="--d:' + DISC[k].color + '"' : "") + ' data-act="stand" data-id="' + k + '">' + (k === "ALL" ? "Overall" : k) + "</button>";
+      ["ALL"].concat(hasNewcomers() ? ["NEW"] : []).concat(discs).forEach(function (k) {
+        var on = k === standPick, isDisc = !!DISC[k];
+        h += '<button type="button" role="tab" aria-selected="' + on + '" class="tab stand-tab' + (on ? " on" : "") + (k === "NEW" ? " new-tab" : "") + '"' + (isDisc ? ' style="--d:' + DISC[k].color + '"' : "") + ' data-act="stand" data-id="' + k + '">' + (k === "ALL" ? "Overall" : k === "NEW" ? "🌱 Newcomers" : k) + "</button>";
       });
       h += "</div>";
     }
-    if (standPick === "ALL") {
+    if (standPick === "NEW") {
+      h += '<p class="hint">Newcomers only · points added up across every discipline and day.</p>';
+      h += '<div class="pods">' + GENDERS.map(function (g) { return podium(overallRanking(g.key, true), g, g.label + " · newcomers"); }).join("") + "</div>";
+    } else if (standPick === "ALL") {
       h += '<p class="hint">Points added up across every discipline and day.</p>';
       h += '<div class="pods">' + GENDERS.map(function (g) { return podium(overallRanking(g.key), g, g.label + " · overall"); }).join("") + "</div>";
     } else {
@@ -456,7 +473,7 @@
     var r = (ev.results || {})[a.id] || {}, kind = DISC[ev.disc].kind;
     var k = ev.id + "-" + a.id;
     var d = dayOfEvent(ev.id);
-    var h = '<div class="res' + (r.dq ? " is-dq" : "") + '" id="row-' + k + '"><span class="nm-wrap"><span class="nm">' + esc(a.name) + "</span>";
+    var h = '<div class="res' + (r.dq ? " is-dq" : "") + '" id="row-' + k + '"><span class="nm-wrap"><span class="nm">' + esc(a.name) + newTag(a) + "</span>";
     if (d) {
       // menu to add this athlete to another discipline today
       h += '<span class="row-tools"><select class="disc-sel" data-addto="' + a.id + '" data-day="' + d.id + '" aria-label="Add ' + esc(a.name) + ' to another discipline"><option value="">+ Add</option>';
@@ -523,7 +540,7 @@
     // athletes: after Save the list folds into one small button
     if (athFolded[cur.id] && cur.athletes.length && !ui.confirmRmAllAth) {
       var nf = cur.athletes.filter(function (a) { return a.gender === "F"; }).length;
-      h += '<button type="button" class="ath-pill" data-act="ath-open" aria-expanded="false"><span class="ath-pill-ico">👥</span><span><b>' + cur.athletes.length + " athletes</b> · " + nf + " women · " + (cur.athletes.length - nf) + ' men</span><span class="ath-pill-edit">✎ Edit</span></button>';
+      h += '<button type="button" class="ath-pill" data-act="ath-open" aria-expanded="false"><span class="ath-pill-ico">👥</span><span><b>' + cur.athletes.length + " athletes</b> · " + nf + " women · " + (cur.athletes.length - nf) + " men" + (hasNewcomers() ? " · " + cur.athletes.filter(function (a) { return a.newcomer; }).length + " newcomers" : "") + '</span><span class="ath-pill-edit">✎ Edit</span></button>';
     } else {
       h += '<section class="panel"><div class="panel-head"><h2>Athletes</h2><div class="row-actions"><span class="muted">' + cur.athletes.length + " entered</span>" + (cur.athletes.length ? '<button type="button" class="btn ghost small" data-act="rm-all-ath">Remove all</button>' : "") + "</div></div>";
       if (ui.confirmRmAllAth) {
@@ -536,10 +553,12 @@
       GENDERS.forEach(function (g) {
         var list = cur.athletes.filter(function (a) { return a.gender === g.key; });
         h += '<div class="gcol"><div class="gtitle"><span class="gdot" style="--g:' + g.color + '"></span>' + g.label + ' <span class="muted">(' + list.length + ")</span></div>";
-        h += '<div class="chips">' + (list.length ? list.map(function (a) { return '<span class="chip">' + esc(a.name) + '<button class="x" data-act="rm-ath" data-id="' + a.id + '" aria-label="Remove ' + esc(a.name) + '">✕</button></span>'; }).join("") : '<span class="muted">No ' + g.label.toLowerCase() + " yet</span>") + "</div>";
+        h += '<div class="chips">' + (list.length ? list.map(function (a) { return '<span class="chip' + (a.newcomer ? " is-new" : "") + '">' + esc(a.name) + '<button type="button" class="new-toggle' + (a.newcomer ? " on" : "") + '" data-act="toggle-new" data-id="' + a.id + '" aria-pressed="' + !!a.newcomer + '" title="' + (a.newcomer ? "Newcomer (tap to undo)" : "Mark as newcomer") + '">NEW</button><button class="x" data-act="rm-ath" data-id="' + a.id + '" aria-label="Remove ' + esc(a.name) + '">✕</button></span>'; }).join("") : '<span class="muted">No ' + g.label.toLowerCase() + " yet</span>") + "</div>";
         h += '<form class="add-row" data-gender="' + g.key + '"><textarea id="ath-' + g.key + '" rows="1" placeholder="Name, or paste a list" aria-label="Add ' + g.label.toLowerCase() + ', one name per line or separated by commas"></textarea><button class="btn small" type="submit">Add</button></form>';
+        h += '<label class="check new-check"><input type="checkbox" id="newc-' + g.key + '"' + (ui["newc" + g.key] ? " checked" : "") + '> Add as newcomers</label>';
         h += '<p class="msg" id="msg-' + g.key + '" hidden></p></div>';
       });
+      h += '<p class="hint new-hint">Tap <span class="new-toggle on">NEW</span> on a name to mark a newcomer. In a pasted list you can also end a name with <b>*</b> or <b>(new)</b>.</p>';
       h += "</div>";
       if (cur.athletes.length) h += '<div class="ath-save"><button type="button" class="btn" data-act="ath-save">Save athletes</button></div>';
       h += "</section>";
@@ -643,6 +662,7 @@
 
   app.addEventListener("change", function (e) {
     var t = e.target;
+    if (t.id === "newc-F" || t.id === "newc-M") { ui[t.id.replace("-", "")] = t.checked; return; }
     if (t.dataset.addto) {
       var dd = cur.days.filter(function (x) { return x.id === t.dataset.day; })[0], disc = t.value;
       if (!dd || !disc) return;
@@ -674,7 +694,7 @@
     if (f.id === "new-form") {
       var name = document.getElementById("new-comp").value.trim(); if (!name) return;
       var c = newComp(name), copy = document.getElementById("copy-ath");
-      if (copy && copy.checked) c.athletes = cur.athletes.map(function (a) { return { id: "a" + uid(), name: a.name, gender: a.gender }; });
+      if (copy && copy.checked) c.athletes = cur.athletes.map(function (a) { return { id: "a" + uid(), name: a.name, gender: a.gender, newcomer: !!a.newcomer }; });
       all.comps.push(c); ui.newOpen = false; document.getElementById("new-comp").value = "";
       var cops = [{ type: "upsertComp", comp: { id: c.id, name: c.name, created: c.created } }];
       c.athletes.forEach(function (a) { cops.push({ type: "upsertAthlete", compId: c.id, athlete: a }); });
@@ -692,9 +712,14 @@
       var names = inp.value.split(/[\n,;]+/).map(function (x) { return x.replace(/^\s*(\d+[.)]\s*|[-•*]\s*)/, "").trim(); }).filter(Boolean);
       if (!names.length) return;
       var added = [], dupes = [], aops = [];
+      var allNew = !!(document.getElementById("newc-" + g) || {}).checked;
       names.forEach(function (nm) {
+        // "Rina *", "Rina (new)" or "Rina (N)" = newcomer
+        var isNew = allNew || /\s*(\*|\((?:new|n|baru|newcomer)\))\s*$/i.test(nm);
+        nm = nm.replace(/\s*(\*|\((?:new|n|baru|newcomer)\))\s*$/i, "").trim();
+        if (!nm) return;
         if (cur.athletes.some(function (a) { return a.name.toLowerCase() === nm.toLowerCase() && a.gender === g; })) { dupes.push(nm); return; }
-        var na = { id: "a" + uid(), name: nm, gender: g };
+        var na = { id: "a" + uid(), name: nm, gender: g, newcomer: isNew };
         cur.athletes.push(na); added.push(nm);
         aops.push({ type: "upsertAthlete", compId: cur.id, athlete: na });
       });
@@ -771,6 +796,11 @@
       ["F", "M"].forEach(function (g) { var el = document.getElementById("ath-" + g); if (el && el.value.trim()) { var f = el.form; if (f.requestSubmit) f.requestSubmit(); else f.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true })); } });
       setFolded(true); if (typeof flush === "function") flush(); render(); return;
     }
+    if (act === "toggle-new") {
+      var ta = athlete(id); if (!ta) return;
+      ta.newcomer = !ta.newcomer;
+      save([{ type: "upsertAthlete", compId: cur.id, athlete: ta }]); render(); return;
+    }
     if (act === "ath-open") { setFolded(false); render(); var fa = document.getElementById("ath-F"); if (fa) fa.focus(); return; }
     if (act === "rm-all-ath") { ui.confirmRmAllAth = true; render(); return; }
     if (act === "rm-all-ath-no") { ui.confirmRmAllAth = false; render(); return; }
@@ -841,6 +871,7 @@
       top.forEach(function (r) { lines.push("  " + ORD[r.place - 1] + "  " + athlete(r.id).name + " · " + fmtPts(r.points) + " pts"); });
     }
     GENDERS.forEach(function (g) { block("OVERALL · " + g.label, overallRanking(g.key)); });
+    if (hasNewcomers()) GENDERS.forEach(function (g) { block("NEWCOMERS · " + g.label, overallRanking(g.key, true)); });
     compDiscs().forEach(function (k) { GENDERS.forEach(function (g) { block(k + " · " + g.label, disciplineRanking(k, g.key)); }); });
     // per-day results only add something when a discipline is swum on more than one day
     var times = {};
