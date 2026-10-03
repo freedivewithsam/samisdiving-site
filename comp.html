@@ -118,6 +118,15 @@
   .check { display: flex; gap: 8px; align-items: center; font-size: 0.84rem; color: var(--ink-soft); cursor: pointer; }
   .check input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
   .new-check { margin-top: -2px; }
+  .suggest:empty { display: none; }
+  .suggest { display: flex; flex-direction: column; gap: 4px; }
+  .past-chip { background: var(--surface); border: 1px dashed var(--accent); color: var(--accent-ink); padding: 4px 12px; cursor: pointer; font-weight: 600; }
+  .past summary { cursor: pointer; font-size: 0.8rem; font-weight: 600; color: var(--accent); }
+  .past[open] { display: flex; flex-direction: column; gap: 8px; }
+  .past .chips { margin-top: 6px; }
+  .past-chip-wrap { border-style: dashed; background: transparent; padding-left: 4px; }
+  .past-add { background: none; border: none; color: var(--ink); font: inherit; font-weight: 500; padding: 2px 6px; cursor: pointer; }
+  .past .btn { align-self: flex-start; }
   .new-hint { font-size: 0.78rem; color: var(--ink-faint); }
   .new-hint .new-toggle { pointer-events: none; }
   .stand-tab.new-tab.on { background: var(--green); border-color: var(--green); color: var(--ink); }
@@ -389,6 +398,52 @@
     }).filter(function (r) { return r.entered; }));
   }
 
+  /* ---------- athletes remembered from earlier competitions ---------- */
+  // Everyone who was in another competition (from the sheet) plus everyone ever typed on this
+  // phone, so they can be added again with one tap. ✕ on a past name hides it from these lists.
+  var LS_ROSTER = "comppoints_roster", LS_HIDDEN = "comppoints_roster_hidden";
+  var roster = [], hiddenNames = {};
+  try { roster = JSON.parse(lsGet(LS_ROSTER) || "[]") || []; } catch (e) { roster = []; }
+  try { hiddenNames = JSON.parse(lsGet(LS_HIDDEN) || "{}") || {}; } catch (e) { hiddenNames = {}; }
+  function rosterKey(name, g) { return g + "|" + String(name).trim().toLowerCase(); }
+  function rememberAthlete(a) {
+    var k = rosterKey(a.name, a.gender);
+    if (hiddenNames[k]) { delete hiddenNames[k]; lsSet(LS_HIDDEN, JSON.stringify(hiddenNames)); }
+    if (!roster.some(function (r) { return rosterKey(r.name, r.gender) === k; })) { roster.push({ name: a.name, gender: a.gender }); lsSet(LS_ROSTER, JSON.stringify(roster)); }
+  }
+  // past athletes of one gender who aren't in this competition yet, most recent first
+  function pastAthletes(g) {
+    var seen = {}, out = [];
+    cur.athletes.forEach(function (a) { seen[rosterKey(a.name, a.gender)] = 1; });
+    var sources = [];
+    all.comps.slice().sort(function (a, b) { return b.created - a.created; }).forEach(function (c) {
+      if (c.id === cur.id) return;
+      c.athletes.forEach(function (a) { sources.push({ name: a.name, gender: a.gender, from: c.name }); });
+    });
+    roster.slice().reverse().forEach(function (a) { sources.push({ name: a.name, gender: a.gender, from: "" }); });
+    sources.forEach(function (a) {
+      var k = rosterKey(a.name, a.gender);
+      if (a.gender !== g || seen[k] || hiddenNames[k]) return;
+      seen[k] = 1; out.push(a);
+    });
+    return out;
+  }
+  function addAthlete(name, g, newcomer, ops) {
+    name = String(name).trim();
+    if (!name || cur.athletes.some(function (a) { return rosterKey(a.name, a.gender) === rosterKey(name, g); })) return false;
+    var na = { id: "a" + uid(), name: name, gender: g, newcomer: !!newcomer };
+    cur.athletes.push(na); rememberAthlete(na);
+    ops.push({ type: "upsertAthlete", compId: cur.id, athlete: na });
+    return true;
+  }
+  function suggestHtml(g, q) {
+    q = String(q || "").trim().toLowerCase();
+    if (!q || /[\n,;]/.test(q)) return "";
+    var list = pastAthletes(g).filter(function (a) { return a.name.toLowerCase().indexOf(q) >= 0; }).slice(0, 6);
+    if (!list.length) return "";
+    return '<span class="label">Tap to add</span><div class="chips">' + list.map(function (a) { return '<button type="button" class="chip past-chip" data-act="add-past" data-g="' + g + '" data-name="' + esc(a.name) + '">+ ' + esc(a.name) + "</button>"; }).join("") + "</div>";
+  }
+
   function newTag(a) { return a && a.newcomer ? ' <span class="new-tag" title="Newcomer">NEW</span>' : ""; }
   function hasNewcomers() { return cur.athletes.some(function (a) { return a.newcomer; }); }
 
@@ -555,7 +610,14 @@
         h += '<div class="gcol"><div class="gtitle"><span class="gdot" style="--g:' + g.color + '"></span>' + g.label + ' <span class="muted">(' + list.length + ")</span></div>";
         h += '<div class="chips">' + (list.length ? list.map(function (a) { return '<span class="chip' + (a.newcomer ? " is-new" : "") + '">' + esc(a.name) + '<button type="button" class="new-toggle' + (a.newcomer ? " on" : "") + '" data-act="toggle-new" data-id="' + a.id + '" aria-pressed="' + !!a.newcomer + '" title="' + (a.newcomer ? "Newcomer (tap to undo)" : "Mark as newcomer") + '">NEW</button><button class="x" data-act="rm-ath" data-id="' + a.id + '" aria-label="Remove ' + esc(a.name) + '">✕</button></span>'; }).join("") : '<span class="muted">No ' + g.label.toLowerCase() + " yet</span>") + "</div>";
         h += '<form class="add-row" data-gender="' + g.key + '"><textarea id="ath-' + g.key + '" rows="1" placeholder="Name, or paste a list" aria-label="Add ' + g.label.toLowerCase() + ', one name per line or separated by commas"></textarea><button class="btn small" type="submit">Add</button></form>';
+        h += '<div class="suggest" id="sug-' + g.key + '"></div>';
         h += '<label class="check new-check"><input type="checkbox" id="newc-' + g.key + '"' + (ui["newc" + g.key] ? " checked" : "") + '> Add as newcomers</label>';
+        var past = pastAthletes(g.key);
+        if (past.length) {
+          h += '<details class="past" id="past-' + g.key + '"' + (ui["past" + g.key] ? " open" : "") + '><summary>From past competitions (' + past.length + ")</summary>";
+          h += '<div class="chips">' + past.map(function (a) { return '<span class="chip past-chip-wrap"><button type="button" class="past-add" data-act="add-past" data-g="' + g.key + '" data-name="' + esc(a.name) + '" title="' + (a.from ? "Was in " + esc(a.from) : "Added on this phone before") + '">+ ' + esc(a.name) + '</button><button type="button" class="x" data-act="forget-past" data-g="' + g.key + '" data-name="' + esc(a.name) + '" aria-label="Hide ' + esc(a.name) + ' from this list">✕</button></span>'; }).join("") + "</div>";
+          h += '<button type="button" class="btn ghost small" data-act="add-all-past" data-g="' + g.key + '">Add all ' + past.length + "</button></details>";
+        }
         h += '<p class="msg" id="msg-' + g.key + '" hidden></p></div>';
       });
       h += '<p class="hint new-hint">Tap <span class="new-toggle on">NEW</span> on a name to mark a newcomer. In a pasted list you can also end a name with <b>*</b> or <b>(new)</b>.</p>';
@@ -660,6 +722,7 @@
     }
   });
 
+  app.addEventListener("toggle", function (e) { if (e.target.id === "past-F" || e.target.id === "past-M") ui[e.target.id.replace("-", "")] = e.target.open; }, true);
   app.addEventListener("change", function (e) {
     var t = e.target;
     if (t.id === "newc-F" || t.id === "newc-M") { ui[t.id.replace("-", "")] = t.checked; return; }
@@ -718,10 +781,7 @@
         var isNew = allNew || /\s*(\*|\((?:new|n|baru|newcomer)\))\s*$/i.test(nm);
         nm = nm.replace(/\s*(\*|\((?:new|n|baru|newcomer)\))\s*$/i, "").trim();
         if (!nm) return;
-        if (cur.athletes.some(function (a) { return a.name.toLowerCase() === nm.toLowerCase() && a.gender === g; })) { dupes.push(nm); return; }
-        var na = { id: "a" + uid(), name: nm, gender: g, newcomer: isNew };
-        cur.athletes.push(na); added.push(nm);
-        aops.push({ type: "upsertAthlete", compId: cur.id, athlete: na });
+        if (addAthlete(nm, g, isNew, aops)) added.push(nm); else dupes.push(nm);
       });
       inp.value = ""; save(aops); render();
       var again = document.getElementById("ath-" + g); if (again) { again.value = ""; again.focus(); }
@@ -796,6 +856,21 @@
       ["F", "M"].forEach(function (g) { var el = document.getElementById("ath-" + g); if (el && el.value.trim()) { var f = el.form; if (f.requestSubmit) f.requestSubmit(); else f.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true })); } });
       setFolded(true); if (typeof flush === "function") flush(); render(); return;
     }
+    if (act === "add-past") {
+      var pops = [];
+      addAthlete(t.dataset.name, t.dataset.g, !!(document.getElementById("newc-" + t.dataset.g) || {}).checked, pops);
+      var box = document.getElementById("ath-" + t.dataset.g); if (box) box.value = "";
+      save(pops); render(); return;
+    }
+    if (act === "add-all-past") {
+      var aops2 = [];
+      // people from earlier competitions usually aren't newcomers any more (tap NEW if they are)
+      pastAthletes(t.dataset.g).forEach(function (a) { addAthlete(a.name, a.gender, false, aops2); });
+      save(aops2); render(); return;
+    }
+    if (act === "forget-past") {
+      hiddenNames[rosterKey(t.dataset.name, t.dataset.g)] = 1; lsSet(LS_HIDDEN, JSON.stringify(hiddenNames)); render(); return;
+    }
     if (act === "toggle-new") {
       var ta = athlete(id); if (!ta) return;
       ta.newcomer = !ta.newcomer;
@@ -837,6 +912,11 @@
   });
   app.addEventListener("input", function (e) {
     if (e.target.tagName === "TEXTAREA") { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }
+    // names from earlier competitions that match what's being typed
+    if (e.target.id === "ath-F" || e.target.id === "ath-M") {
+      var gk = e.target.id.slice(4), sg = document.getElementById("sug-" + gk);
+      if (sg) sg.innerHTML = suggestHtml(gk, e.target.value);
+    }
   });
 
   document.addEventListener("keydown", function (e) {
