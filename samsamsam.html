@@ -71,6 +71,13 @@
      button still fires clicks (see performSave()'s own "already syncing"
      check) instead of silently doing nothing when tapped mid-save. */
   .btn-busy{opacity:.6;cursor:wait}
+  /* "Paid back by" rows in the Personal expense form */
+  .paidback-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .field .paidback-row input{width:auto;min-width:0;flex:1}
+  .paidback-net{font-size:13px;color:var(--ink-soft);margin-top:8px}
+  .paidback-net b{color:var(--ink)}
+  .paidback-net.over{color:var(--expense)}
+  .paidback-note{font-size:12px;color:var(--ink-soft);margin-top:2px}
   .btn-peach:hover{filter:brightness(.96)}
   .btn-payment{background:#FBF0C7;color:#8A6D14;border:1px solid #EDE0A0}
   .btn-payment:hover{filter:brightness(.96)}
@@ -763,6 +770,13 @@
       <div><label for="pTxPrice">Price (IDR)</label><input id="pTxPrice" type="number" min="0" step="1" required></div>
       <div><label for="pTxDate">Date</label><div class="date-field"><input id="pTxDate" type="text" inputmode="numeric" placeholder="DD-MM-YYYY" pattern="\d{2}-\d{2}-\d{4}" title="Use DD-MM-YYYY" maxlength="10"><span class="date-pick-icon" aria-hidden="true">📅</span><input type="date" class="date-pick-overlay" data-target="pTxDate" tabindex="-1" aria-label="Pick a date"></div></div>
     </div>
+    <div class="field" id="pTxPaidBackField">
+      <label>Paid back by (optional)</label>
+      <div id="pTxPaidBackList"></div>
+      <datalist id="pTxPaidBackNames"></datalist>
+      <button type="button" class="btn btn-ghost btn-small" data-action="add-paidback-row">+ Add person</button>
+      <div class="paidback-net" id="pTxNetNote"></div>
+    </div>
     <div class="field" id="pTxTimeField" style="display:none"><label for="pTxTime">Time</label><input id="pTxTime" type="text" inputmode="numeric" placeholder="HH:MM" pattern="([01]\d|2[0-3]):[0-5]\d" title="24-hour HH:MM, e.g. 14:30" maxlength="5"></div>
     <div class="modal-btns">
       <button type="button" class="btn btn-move" id="personalMoveBtn" data-action="move-personal-to-finance" style="display:none;margin-right:auto">↔ Move to Freediving</button>
@@ -1272,7 +1286,9 @@ async function fetchCloudData(){
    handleLoginRaw) — this file never stores or computes a hash, it just
    sends the plain PIN and gets back a session token, kept in
    localStorage so re-opening the app doesn't ask again until that token
-   actually expires (30 minutes) or the server rejects it. Login/reset both
+   actually expires (12 hours of idle time on the server side, sliding
+   forward while it's in use — see code.gs's TOKEN_TTL_MS) or the server
+   rejects it. Login/reset both
    go through the same GET+JSONP path everything else in this app already
    uses to talk to the backend (see jsonpFetch above) rather than a
    fetch()-based POST, since that's the only reliably readable path. */
@@ -1307,7 +1323,12 @@ function handleAuthExpired(){
   const wrap = $('mainWrap');
   if(lock) lock.style.display = 'flex';
   if(wrap) wrap.classList.add('pin-locked');
-  setPinTitle('Session expired — enter PIN');
+  // Nothing local is touched here — any edits made on this device stay
+  // exactly where they are, flagged unsaved, and get sent automatically
+  // the moment the PIN is entered again (see startAppAfterUnlock()'s
+  // save-before-pull). Worth saying so, since "Session expired" on its
+  // own sounds like the work is gone.
+  setPinTitle(isLocalDirty() ? 'Session expired — enter PIN (your changes are kept and will save)' : 'Session expired — enter PIN');
   clearPinBuffer();
 }
 
@@ -2407,6 +2428,25 @@ function knownSessionTypes(){
 function knownCategories(){
   return dedupeKnownCaseInsensitive(['Groceries','Transport','Rent','Utilities','Health','Shopping','Dining','Entertainment','Other'], (db.personalFinance||[]).map(t=>t.category));
 }
+/* "Paid back by": the part of a Personal expense that friends later
+   reimbursed (a shared dinner put on the person's own card, say). The
+   expense's own price always stays the FULL amount actually charged —
+   that's what has to keep matching the credit card bill — and what
+   counts as the person's real expense everywhere in Personal Finance's
+   totals is that price minus whatever's been paid back. */
+function paidBackTotal(t){
+  return (t && Array.isArray(t.paidBack) ? t.paidBack : []).reduce((a,x)=>a+(Number(x && x.amount)||0), 0);
+}
+function paidBackNames(t){
+  return (t && Array.isArray(t.paidBack) ? t.paidBack : [])
+    .filter(x=>x && x.amount>0)
+    .map(x=> (x.name ? x.name + ' ' : '') + money(x.amount))
+    .join(', ');
+}
+function knownPaidBackNames(){
+  return dedupeKnownCaseInsensitive([], (db.personalFinance||[]).flatMap(t=>(t.paidBack||[]).map(x=>x.name)));
+}
+
 /* Looks up the most recently used category for a given item name, so
    typing (or picking) an item logged before quietly fills in its usual
    category. */
@@ -3753,10 +3793,16 @@ function renderFinance(){
     .filter(p=>financeMonth==='all' || (p.date||'').slice(0,7)===financeMonth)
     .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
-  // Stats at the top always show both All time and This month, regardless
-  // of which month the dropdown below is filtering the list to — the
-  // dropdown controls the list only, not these two summaries.
+  // Stats at the top always show two blocks: All time, and whichever
+  // month the dropdown below is currently set to — so choosing a month
+  // there now actually changes the second summary instead of it always
+  // being pinned to today's real calendar month regardless of selection.
+  // With the dropdown on "All", there's no specific month to summarize,
+  // so it falls back to showing the actual current month as the most
+  // useful default for that block.
   const thisMonthKey = new Date().toISOString().slice(0,7);
+  const secondBlockKey = financeMonth === 'all' ? thisMonthKey : financeMonth;
+  const secondBlockLabel = financeMonth === 'all' ? 'This month' : new Date(secondBlockKey + '-01T00:00:00').toLocaleDateString('en-GB', { month:'long', year:'numeric' });
   function financeStatsFor(expList, payList){
     const inc = payList.reduce((a,p)=>a+p.amount,0);
     const exp = expList.reduce((a,t)=>a+t.price,0);
@@ -3767,11 +3813,17 @@ function renderFinance(){
     return { income:inc, expense:exp, balance:bal, salary:sal, profit:prof, profitMargin:profMargin };
   }
   const allTimeStats = financeStatsFor(allExpenses, allPayments);
-  const thisMonthStats = financeStatsFor(
-    allExpenses.filter(t=>(t.date||'').slice(0,7)===thisMonthKey),
-    allPayments.filter(p=>(p.date||'').slice(0,7)===thisMonthKey)
+  // Average income/month: total all-time income divided by how many
+  // distinct months actually have at least one payment in them — not by
+  // every month since the first record, which would understate the
+  // average across any gap with no activity at all.
+  const activeIncomeMonths = new Set(allPayments.map(p=>(p.date||'').slice(0,7)).filter(Boolean));
+  const avgIncomePerMonth = activeIncomeMonths.size ? allTimeStats.income / activeIncomeMonths.size : 0;
+  const secondBlockStats = financeStatsFor(
+    allExpenses.filter(t=>(t.date||'').slice(0,7)===secondBlockKey),
+    allPayments.filter(p=>(p.date||'').slice(0,7)===secondBlockKey)
   );
-  function financeStatsHtml(label, s){
+  function financeStatsHtml(label, s, showAvg){
     return `
     <div class="stats-group">
       <h3 class="stats-group-label">${label}</h3>
@@ -3781,6 +3833,7 @@ function renderFinance(){
         <div class="stat"><div class="num" style="${s.balance<0?'color:var(--expense)':''}">${moneyStat(s.balance)}</div><div class="lbl">Balance</div></div>
         <div class="stat"><div class="num">${moneyStat(s.salary)}</div><div class="lbl">Salary (${SALARY_MARGIN_PCT}%)</div></div>
         <div class="stat"><div class="num" style="${s.profitMargin<0?'color:var(--expense)':'color:var(--income)'}">${pctStat(s.profitMargin)}</div><div class="lbl">Profit margin</div></div>
+        ${showAvg ? `<div class="stat"><div class="num" style="color:var(--income)">${moneyStat(avgIncomePerMonth)}</div><div class="lbl">Avg income/month</div></div>` : ''}
       </div>
     </div>`;
   }
@@ -3790,7 +3843,7 @@ function renderFinance(){
     (p.name||'').toLowerCase().includes(searchQuery) || (p.pkg||'').toLowerCase().includes(searchQuery) || matchesAmount(p.amount, searchQuery)
   ) : payments;
 
-  let html = financeStatsHtml('All time', allTimeStats) + financeStatsHtml('This month', thisMonthStats) + `
+  let html = financeStatsHtml('All time', allTimeStats, true) + financeStatsHtml(secondBlockLabel, secondBlockStats, false) + `
 
   <div class="finance-cols">
     <div class="fin-col fin-col-expense">
@@ -3879,7 +3932,14 @@ function renderPersonalFinance(){
     .map(p=>({item:p.name, price:p.amount, date:p.date, note:(p.pkg||'') + (p.pkg ? ' · ' : '') + p.label, source:'fd', id:p.id, studentId:p.studentId}));
 
   const personal = db.personalFinance || [];
-  const pExpenses = personal.filter(t=>t.type==='expense').map(t=>({...t, source:'personal'}));
+  // price here is the NET expense (what was actually paid minus what
+  // friends paid back), so every total, category breakdown and month
+  // header below counts the person's real cost; gross keeps the full
+  // charged amount for display and for searching by the bill's number.
+  const pExpenses = personal.filter(t=>t.type==='expense').map(t=>{
+    const back = paidBackTotal(t);
+    return {...t, source:'personal', gross:(t.price||0), reimbursed:back, price:Math.max(0,(t.price||0)-back)};
+  });
   const pIncome = personal.filter(t=>t.type==='income').map(t=>({...t, source:'personal'}));
 
   const allExpenses = [...fdExpenses, ...pExpenses];
@@ -3917,7 +3977,11 @@ function renderPersonalFinance(){
     </div>`;
   }
 
-  const filteredExpenses = searchQuery ? expenses.filter(t=>(t.item||'').toLowerCase().includes(searchQuery) || matchesAmount(t.price, searchQuery)) : expenses;
+  const filteredExpenses = searchQuery ? expenses.filter(t=>
+    (t.item||'').toLowerCase().includes(searchQuery) || matchesAmount(t.price, searchQuery)
+    || (t.gross && matchesAmount(t.gross, searchQuery))
+    || (t.paidBack||[]).some(x=>(x.name||'').toLowerCase().includes(searchQuery))
+  ) : expenses;
   const filteredIncomes = searchQuery ? incomes.filter(t=>(t.item||'').toLowerCase().includes(searchQuery) || matchesAmount(t.price, searchQuery)) : incomes;
 
   // Category breakdown for whatever expenses are currently shown (respects
@@ -3983,6 +4047,7 @@ function renderPersonalFinance(){
           <div class="mid">
             <div class="item">${esc(t.item)}</div>
             <div class="txdate">${t.date ? fmtDateTime(t.date) + ' ' : ''}${!isFd && t.category ? `<span class="chip chip-source">${esc(t.category)}</span> ` : ''}<span class="chip chip-source">${isFd ? 'Freediving' : 'Personal'}</span></div>
+            ${t.reimbursed > 0 ? `<div class="paidback-note">Paid ${money(t.gross)} · paid back ${esc(paidBackNames(t))}</div>` : ''}
           </div>
           <div class="amt out">-${money(t.price)}</div>
           <div class="acts">
@@ -4247,8 +4312,46 @@ function openPersonalModal(kind, id, prefill){
   if(personalKind !== 'income'){
     $('pTxCategory').value = t ? (t.category||'') : '';
   }
+  // "Paid back by" rows: rebuilt fresh each open from the entry being
+  // edited (or empty for a new one), plus the names used before as
+  // suggestions so the same friends don't need retyping every time.
+  $('pTxPaidBackList').innerHTML = '';
+  $('pTxPaidBackNames').innerHTML = knownPaidBackNames().map(n=>`<option value="${esc(n)}"></option>`).join('');
+  (t && Array.isArray(t.paidBack) ? t.paidBack : []).forEach(x=>addPaidBackRow(x.name, x.amount));
+  updatePaidBackNote();
   applyPersonalKindUI();
   $('personalModal').showModal();
+}
+function addPaidBackRow(name, amount){
+  const row = document.createElement('div');
+  row.className = 'paidback-row';
+  row.innerHTML = `
+    <input type="text" class="pb-name" list="pTxPaidBackNames" placeholder="Who" autocomplete="off" value="${esc(name||'')}">
+    <input type="number" class="pb-amount" min="0" step="1" placeholder="Amount (IDR)" value="${amount ? esc(String(amount)) : ''}">
+    <button type="button" class="icon-btn icon-btn-delete" title="Remove" data-action="remove-paidback-row">✕</button>`;
+  $('pTxPaidBackList').appendChild(row);
+}
+function readPaidBackRows(){
+  return Array.from(document.querySelectorAll('#pTxPaidBackList .paidback-row'))
+    .map(r=>({
+      name: r.querySelector('.pb-name').value.trim(),
+      amount: Math.max(0, parseFloat(r.querySelector('.pb-amount').value)||0)
+    }))
+    .filter(x=>x.amount > 0);
+}
+// Live readout under the rows: what the person actually ends up
+// spending after friends' share comes back, so it's clear what will
+// count toward their expenses before saving.
+function updatePaidBackNote(){
+  const note = $('pTxNetNote');
+  const rows = readPaidBackRows();
+  if(!rows.length){ note.textContent = ''; note.classList.remove('over'); return; }
+  const price = Math.max(0, parseFloat($('pTxPrice').value)||0);
+  const back = rows.reduce((a,x)=>a+x.amount, 0);
+  note.classList.toggle('over', back > price);
+  note.innerHTML = back > price
+    ? 'Paid back is more than the price — counts as Rp 0 expense.'
+    : `Counts as your expense: <b>${money(price - back)}</b> <span>(paid ${money(price)}, ${money(back)} paid back)</span>`;
 }
 /* Reflects the current personalKind (Expense/Income) onto the modal: the
    toggle's active state, title, whether the category field makes sense
@@ -4261,6 +4364,7 @@ function applyPersonalKindUI(){
     b.classList.toggle('active', b.dataset.kind === personalKind);
   });
   $('pTxCategoryField').style.display = personalKind === 'income' ? 'none' : '';
+  $('pTxPaidBackField').style.display = personalKind === 'income' ? 'none' : '';
   // Only makes sense for an existing expense entry — Freediving Finance
   // has no manual income concept, and there's nothing to move yet for a
   // brand-new, unsaved entry.
@@ -4518,6 +4622,8 @@ document.addEventListener('click', e => {
     personalKind = el.dataset.kind === 'income' ? 'income' : 'expense';
     applyPersonalKindUI();
   }
+  else if(a==='add-paidback-row'){ addPaidBackRow('', ''); updatePaidBackNote(); const rows = document.querySelectorAll('#pTxPaidBackList .pb-name'); if(rows.length) rows[rows.length-1].focus(); }
+  else if(a==='remove-paidback-row'){ el.closest('.paidback-row').remove(); updatePaidBackNote(); }
   else if(a==='edit-personal-tx') openPersonalModal(null, el.dataset.tx);
   else if(a==='delete-personal-tx'){
     db.personalFinance = db.personalFinance.filter(x=>x.id!==el.dataset.tx);
@@ -4538,7 +4644,9 @@ document.addEventListener('click', e => {
         id: uid(),
         type: 'expense',
         item: t.item,
-        price: t.price,
+        // Freediving Finance has no concept of friends paying part
+        // back, so the net amount is what moves over (the real cost).
+        price: Math.max(0, (t.price||0) - paidBackTotal(t)),
         date: t.date,
       });
       save();
@@ -4709,6 +4817,8 @@ attachFilteredSuggestions('fProgStudent', 'fProgStudentList', knownStudentNames)
 // overwrites something already typed or an edit's existing values.
 // Income entries have no category field, but their price is remembered
 // the same way expenses' is.
+$('pTxPrice').addEventListener('input', updatePaidBackNote);
+$('pTxPaidBackList').addEventListener('input', updatePaidBackNote);
 $('pTxItem').addEventListener('input', ()=>{
   const kind = personalKind === 'income' ? 'income' : 'expense';
   if(kind === 'expense' && !$('pTxCategory').value.trim()){
@@ -4872,6 +4982,7 @@ $('personalForm').addEventListener('submit', ()=>{
     category: personalKind === 'income' ? '' : resolveAgainstKnown($('pTxCategory').value, knownCategories()),
     price: Math.max(0, parseFloat($('pTxPrice').value)||0),
     date: combineDateTime($('pTxDate').value, $('pTxTime').value),
+    paidBack: personalKind === 'income' ? [] : readPaidBackRows(),
   };
   if(editingPersonalTx){
     Object.assign(db.personalFinance.find(x=>x.id===editingPersonalTx), data);
