@@ -542,7 +542,6 @@
     <button class="tab-btn" data-action="go-tab" data-tab="students">Students</button>
     <button class="tab-btn" data-action="go-tab" data-tab="programs">Programs</button>
     <button class="tab-btn" data-action="go-tab" data-tab="finance">Freediving Finance</button>
-    <button class="tab-btn" data-action="go-tab" data-tab="personal">Personal Finance</button>
     <button class="tab-btn" data-action="go-tab" data-tab="calendar">Calendar</button>
     <button class="tab-btn" data-action="go-tab" data-tab="todos">To-Do</button>
   </div>
@@ -743,7 +742,7 @@
     </div>
     <div class="field" id="fTxTimeField" style="display:none"><label for="fTxTime">Time</label><input id="fTxTime" type="text" inputmode="numeric" placeholder="HH:MM" pattern="([01]\d|2[0-3]):[0-5]\d" title="24-hour HH:MM, e.g. 14:30" maxlength="5"></div>
     <div class="modal-btns">
-      <button type="button" class="btn btn-move" id="financeMoveBtn" data-action="move-finance-to-personal" style="display:none;margin-right:auto">↔ Move to Personal</button>
+      <button type="button" class="btn btn-move" hidden id="financeMoveBtn" data-action="move-finance-to-personal" style="display:none;margin-right:auto">↔ Move to Personal</button>
       <button type="button" class="btn btn-ghost" data-action="close-finance-modal">Cancel</button>
       <button type="submit" class="btn btn-primary">Save</button>
     </div>
@@ -1040,7 +1039,7 @@ function programLabel(key){
   return p ? p.label : key;
 }
 let currentStudent = null;
-let currentTab = 'personal';
+let currentTab = 'finance';
 let previousTab = null; // for Esc-to-go-back — see the global keydown handler near the bottom
 let currentProgram = null; // null = program list view, else a PROGRAM_OPTIONS key
 let searchQuery = '';
