@@ -1986,7 +1986,9 @@ window.addEventListener('pagehide', () => { flushNow(); });
 setInterval(() => { if(document.visibilityState === 'visible') pullIfStale(POLL_INTERVAL_MS - 1000); }, POLL_INTERVAL_MS);
 // Warns before closing the tab only if something has not reached the sheet yet.
 window.addEventListener('beforeunload', e => {
-  if(syncing || isLocalDirty()){ e.preventDefault(); e.returnValue = ''; }
+  // Closes silently when everything is saved; shows the browser's "leave site?" popup when not.
+  const unsaved = syncing || isLocalDirty() || uiState === 'dirty' || uiState === 'saving' || uiState === 'error' || uiState === 'offline';
+  if(unsaved){ try{ flushNow(); }catch(_){} e.preventDefault(); e.returnValue = ''; return ''; }
 });
 
 loadSyncState();
