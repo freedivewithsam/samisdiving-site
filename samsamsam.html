@@ -181,40 +181,6 @@
   .tx .amt.out{color:var(--expense)}
   .tx .acts{display:flex;gap:6px}
 
-  /* Daily/one-time to-do checklist rows */
-  .todo-check{position:relative;width:26px;height:26px;flex-shrink:0;cursor:pointer}
-  .todo-check input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
-  .todo-checkmark{
-    position:absolute;inset:0;border-radius:8px;border:1.5px solid var(--rose-line);
-    display:flex;align-items:center;justify-content:center;background:var(--card);
-    transition:background .15s,border-color .15s;
-  }
-  .todo-check input:checked + .todo-checkmark{background:var(--accent-dark);border-color:var(--accent-dark)}
-  .todo-check input:checked + .todo-checkmark::after{content:'✓';color:#fff;font-size:15px;font-weight:700;line-height:1}
-  .todo-row.todo-done .item{text-decoration:line-through;color:var(--ink-soft)}
-  /* Keep name + chip + edit/delete on one line so the icons stay pinned
-     to the right edge instead of wrapping underneath in the narrower
-     grid columns — long names truncate with an ellipsis instead. */
-  .todo-row{flex-wrap:nowrap}
-  .todo-row .mid{min-width:0}
-  .todo-row .item{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .todo-row .acts{flex-shrink:0;margin-left:auto}
-  .todo-cell{display:flex;flex-direction:column;gap:6px;height:96px;overflow:hidden}
-  .todo-group-head{
-    font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
-    color:var(--ink-soft);margin:18px 0 8px;
-  }
-  .todo-group-head:first-of-type{margin-top:4px}
-  /* Inline history strip under each recurring to-do: last 6 periods
-     before the current one, filled if that period had a completion. */
-  .todo-history{display:flex;gap:5px;flex-wrap:wrap;padding-left:52px}
-  .todo-hist-dot{
-    width:22px;height:22px;border-radius:50%;border:1.5px solid var(--rose-line);
-    display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;
-    color:var(--ink-soft);background:var(--card);cursor:default;flex-shrink:0;
-  }
-  .todo-hist-dot.checked{background:var(--ok);border-color:var(--ok);color:#fff}
-
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:22px}
   .stats-3col{grid-template-columns:repeat(3,1fr)}
   @media (max-width:520px){ .stats-3col{grid-template-columns:1fr 1fr} }
@@ -242,11 +208,6 @@
     display:grid;grid-template-columns:1fr 1fr;gap:12px;
   }
   @media (max-width:520px){ .students-grid{grid-template-columns:1fr} }
-  .todos-grid{
-    display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
-  }
-  @media (max-width:900px){ .todos-grid{grid-template-columns:1fr 1fr} }
-  @media (max-width:520px){ .todos-grid{grid-template-columns:1fr} }
   .card{
     background:var(--card);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);
     cursor:pointer;border:1.5px solid transparent;transition:border-color .15s;
@@ -690,26 +651,6 @@
   </form>
 </dialog>
 
-<dialog id="todoModal">
-  <form class="modal-in" id="todoForm" method="dialog">
-    <h3 id="todoModalTitle">Add to-do</h3>
-    <div class="field"><label for="fTodoName">Name</label><input id="fTodoName" type="text" required autocomplete="off" enterkeyhint="done"></div>
-    <div class="field">
-      <label>Repeats</label>
-      <div class="subtabs" id="todoFreqToggle" style="margin:0">
-        <button type="button" class="subtab-btn" data-action="set-todo-freq" data-freq="daily">Daily</button>
-        <button type="button" class="subtab-btn" data-action="set-todo-freq" data-freq="weekly">Weekly</button>
-        <button type="button" class="subtab-btn" data-action="set-todo-freq" data-freq="monthly">Monthly</button>
-        <button type="button" class="subtab-btn" data-action="set-todo-freq" data-freq="once">One-time</button>
-      </div>
-    </div>
-    <div class="modal-btns">
-      <button type="button" class="btn btn-ghost" data-action="close-todo-modal">Cancel</button>
-      <button type="submit" class="btn btn-primary">Save</button>
-    </div>
-  </form>
-</dialog>
-
 <dialog id="financeModal">
   <form class="modal-in" id="financeForm" method="dialog">
     <h3 id="financeModalTitle">Add expense</h3>
@@ -782,55 +723,6 @@
       <button type="button" class="btn btn-ghost" data-action="close-finance-settings">Close</button>
     </div>
   </div>
-</dialog>
-
-<dialog id="renameProgramModal">
-  <div class="modal-in">
-    <h3>Edit program</h3>
-    <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px">Sessions match a program by their Type field — after renaming, sessions need their Type updated to the new name to keep showing up here. Existing sessions still typed with the old name won't move automatically.</p>
-    <div class="field"><label for="fProgramName">Name</label><input id="fProgramName" required></div>
-    <div class="field"><label for="fProgramPrice">Default price for new sessions (IDR)</label><input id="fProgramPrice" type="number" min="0" step="1" placeholder="0"></div>
-    <p style="font-size:13px;color:var(--ink-soft);margin-top:-8px">Only pre-fills the price when scheduling a new session — it's always editable per session, and existing sessions are never changed.</p>
-    <div class="modal-btns">
-      <button type="button" class="btn btn-ghost" data-action="close-rename-program">Cancel</button>
-      <button type="button" class="btn btn-primary" data-action="save-rename-program">Save</button>
-    </div>
-  </div>
-</dialog>
-
-<dialog id="addProgramModal">
-  <form class="modal-in" id="addProgramForm" method="dialog">
-    <h3>Add program</h3>
-    <div class="field"><label for="fNewProgramName">Name</label><input id="fNewProgramName" required autocomplete="off"></div>
-    <div class="field"><label for="fNewProgramPrice">Default price for new sessions (IDR)</label><input id="fNewProgramPrice" type="number" min="0" step="1" placeholder="0"></div>
-    <div class="modal-btns">
-      <button type="button" class="btn btn-ghost" data-action="close-add-program">Cancel</button>
-      <button type="submit" class="btn btn-primary">Add</button>
-    </div>
-  </form>
-</dialog>
-
-<dialog id="programSessionModal">
-  <form class="modal-in" id="programSessionForm" method="dialog">
-    <h3 id="programSessionModalTitle">Schedule session</h3>
-    <div class="field ac-field">
-      <label for="fProgStudent">Student</label>
-      <input id="fProgStudent" autocomplete="off" required placeholder="Type a name — existing or new">
-      <div class="ac-list" id="fProgStudentList"></div>
-    </div>
-    <div class="field">
-      <label for="fProgSessDate">Session's date</label>
-      <div class="field-row">
-        <div class="date-field"><input id="fProgSessDate" type="text" inputmode="numeric" placeholder="DD-MM-YYYY" pattern="\d{2}-\d{2}-\d{4}" title="Use DD-MM-YYYY" maxlength="10"><span class="date-pick-icon" aria-hidden="true">📅</span><input type="date" class="date-pick-overlay" data-target="fProgSessDate" tabindex="-1" aria-label="Pick a date"></div>
-        <input id="fProgSessTime" type="text" inputmode="numeric" placeholder="HH:MM" title="24-hour HH:MM, e.g. 14:30" maxlength="5">
-      </div>
-    </div>
-    <div class="field"><label for="fProgSessPrice">Price (IDR)</label><input id="fProgSessPrice" type="number" min="0" step="1" placeholder="0"></div>
-    <div class="modal-btns">
-      <button type="button" class="btn btn-ghost" data-action="close-program-session-modal">Cancel</button>
-      <button type="submit" class="btn btn-primary">Save</button>
-    </div>
-  </form>
 </dialog>
 
 <dialog id="confirmModal">
@@ -936,11 +828,6 @@ function restoreFromJson(json, label){
     if(!Array.isArray(db.finance)) db.finance = [];
     if(!Array.isArray(db.personalFinance)) db.personalFinance = [];
     if(!Array.isArray(db.calendarEvents)) db.calendarEvents = [];
-    if(!Array.isArray(db.todos)) db.todos = [];
-if(!Array.isArray(db.todoChecks)) db.todoChecks = [];
-    if(!db.programLabels || typeof db.programLabels !== 'object') db.programLabels = {};
-    if(!Array.isArray(db.customPrograms)) db.customPrograms = [];
-    if(!db.programPrices || typeof db.programPrices !== 'object') db.programPrices = {};
     migrateToStudentLevel(db);
     save();
     render();
@@ -992,57 +879,21 @@ try {
 if(!Array.isArray(db.finance)) db.finance = [];
 if(!Array.isArray(db.personalFinance)) db.personalFinance = [];
 if(!Array.isArray(db.calendarEvents)) db.calendarEvents = [];
-if(!Array.isArray(db.todos)) db.todos = [];
-if(!Array.isArray(db.todoChecks)) db.todoChecks = [];
-if(!db.programLabels || typeof db.programLabels !== 'object') db.programLabels = {};
-if(!Array.isArray(db.customPrograms)) db.customPrograms = [];
-if(!db.programPrices || typeof db.programPrices !== 'object') db.programPrices = {};
 try{ migrateToStudentLevel(db); } catch(e){ /* leave db as-loaded rather than lose it to a migration bug */ }
-/* Fixed set of programs for the Programs tab — a session's "program" is
-   independent of its free-text "type" field (which stays flexible), so
-   this is a separate, small, closed list rather than another
-   open-ended autocomplete. Each program's display name can be
-   customized (db.programLabels overrides the default label below) via
-   the ✎ button on its detail page — see programLabel(). Beyond these 5
-   built-ins, more can be added via the Programs tab's "+ Add program"
-   button — those live in db.customPrograms, each with its own id used
-   as its key everywhere a built-in program's key would be. */
-const PROGRAM_OPTIONS = [
-  {key:'pool_coaching', label:'Pool Coaching'},
-  {key:'pool_courses', label:'Pool Courses'},
-  {key:'ocean', label:'Ocean'},
-  {key:'online_intro', label:'Online Intro'},
-  {key:'online_coaching', label:'Online Coaching'},
-];
-function allPrograms(){
-  const custom = (db.customPrograms||[]).map(p=>({key:p.id, label:p.label}));
-  return PROGRAM_OPTIONS.concat(custom);
-}
-function programLabel(key){
-  if(db.programLabels && db.programLabels[key]) return db.programLabels[key];
-  const p = allPrograms().find(p=>p.key===key);
-  return p ? p.label : key;
-}
 let currentStudent = null;
 let currentTab = 'finance';
 let previousTab = null; // for Esc-to-go-back — see the global keydown handler near the bottom
-let currentProgram = null; // null = program list view, else a PROGRAM_OPTIONS key
 let searchQuery = '';
 let editingStudent = null;
 let editingSess = null;
 let sessStudentId = null;
 let editingCalEvent = null;
-let editingTodo = null;
-let currentTodoFreq = 'daily';
 let deletedCalendarEventIds = [];
 let deletedExpenseIds = [];
 let deletedPersonalIds = [];
-let deletedTodoIds = [];
-let deletedTodoChecks = [];
 let deletedStudentIds = [];
 let deletedSessionIds = [];
 let deletedSessionPaymentIds = [];
-let deletedCustomProgramIds = [];
 
 // Tracks whether this device has local edits that haven't been pushed to
 // the sheet yet, across page reloads — so if the app is closed with
@@ -1440,8 +1291,7 @@ const AUTOSAVE_DELAY_MS = 3000;
 const POLL_INTERVAL_MS = 60000;
 const FOCUS_PULL_MIN_GAP_MS = 5000;
 const TRANSPORT_REPROBE_MS = 3 * 24 * 60 * 60 * 1000;
-const KINDS = ['students','sessions','payments','expenses','personal','events','todos','checks','custom','labels','prices'];
-const TODO_FREQS = ['daily','weekly','monthly','once'];
+const KINDS = ['students','sessions','payments','expenses','personal','events'];
 
 /* ---------- fingerprints ---------- */
 const _S = v => (v == null ? '' : String(v)).trim();
@@ -1467,14 +1317,11 @@ function normPaidBack(list){
    fingerprint, and only a real edit changes it. */
 const NORM = {
   students: st => ({name:_S(st.name), pkg:_S(st.pkg), total:_N(st.total), focus:_S(st.focus), phone:_S(st.phone)}),
-  sessions: s => ({type:_S(s.type || 'pool').toLowerCase(), date:_S(s.date), note:_S(s.note), status:_S(s.status || 'scheduled').toLowerCase(), program:_S(s.program), price:_N(s.price), publicBusy: s.publicBusy !== false}),
+  sessions: s => ({type:_S(s.type || 'pool').toLowerCase(), date:_S(s.date), note:_S(s.note), status:_S(s.status || 'scheduled').toLowerCase(), price:_N(s.price), publicBusy: s.publicBusy !== false}),
   payments: p => ({name:_S(p.name || 'Session'), price:_N(p.price), deposit:_N(p.deposit), depositDate:_S(p.depositDate), balance:_N(p.balance), balanceDate:_S(p.balanceDate)}),
   expenses: e => ({item:_S(e.item), price:_N(e.price), date:_S(e.date)}),
   personal: t => ({type: t.type === 'income' ? 'income' : 'expense', item:_S(t.item), price:_N(t.price), date:_S(t.date), category:_S(t.category), paidBack:normPaidBack(t.paidBack)}),
-  events: ev => ({kind:_S(ev.kind || 'event'), type:_S(ev.type), title:_S(ev.title || 'Event'), date:_S(ev.date), endDate:_S(ev.endDate), time:_S(ev.time), repeatsAnnually:!!ev.repeatsAnnually, publicBusy: ev.publicBusy !== false}),
-  todos: t => ({name:_S(t.name), freq: TODO_FREQS.indexOf(t.freq) !== -1 ? t.freq : 'daily', done:!!t.done, doneAt:_N(t.doneAt), createdAt:_N(t.createdAt)}),
-  checks: () => 1,
-  custom: p => ({label:_S(p.label)})
+  events: ev => ({kind:_S(ev.kind || 'event'), type:_S(ev.type), title:_S(ev.title || 'Event'), date:_S(ev.date), endDate:_S(ev.endDate), time:_S(ev.time), repeatsAnnually:!!ev.repeatsAnnually, publicBusy: ev.publicBusy !== false})
 };
 /* Which records the sheet can actually hold and hand back. Anything else
    (an expense with no item, say) stays on this device only and is never
@@ -1485,9 +1332,7 @@ const ELIGIBLE = {
   payments: p => !!p,
   expenses: e => !!(e && e.type !== 'income' && e.item),
   personal: t => !!(t && t.item),
-  events: ev => !!(ev && ev.date),
-  todos: t => !!(t && t.name),
-  custom: p => !!(p && p.label)
+  events: ev => !!(ev && ev.date)
 };
 
 function ensureIds(){
@@ -1495,7 +1340,7 @@ function ensureIds(){
   const fix = arr => (arr || []).forEach(x => { if(x && typeof x === 'object' && !x.id){ x.id = uid(); n++; } });
   fix(db.students);
   (db.students || []).forEach(st => { if(st){ fix(st.sessions); fix(st.sessionPayments); } });
-  fix(db.finance); fix(db.personalFinance); fix(db.calendarEvents); fix(db.todos); fix(db.customPrograms);
+  fix(db.finance); fix(db.personalFinance); fix(db.calendarEvents);
   if(n) persistDbNow();
   return n;
 }
@@ -1519,21 +1364,6 @@ function collect(src){
   (src.finance || []).forEach(e => { if(e && e.id && ELIGIBLE.expenses(e)) add('expenses', e.id, e); });
   (src.personalFinance || []).forEach(t => { if(t && t.id && ELIGIBLE.personal(t)) add('personal', t.id, t); });
   (src.calendarEvents || []).forEach(ev => { if(ev && ev.id && ELIGIBLE.events(ev)) add('events', ev.id, ev); });
-  (src.todos || []).forEach(t => { if(t && t.id && ELIGIBLE.todos(t)) add('todos', t.id, t); });
-  (src.customPrograms || []).forEach(p => { if(p && p.id && ELIGIBLE.custom(p)) add('custom', p.id, p); });
-  (src.todoChecks || []).forEach(c => {
-    if(c && c.todoId && c.date) C.checks.set(c.todoId + '|' + c.date, {h: '1', rec: {todoId: c.todoId, date: c.date}});
-  });
-  const labels = (src.programLabels && typeof src.programLabels === 'object') ? src.programLabels : {};
-  Object.keys(labels).forEach(k => {
-    const key = _S(k).toLowerCase(), v = _S(labels[k]);
-    if(key && v) C.labels.set(key, {h: hashStr(v), rec: v});
-  });
-  const prices = (src.programPrices && typeof src.programPrices === 'object') ? src.programPrices : {};
-  Object.keys(prices).forEach(k => {
-    const key = _S(k).toLowerCase(), v = _N(prices[k]);
-    if(key && v > 0) C.prices.set(key, {h: hashStr(String(v)), rec: v});
-  });
   return C;
 }
 
@@ -1560,8 +1390,7 @@ function persistSyncState(){
 }
 const DELETE_LISTS = {
   students: () => deletedStudentIds, sessions: () => deletedSessionIds, payments: () => deletedSessionPaymentIds,
-  expenses: () => deletedExpenseIds, personal: () => deletedPersonalIds, events: () => deletedCalendarEventIds,
-  todos: () => deletedTodoIds, checks: () => deletedTodoChecks, custom: () => deletedCustomProgramIds
+  expenses: () => deletedExpenseIds, personal: () => deletedPersonalIds, events: () => deletedCalendarEventIds
 };
 function persistPendingDeletes(){
   try{
@@ -1582,9 +1411,6 @@ function loadPendingDeletes(){
     deletedExpenseIds = uni(deletedExpenseIds, o.expenses);
     deletedPersonalIds = uni(deletedPersonalIds, o.personal);
     deletedCalendarEventIds = uni(deletedCalendarEventIds, o.events);
-    deletedTodoIds = uni(deletedTodoIds, o.todos);
-    deletedTodoChecks = uni(deletedTodoChecks, o.checks);
-    deletedCustomProgramIds = uni(deletedCustomProgramIds, o.custom);
   } catch(e){}
 }
 
@@ -1597,7 +1423,6 @@ function buildDelta(){
   Object.keys(DELETE_LISTS).forEach(k => { D[k] = new Set(DELETE_LISTS[k]()); });
   const sent = {};
   KINDS.forEach(k => { sent[k] = {}; });
-  sent.labelsRemoved = []; sent.pricesRemoved = [];
   sent.del = {};
   Object.keys(DELETE_LISTS).forEach(k => { sent.del[k] = DELETE_LISTS[k]().slice(); });
 
@@ -1625,31 +1450,15 @@ function buildDelta(){
     finance: listOf('expenses'),
     personalFinance: listOf('personal'),
     calendarEvents: listOf('events'),
-    todos: listOf('todos'),
-    todoChecks: listOf('checks'),
-    customPrograms: listOf('custom'),
-    programLabels: {},
-    programPrices: {},
     deletedStudentIds: sent.del.students,
     deletedSessionIds: sent.del.sessions,
     deletedSessionPaymentIds: sent.del.payments,
     deletedExpenseIds: sent.del.expenses,
     deletedPersonalIds: sent.del.personal,
-    deletedCalendarEventIds: sent.del.events,
-    deletedTodoIds: sent.del.todos,
-    deletedTodoChecks: sent.del.checks,
-    deletedCustomProgramIds: sent.del.custom
+    deletedCalendarEventIds: sent.del.events
   };
-  // Program names / default prices are small key->value maps: send the
-  // keys that changed, and an empty value for a key that was removed.
-  L.labels.forEach((e, k) => { if(B.labels[k] !== e.h){ payload.programLabels[k] = e.rec; sent.labels[k] = e.h; } });
-  Object.keys(B.labels).forEach(k => { if(!L.labels.has(k)){ payload.programLabels[k] = ''; sent.labelsRemoved.push(k); } });
-  L.prices.forEach((e, k) => { if(B.prices[k] !== e.h){ payload.programPrices[k] = e.rec; sent.prices[k] = e.h; } });
-  Object.keys(B.prices).forEach(k => { if(!L.prices.has(k)){ payload.programPrices[k] = 0; sent.pricesRemoved.push(k); } });
-
   const empty = !payload.students.length && !payload.finance.length && !payload.personalFinance.length &&
-    !payload.calendarEvents.length && !payload.todos.length && !payload.todoChecks.length && !payload.customPrograms.length &&
-    !Object.keys(payload.programLabels).length && !Object.keys(payload.programPrices).length &&
+    !payload.calendarEvents.length &&
     !Object.keys(sent.del).some(k => sent.del[k].length);
   return {payload, sent, empty};
 }
@@ -1657,8 +1466,6 @@ function buildDelta(){
 function commitDelta(sent, res){
   const B = syncState.baseline;
   KINDS.forEach(k => { Object.keys(sent[k] || {}).forEach(id => { B[k][id] = sent[k][id]; }); });
-  sent.labelsRemoved.forEach(k => { delete B.labels[k]; });
-  sent.pricesRemoved.forEach(k => { delete B.prices[k]; });
   Object.keys(sent.del).forEach(k => { sent.del[k].forEach(id => { delete B[k][id]; }); });
   // These deletions are confirmed — drop only the ones that were sent
   // (more may have been queued while the request was in flight).
@@ -1668,9 +1475,6 @@ function commitDelta(sent, res){
   deletedExpenseIds = deletedExpenseIds.filter(id => sent.del.expenses.indexOf(id) === -1);
   deletedPersonalIds = deletedPersonalIds.filter(id => sent.del.personal.indexOf(id) === -1);
   deletedCalendarEventIds = deletedCalendarEventIds.filter(id => sent.del.events.indexOf(id) === -1);
-  deletedTodoIds = deletedTodoIds.filter(id => sent.del.todos.indexOf(id) === -1);
-  deletedTodoChecks = deletedTodoChecks.filter(id => sent.del.checks.indexOf(id) === -1);
-  deletedCustomProgramIds = deletedCustomProgramIds.filter(id => sent.del.custom.indexOf(id) === -1);
   // Only move the "I have everything up to version N" marker forward when
   // this save was the ONLY write since — if another device wrote in
   // between, leave it so the next pull reads the sheet in full.
@@ -1729,10 +1533,7 @@ function orderedIds(Lm, Rm){
 function applyRemote(data){
   const has = {
     students: Array.isArray(data.students), expenses: Array.isArray(data.finance), personal: Array.isArray(data.personalFinance),
-    events: Array.isArray(data.calendarEvents), todos: Array.isArray(data.todos), checks: Array.isArray(data.todoChecks),
-    custom: Array.isArray(data.customPrograms),
-    labels: !!data.programLabels && typeof data.programLabels === 'object',
-    prices: !!data.programPrices && typeof data.programPrices === 'object'
+    events: Array.isArray(data.calendarEvents)
   };
   if(!has.students) return {changed: false, bad: 'the sheet sent back data in an unexpected shape'};
   ensureIds();
@@ -1740,7 +1541,7 @@ function applyRemote(data){
 
   // Safety net: a sheet that suddenly reports NOTHING for something this
   // device knows plenty of is far more likely a hiccup than a real wipe.
-  const guard = [['students','students'],['expenses','expenses'],['personal','personal'],['events','events'],['todos','todos']];
+  const guard = [['students','students'],['expenses','expenses'],['personal','personal'],['events','events']];
   for(let i = 0; i < guard.length; i++){
     const k = guard[i][0];
     if(has[k] && R[k].size === 0 && L[k].size >= 5 && Object.keys(B[k]).length >= 5){
@@ -1754,8 +1555,7 @@ function applyRemote(data){
   KINDS.forEach(k => {
     const present = (k === 'sessions' || k === 'payments') ? has.students : has[k];
     if(!present){ M[k] = null; nextB[k] = B[k]; return; }
-    const opts = (k === 'labels' || k === 'prices') ? {mergeRec: (l, r) => r, localDeletes: true} : {};
-    M[k] = mergeKind(L[k], R[k], B[k], Dsets[k] || null, opts);
+    M[k] = mergeKind(L[k], R[k], B[k], Dsets[k] || null);
     nextB[k] = M[k].nb;
   });
   const changed = KINDS.some(k => M[k] && M[k].changed);
@@ -1790,13 +1590,6 @@ function applyRemote(data){
     rebuild('expenses', 'finance');
     rebuild('personal', 'personalFinance');
     rebuild('events', 'calendarEvents');
-    rebuild('todos', 'todos');
-    rebuild('custom', 'customPrograms');
-    if(M.checks && M.checks.changed){
-      db.todoChecks = orderedIds(L.checks, R.checks).map(id => M.checks.out.get(id)).filter(Boolean).map(o => o.rec);
-    }
-    if(M.labels && M.labels.changed){ const o = {}; M.labels.out.forEach((v, k) => { o[k] = v.rec; }); db.programLabels = o; }
-    if(M.prices && M.prices.changed){ const o = {}; M.prices.out.forEach((v, k) => { o[k] = v.rec; }); db.programPrices = o; }
     try{ migrateToStudentLevel(db); } catch(e){ console.error('Post-sync cleanup failed:', e); }
     save(true); // data first...
   }
@@ -2113,13 +1906,8 @@ async function resetLocalAndRepull(){
     if(!Array.isArray(db.finance)) db.finance = [];
     if(!Array.isArray(db.personalFinance)) db.personalFinance = [];
     if(!Array.isArray(db.calendarEvents)) db.calendarEvents = [];
-    if(!Array.isArray(db.todos)) db.todos = [];
-    if(!Array.isArray(db.todoChecks)) db.todoChecks = [];
-    if(!db.programLabels || typeof db.programLabels !== 'object') db.programLabels = {};
-    if(!Array.isArray(db.customPrograms)) db.customPrograms = [];
-    if(!db.programPrices || typeof db.programPrices !== 'object') db.programPrices = {};
-    deletedCalendarEventIds = []; deletedExpenseIds = []; deletedPersonalIds = []; deletedTodoIds = []; deletedTodoChecks = [];
-    deletedCustomProgramIds = []; deletedStudentIds = []; deletedSessionIds = []; deletedSessionPaymentIds = [];
+    deletedCalendarEventIds = []; deletedExpenseIds = []; deletedPersonalIds = [];
+    deletedStudentIds = []; deletedSessionIds = []; deletedSessionPaymentIds = [];
     migrateToStudentLevel(db);
     ensureIds();
     persistDbNow();
@@ -2139,7 +1927,6 @@ async function resetLocalAndRepull(){
         <div class="alert-row"><span>Students</span><b>${(db.students || []).length}</b></div>
         <div class="alert-row"><span>Sessions</span><b>${sessionCount}</b></div>
         <div class="alert-row"><span>Calendar events</span><b>${(db.calendarEvents || []).length}</b></div>
-        <div class="alert-row"><span>To-dos</span><b>${(db.todos || []).length}</b></div>
       </div>`;
     setSyncStatus('Local data reset — now showing the cloud’s current data (' + clock(new Date()) + ').');
     currentStudent = null;
@@ -2719,7 +2506,6 @@ function attachFilteredSuggestions(inputId, listId, knownListFn){
 
 /* ---------- rendering ---------- */
 function render(){
-  if(currentTab==='todos' || currentTab==='programs') currentTab = 'students';
   updateTabs();
   const onFinance = currentTab==='finance', onPersonal = currentTab==='personal', onCalendar = currentTab==='calendar';
   if($('newStudentBtn')) $('newStudentBtn').style.display = (onFinance || onPersonal || onCalendar) ? 'none' : '';
@@ -3013,168 +2799,12 @@ function dateKeyOf(ts){
 function dateFmt(d){
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
-/* The [start,end] "YYYY-MM-DD" range of whichever daily/weekly/monthly
-   period contains a given date — weekly runs Monday–Sunday. doneDates
-   always stores plain literal dates (never a derived "period key"), so
-   this is the only place period boundaries get computed; checking status
-   just asks "does any stored date fall inside this period's range,"
-   which keeps the storage format identical for every frequency (and
-   avoids Google Sheets ever trying to auto-convert something like a bare
-   "2026-08" month key into an actual Date value the way a full date
-   string already had to be defended against). */
-function periodRangeContaining(freq, dateStr){
-  const d = new Date(dateStr + 'T00:00:00');
-  if(freq === 'weekly'){
-    const dow = (d.getDay()+6)%7; // 0=Monday..6=Sunday
-    const monday = new Date(d); monday.setDate(d.getDate()-dow);
-    const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
-    return {start: dateFmt(monday), end: dateFmt(sunday)};
-  }
-  if(freq === 'monthly'){
-    const first = new Date(d.getFullYear(), d.getMonth(), 1);
-    const last = new Date(d.getFullYear(), d.getMonth()+1, 0);
-    return {start: dateFmt(first), end: dateFmt(last)};
-  }
-  return {start: dateStr, end: dateStr}; // daily
-}
-/* Same period range, but N periods before/after the one containing
-   today — used to build the inline history dots (offset 0 = current
-   period, negative = further in the past). */
-function periodRangeOffset(freq, offset){
-  const now = new Date();
-  if(freq === 'weekly'){
-    const dow = (now.getDay()+6)%7;
-    const monday = new Date(now); monday.setDate(now.getDate()-dow+offset*7);
-    return periodRangeContaining('weekly', dateFmt(monday));
-  }
-  if(freq === 'monthly'){
-    const d = new Date(now.getFullYear(), now.getMonth()+offset, 1);
-    return periodRangeContaining('monthly', dateFmt(d));
-  }
-  const d = new Date(now); d.setDate(now.getDate()+offset);
-  return periodRangeContaining('daily', dateFmt(d));
-}
-function periodLabel(freq, range){
-  const start = new Date(range.start+'T00:00:00');
-  if(freq === 'weekly') return 'Week of ' + start.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-  if(freq === 'monthly') return start.toLocaleDateString('en-GB',{month:'long',year:'numeric'});
-  return start.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
-}
-function periodShort(freq, range){
-  const start = new Date(range.start+'T00:00:00');
-  if(freq === 'weekly') return 'W';
-  if(freq === 'monthly') return start.toLocaleDateString('en-GB',{month:'narrow'});
-  return start.toLocaleDateString('en-GB',{weekday:'narrow'});
-}
-/* Every check/uncheck for daily/weekly/monthly to-dos lives in its own
-   flat db.todoChecks entry ({todoId, date}) instead of an array field
-   nested on the to-do itself — this is what actually fixes "checked it
-   on my phone but my laptop doesn't show it": the old doneDates-array
-   approach sent a to-do's WHOLE check history on every save, so if one
-   device pushed any change before pulling another device's more recent
-   check, its stale copy of that array would silently overwrite the
-   newer one. Splitting each check into its own row (merged independently
-   by the backend, see mergeTodoChecks in code.gs) means that race can't
-   happen anymore — each check is its own atomic, separately-mergeable
-   unit, the same fix already applied to sessions. */
-function todoCheckedDates(todoId){
-  return (db.todoChecks||[]).filter(c=>c.todoId===todoId).map(c=>c.date);
-}
-function isTodoChecked(t){
-  return isTodoCheckedOnDate(t, todayStr());
-}
-/* Same as isTodoChecked, but "as of" any date — this is what the history
-   view is built on. Daily/weekly/monthly: was there any check falling
-   inside the period (day/week/month) that contains this date. One-time:
-   had it already been completed by that date (its doneAt falls on or
-   before it) — a one-time to-do finished later still shows as not-done
-   for an earlier date being looked back at. */
-function isTodoCheckedOnDate(t, dateStr){
-  if(t.freq === 'once'){
-    if(!t.done || !t.doneAt) return false;
-    const doneKey = dateKeyOf(t.doneAt);
-    return !!doneKey && doneKey <= dateStr;
-  }
-  const r = periodRangeContaining(t.freq, dateStr);
-  return todoCheckedDates(t.id).some(d => d >= r.start && d <= r.end);
-}
-function toggleTodo(id){
-  toggleTodoOnDate(id, todayStr());
-}
-/* Toggles a to-do's completion for any specific date — powers both the
-   live checklist (always today) and the history view (any past day,
-   letting you retroactively check/uncheck something you forgot).
-   Daily/weekly/monthly: adds/removes a single {todoId, date} entry in
-   db.todoChecks — isTodoCheckedOnDate() above is what turns "this date
-   has a check" into "so the period containing it counts as done."
-   One-time: there's only ever a single completion, not a per-period one,
-   so checking it from a past date sets its completion time to that
-   date, and unchecking it clears the completion entirely. */
-function toggleTodoOnDate(id, dateStr){
-  const t = (db.todos||[]).find(x=>x.id===id);
-  if(!t) return;
-  if(t.freq !== 'once'){
-    if(!Array.isArray(db.todoChecks)) db.todoChecks = [];
-    const idx = db.todoChecks.findIndex(c=>c.todoId===id && c.date===dateStr);
-    if(idx === -1){
-      db.todoChecks.push({todoId:id, date:dateStr});
-    } else {
-      db.todoChecks.splice(idx, 1);
-      deletedTodoChecks.push(id + '|' + dateStr);
-    }
-  } else if(isTodoCheckedOnDate(t, dateStr)){
-    t.done = false;
-    t.doneAt = null;
-  } else {
-    t.done = true;
-    t.doneAt = new Date(dateStr + 'T12:00:00').getTime();
-  }
-  save(); render();
-}
-/* Inline history strip shown under each recurring to-do: the last 6
-   periods before the current one, each a small dot — filled if that
-   period had a completion, hollow if not, with a tooltip giving the
-   full date/week/month label. Lets the pattern be seen at a glance
-   without leaving the live list, the same idea as the separate "View by
-   date" browser but immediate and read-only. */
-function todoHistoryDotsHtml(t){
-  if(t.freq === 'once') return '';
-  const dates = todoCheckedDates(t.id);
-  const dots = [];
-  for(let i=6;i>=1;i--){
-    const range = periodRangeOffset(t.freq, -i);
-    const checked = dates.some(d => d >= range.start && d <= range.end);
-    dots.push(`<div class="todo-hist-dot${checked?' checked':''}" title="${esc(periodLabel(t.freq, range))} — ${checked?'done':'not done'}">${esc(periodShort(t.freq, range))}</div>`);
-  }
-  return `<div class="todo-history">${dots.join('')}</div>`;
-}
-
 function updateTabs(){
   document.querySelectorAll('.tab-btn').forEach(b=>{
     b.classList.toggle('active', b.dataset.tab === currentTab);
   });
 }
 
-/* Programs tab: a fixed set of 5 programs (see PROGRAM_OPTIONS). A
-   session belongs to a program when its (free-text) Type matches that
-   program's label — the same Type field already used on the Students
-   tab, so nothing new needs to be set for it to show up here; typing
-   "Pool Coaching" as a session's type is what puts it under the Pool
-   Coaching program. List view shows a card per program with counts;
-   tapping one drills into the per-student breakdown. */
-function normalizeProgramMatch(str){
-  return (str||'').trim().toLowerCase().replace(/[\s_-]+/g, ' ');
-}
-function sessionProgramKey(sess){
-  const norm = normalizeProgramMatch(sess.type);
-  if(!norm) return null;
-  // Matches against each program's CURRENT (possibly renamed) label —
-  // renaming a program means sessions need their Type updated to the
-  // new name to keep matching; existing sessions still typed with the
-  // old name won't automatically follow the rename.
-  const match = allPrograms().find(p => normalizeProgramMatch(programLabel(p.key)) === norm);
-  return match ? match.key : null;
-}
 function renderDashboard(){
   const sts = db.students;
   const outstanding = sts.reduce((a,s)=>a+owed(s),0);
@@ -3217,7 +2847,7 @@ function renderDashboard(){
     const matches = [];
     sts.forEach(st=>{
       (st.sessions||[]).forEach(sess=>{
-        const typeText = typeLabelString(sess.type||'').toLowerCase();
+        const typeText = typeLabel(sess.type||'').toLowerCase();
         const dateText = sess.date ? fmtDate(sess.date).toLowerCase() : '';
         if(typeText.includes(searchQuery) || dateText.includes(searchQuery)){
           matches.push({st, sess});
@@ -3489,7 +3119,7 @@ function wireTimeAutoColon(input){
     else if(digits) input.value = digits;
   });
 }
-document.querySelectorAll('#fSessTime, #fCalEvTime, #fTxTime, #pTxTime, #fProgSessTime').forEach(wireTimeAutoColon);
+document.querySelectorAll('#fSessTime, #fCalEvTime, #fTxTime, #pTxTime').forEach(wireTimeAutoColon);
 /* Same digit->HH:MM reformatting as wireTimeAutoColon above, but callable
    directly — used at the top of each form's submit handler below so
    typing e.g. "1800" then pressing Enter to submit immediately (which
@@ -3964,9 +3594,7 @@ function openSessModal(studentId, sessId){
   const parts = sess && sess.date ? sessIsoToParts(sess.date) : {date:'', time:''};
   $('fSessDate').value = parts.date;
   $('fSessTime').value = parts.time;
-  // Only ever shows an existing session's own price when editing — never
-  // retroactively pulls in a program's default, so old sessions are
-  // never changed just by opening them.
+  // Only ever shows an existing session's own price when editing.
   $('fSessPrice').value = sess && sess.price ? sess.price : '';
   // Defaults checked (busy) for a brand-new session, and matches the
   // existing value for an edit — "!== false" so a session saved before
@@ -3974,37 +3602,6 @@ function openSessModal(studentId, sessId){
   // checked, matching how the backend treats it (see getBusyDatesRaw()).
   $('fSessPublicBusy').checked = !sess || sess.publicBusy !== false;
   $('sessModal').showModal();
-}
-
-/* Programs tab "+ Add student & schedule": lets a session get created
-   (for an existing student, or a brand-new one typed in on the spot)
-   without leaving the Programs tab. The new session's Type is set to
-   this program's own label, which is exactly what makes it show up
-   under this program (see sessionProgramKey() above) — and since it
-   lands in that student's normal sessions array, it's automatically
-   the same session the Students tab and Calendar already show, no
-   separate sync needed. */
-let programSessionKey = null;
-function openProgramSessionModal(key){
-  programSessionKey = key;
-  $('programSessionModalTitle').textContent = 'Schedule ' + programLabel(key) + ' session';
-  $('fProgStudent').value = '';
-  $('fProgSessDate').value = '';
-  $('fProgSessTime').value = '';
-  // Pre-fills from this program's default price (if one is set), but
-  // stays fully editable — this only ever affects the new session being
-  // created here, never any existing ones.
-  const defaultPrice = db.programPrices && db.programPrices[key];
-  $('fProgSessPrice').value = defaultPrice ? defaultPrice : '';
-  $('programSessionModal').showModal();
-}
-
-let renamingProgramKey = null;
-function openRenameProgram(key){
-  renamingProgramKey = key;
-  $('fProgramName').value = programLabel(key);
-  $('fProgramPrice').value = (db.programPrices && db.programPrices[key]) ? db.programPrices[key] : '';
-  $('renameProgramModal').showModal();
 }
 
 function openCalEventModal(id, prefillDate){
@@ -4107,21 +3704,6 @@ function applyPersonalKindUI(){
   $('personalMoveBtn').style.display = (editingPersonalTx && personalKind !== 'income') ? '' : 'none';
 }
 
-function setTodoFreqUI(freq){
-  currentTodoFreq = freq;
-  document.querySelectorAll('#todoFreqToggle .subtab-btn').forEach(b=>{
-    b.classList.toggle('active', b.dataset.freq === freq);
-  });
-}
-function openTodoModal(id){
-  editingTodo = id || null;
-  const t = id ? (db.todos||[]).find(x=>x.id===id) : null;
-  $('todoModalTitle').textContent = id ? 'Edit to-do' : 'Add to-do';
-  $('fTodoName').value = t ? t.name : '';
-  setTodoFreqUI(t ? t.freq : 'daily');
-  $('todoModal').showModal();
-}
-
 function askConfirm(msg, cb, confirmLabel){
   $('confirmMsg').textContent = msg;
   $('confirmYesBtn').textContent = confirmLabel || 'Delete';
@@ -4167,7 +3749,7 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-action]');
   if(!el) return;
   const a = el.dataset.action, sid = el.dataset.student, xid = el.dataset.sess;
-  if(a==='go-tab'){ if(el.dataset.tab !== currentTab) previousTab = currentTab; currentTab = el.dataset.tab; currentStudent = null; searchQuery=''; personalMonth='all'; financeMonth='all'; categoryFilter=null; calendarTypeFilter=null; currentProgram = null; if($('searchInput')) $('searchInput').value=''; render(); window.scrollTo(0,0); }
+  if(a==='go-tab'){ if(el.dataset.tab !== currentTab) previousTab = currentTab; currentTab = el.dataset.tab; currentStudent = null; searchQuery=''; personalMonth='all'; financeMonth='all'; categoryFilter=null; calendarTypeFilter=null; if($('searchInput')) $('searchInput').value=''; render(); window.scrollTo(0,0); }
   else if(a==='toggle-discreet'){ discreetMode = !discreetMode; saveDiscreetMode(); updateDiscreetBtn(); render(); }
   else if(a==='filter-category'){ categoryFilter = (categoryFilter === el.dataset.cat) ? null : el.dataset.cat; render(); }
   else if(a==='clear-category-filter'){ categoryFilter = null; render(); }
@@ -4205,36 +3787,6 @@ document.addEventListener('click', e => {
     if(link) window.open(link, '_blank', 'noopener');
   }
   else if(a==='open-student'){ currentStudent = sid; currentTab = 'students'; render(); window.scrollTo(0,0); }
-  else if(a==='open-program'){ currentProgram = el.dataset.program; render(); window.scrollTo(0,0); }
-  else if(a==='back-to-programs'){ currentProgram = null; render(); window.scrollTo(0,0); }
-  else if(a==='open-program-session') openProgramSessionModal(el.dataset.program);
-  else if(a==='rename-program'){ e.stopPropagation(); openRenameProgram(el.dataset.program); }
-  else if(a==='close-rename-program') $('renameProgramModal').close();
-  else if(a==='save-rename-program'){
-    const val = $('fProgramName').value.trim();
-    if(!val || !renamingProgramKey) return;
-    if(!db.programLabels) db.programLabels = {};
-    db.programLabels[renamingProgramKey] = val;
-    if(!db.programPrices) db.programPrices = {};
-    const price = parseFloat($('fProgramPrice').value) || 0;
-    if(price > 0) db.programPrices[renamingProgramKey] = price;
-    else delete db.programPrices[renamingProgramKey];
-    save();
-    $('renameProgramModal').close();
-    render();
-  }
-  else if(a==='open-add-program'){ $('fNewProgramName').value = ''; $('fNewProgramPrice').value = ''; $('addProgramModal').showModal(); }
-  else if(a==='close-add-program') $('addProgramModal').close();
-  else if(a==='delete-program'){
-    const key = el.dataset.program;
-    db.customPrograms = (db.customPrograms||[]).filter(p=>p.id!==key);
-    deletedCustomProgramIds.push(key);
-    if(db.programLabels) delete db.programLabels[key];
-    save();
-    currentProgram = null;
-    render();
-  }
-  else if(a==='close-program-session-modal') $('programSessionModal').close();
   else if(a==='go-home'){ currentStudent = null; render(); }
   else if(a==='new-sess') openSessModal(sid);
   else if(a==='edit-sess'){ e.stopPropagation(); openSessModal(sid, xid); }
@@ -4381,22 +3933,6 @@ document.addEventListener('click', e => {
       render();
     }, 'Move');
   }
-  else if(a==='new-todo') openTodoModal();
-  else if(a==='edit-todo') openTodoModal(el.dataset.todo);
-  else if(a==='delete-todo'){
-    const id = el.dataset.todo;
-    db.todos = (db.todos||[]).filter(x=>x.id!==id);
-    deletedTodoIds.push(id);
-    // Clean up its check history too, both locally and on the backend
-    // — otherwise TodoChecks would keep orphaned rows nothing will
-    // ever reference again.
-    (db.todoChecks||[]).filter(c=>c.todoId===id).forEach(c=>deletedTodoChecks.push(c.todoId + '|' + c.date));
-    db.todoChecks = (db.todoChecks||[]).filter(c=>c.todoId!==id);
-    save(); render();
-  }
-  else if(a==='toggle-todo') toggleTodo(el.dataset.todo);
-  else if(a==='set-todo-freq') setTodoFreqUI(el.dataset.freq);
-  else if(a==='close-todo-modal') $('todoModal').close();
   else if(a==='confirm-no'){ confirmCb = null; $('confirmModal').close(); }
   else if(a==='confirm-yes'){ const cb = confirmCb; confirmCb = null; $('confirmModal').close(); if(cb) cb(); }
   else if(a==='alert-ok'){ $('alertModal').close(); }
@@ -4412,7 +3948,7 @@ document.addEventListener('keydown', e => {
 /* Esc: closes whatever popup is open (reusing that dialog's own Close/
    Cancel button so its usual cleanup still runs, rather than a bare
    .close() that would skip it), or — with nothing open — steps back to
-   wherever you were before: out of a student/program detail page, or
+   wherever you were before: out of a student detail page, or
    back to the previously-viewed tab. */
 document.addEventListener('keydown', e => {
   if(e.key !== 'Escape') return;
@@ -4425,12 +3961,11 @@ document.addEventListener('keydown', e => {
     return;
   }
   if(currentStudent){ currentStudent = null; render(); return; }
-  if(currentProgram){ currentProgram = null; render(); return; }
   if(previousTab && previousTab !== currentTab){
     const target = previousTab;
     previousTab = currentTab;
     currentTab = target;
-    currentStudent = null; searchQuery=''; personalMonth='all'; financeMonth='all'; categoryFilter=null; currentProgram = null;
+    currentStudent = null; searchQuery=''; personalMonth='all'; financeMonth='all'; categoryFilter=null;
     if($('searchInput')) $('searchInput').value='';
     render();
     window.scrollTo(0,0);
@@ -4487,56 +4022,12 @@ $('sessForm').addEventListener('submit', ()=>{
   save(); render();
 });
 
-$('programSessionForm').addEventListener('submit', ()=>{
-  normalizeTimeField('fProgSessTime');
-  const name = $('fProgStudent').value.trim();
-  if(!name || !programSessionKey) return;
-  const resolved = resolveAgainstKnown(name, knownStudentNames()) || name;
-  let st = db.students.find(s=>(s.name||'').trim().toLowerCase() === resolved.trim().toLowerCase());
-  if(!st){
-    st = {id: uid(), name: resolved, pkg: '', total: 5, focus: '', phone: '', sessions: [], sessionPayments: []};
-    db.students.push(st);
-  }
-  const programLbl = programLabel(programSessionKey);
-  const price = parseFloat($('fProgSessPrice').value) || 0;
-  st.sessions.push({
-    id: uid(),
-    status: 'scheduled',
-    type: programLbl.toLowerCase(),
-    date: sessPartsToIso($('fProgSessDate').value, $('fProgSessTime').value),
-    price,
-  });
-  // Same auto-created matching payment entry as the regular "New session"
-  // form above — see the comment there.
-  if(price > 0){
-    if(!Array.isArray(st.sessionPayments)) st.sessionPayments = [];
-    st.sessionPayments.push({id: uid(), name: programLbl, price, deposit: 0, depositDate: null, balance: 0, balanceDate: null});
-  }
-  save(); render();
-});
-
-$('addProgramForm').addEventListener('submit', ()=>{
-  const name = $('fNewProgramName').value.trim();
-  if(!name) return;
-  if(!Array.isArray(db.customPrograms)) db.customPrograms = [];
-  const id = uid();
-  db.customPrograms.push({id, label: name});
-  const price = parseFloat($('fNewProgramPrice').value) || 0;
-  if(price > 0){
-    if(!db.programPrices) db.programPrices = {};
-    db.programPrices[id] = price;
-  }
-  save();
-  render();
-});
-
 // All free-text "type"/"item"/"category" fields with a suggestion list
 // behind them: suggestions filter as you type instead of popping open a
 // full list the moment the field is clicked, and Tab auto-fills the match
 // (highlighted one, or the sole remaining one) before moving on.
 attachFilteredSuggestions('fTxItem', 'fTxItemList', knownFinanceItems);
 attachFilteredSuggestions('pTxItem', 'pTxItemList', knownPersonalItems);
-attachFilteredSuggestions('fProgStudent', 'fProgStudentList', knownStudentNames);
 // Learns from expense/income history: typing (or picking) an item name
 // used before quietly fills in the category AND price it was logged
 // under last time — only when each field is still empty, so it never
@@ -4587,16 +4078,6 @@ $('fType').addEventListener('input', ()=>{
 });
 attachFilteredSuggestions('fCalEvType', 'fCalEvTypeList', knownCalEvTypes);
 attachFilteredSuggestions('pTxCategory', 'pTxCategoryList', knownCategories);
-
-// Pressing Enter in the to-do name field saves it immediately — same as
-// tapping Save — instead of relying on default browser form-submission
-// behavior, which isn't always reliable with mobile virtual keyboards.
-$('fTodoName').addEventListener('keydown', e=>{
-  if(e.key === 'Enter'){
-    e.preventDefault();
-    $('todoForm').requestSubmit();
-  }
-});
 
 $('calEventForm').addEventListener('submit', (e)=>{
   normalizeTimeField('fCalEvTime');
@@ -4669,14 +4150,6 @@ $('pTxDate').addEventListener('input', ()=>{
   $('pTxDate').value = out;
 });
 
-$('fProgSessDate').addEventListener('input', ()=>{
-  let digits = $('fProgSessDate').value.replace(/\D/g,'').slice(0,8);
-  let out = digits.slice(0,2);
-  if(digits.length > 2) out += '-' + digits.slice(2,4);
-  if(digits.length > 4) out += '-' + digits.slice(4,8);
-  $('fProgSessDate').value = out;
-});
-
 $('fSessDate').addEventListener('input', ()=>{
   let digits = $('fSessDate').value.replace(/\D/g,'').slice(0,8);
   let out = digits.slice(0,2);
@@ -4722,40 +4195,6 @@ $('personalForm').addEventListener('submit', ()=>{
     Object.assign(db.personalFinance.find(x=>x.id===editingPersonalTx), data);
   } else {
     db.personalFinance.push({id:uid(), ...data});
-  }
-  save(); render();
-});
-
-$('todoForm').addEventListener('submit', ()=>{
-  if(!Array.isArray(db.todos)) db.todos = [];
-  if(!Array.isArray(db.todoChecks)) db.todoChecks = [];
-  const name = $('fTodoName').value.trim();
-  if(!name) return;
-  if(editingTodo){
-    const existing = db.todos.find(x=>x.id===editingTodo);
-    if(existing){
-      existing.name = name;
-      const wasOnce = existing.freq === 'once';
-      existing.freq = currentTodoFreq;
-      // Switching a checked one-time to-do to a recurring one (or vice
-      // versa) clears whichever completion state no longer applies to
-      // its new type.
-      if(currentTodoFreq === 'once' && !wasOnce){
-        (db.todoChecks||[]).filter(c=>c.todoId===editingTodo).forEach(c=>deletedTodoChecks.push(c.todoId + '|' + c.date));
-        db.todoChecks = (db.todoChecks||[]).filter(c=>c.todoId!==editingTodo);
-      } else if(currentTodoFreq !== 'once' && wasOnce){
-        existing.done = false; existing.doneAt = null;
-      }
-    }
-  } else {
-    db.todos.push({
-      id: uid(),
-      name,
-      freq: currentTodoFreq,
-      createdAt: Date.now(),
-      done: false,
-      doneAt: null,
-    });
   }
   save(); render();
 });
