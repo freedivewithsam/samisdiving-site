@@ -1254,9 +1254,12 @@ function renderTax(){
   return `
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
       <div class="section" style="margin:0">Tax — ${TAX_YEAR}</div>
-      <button type="button" class="btn btn-ghost btn-small" data-action="preview-tax-pdf">Preview PDF</button>
+      <span style="display:flex;gap:8px">
+        <button type="button" class="btn btn-ghost btn-small" data-action="refresh-tax">Refresh</button>
+        <button type="button" class="btn btn-ghost btn-small" data-action="preview-tax-pdf">Preview PDF</button>
+      </span>
     </div>
-    <div id="taxPullStatus" style="font-size:12.5px;color:var(--ink-soft);margin:-8px 0 14px"></div>
+    <div id="taxPullStatus" style="font-size:12.5px;color:${taxStatusBad ? 'var(--warn)' : 'var(--ink-soft)'};margin:-8px 0 14px">${esc(taxStatusText)}</div>
     ${umkmBreakdownTable()}
     ${table('freelance', 'Freelance', 'Manually typed — not synced automatically.', true)}
   `;
@@ -1390,11 +1393,15 @@ function formatIDR(n){
 // together automatically whenever the Tax tab is opened. Freelance is never
 // touched here; it stays exactly what's typed into it by hand.
 let taxSyncInFlight = false;
+// Kept outside the page markup: every render() rebuilds the Tax tab, which used
+// to wipe the "Synced" / "Couldn't reach…" message the instant it was written.
+let taxStatusText = '', taxStatusBad = false;
 async function syncUmkmAutomatically(){
   if(taxSyncInFlight) return;
   taxSyncInFlight = true;
   const statusEl = $('taxPullStatus');
-  if(statusEl) statusEl.textContent = 'Syncing…';
+  taxStatusText = 'Syncing…'; taxStatusBad = false;
+  if(statusEl) statusEl.textContent = taxStatusText;
   const months = Array.from({length:12}, (_,i) => String(TAX_YEAR) + '-' + String(i+1).padStart(2,'0'));
 
   const freestepByMonth = {};
@@ -1420,10 +1427,10 @@ async function syncUmkmAutomatically(){
       });
     });
     months.forEach(mk => { db.taxIncome.freediving[mk] = freediveByMonth[mk]||0; db.taxIncome.umkm[mk] = (freestepByMonth[mk]||0) + (freediveByMonth[mk]||0); });
-    if(statusEl) statusEl.textContent = 'Synced — UMKM combines freestep and samisdiving — last updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) + '.';
+    taxStatusText = 'Synced — UMKM combines freestep and samisdiving — last updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) + '.'; taxStatusBad = false;
   } catch(e){
     months.forEach(mk => { db.taxIncome.umkm[mk] = freestepByMonth[mk]||0; });
-    if(statusEl) statusEl.textContent = "Couldn't reach samisdiving (" + e.message + ") — UMKM only reflects freestep for now.";
+    taxStatusText = "Couldn't get freediving income (" + e.message + ") — Freediving shows the last saved figures; UMKM total may be missing it. Tap Refresh to retry."; taxStatusBad = true;
   }
 
   taxSyncInFlight = false;
@@ -3387,6 +3394,7 @@ document.addEventListener('click', e=>{
   if(!el) return;
   const a = el.dataset.action, pid = el.dataset.product, sid = el.dataset.sale;
   if(a==='preview-tax-pdf') generateTaxPDF();
+  else if(a==='refresh-tax') syncUmkmAutomatically();
   else if(a==='close-tax-preview'){ $('taxPreviewModal').close(); }
   else if(a==='download-tax-preview'){
     if(!currentTaxPreviewUrl) return;
