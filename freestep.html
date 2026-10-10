@@ -1760,6 +1760,41 @@ function findProductByTypedLabel(text){
   if(!norm) return null;
   return db.products.find(p => saleSearchLabel(p).toLowerCase() === norm) || null;
 }
+// Splits a typed item such as "jakarta blue 37 2e" into name/color/size/width
+// (same order as saleSearchLabel), using the colors/sizes/widths already used
+// by saved products to tell the parts apart. Anything it can't place stays in
+// the name, so nothing typed is ever lost.
+function parseTypedProduct(text){
+  const clean = (text||'').trim().replace(/\s+/g, ' ');
+  const known = f => new Set(db.products.map(p => normKey(p[f])).filter(Boolean));
+  const colors = known('color'), sizes = known('size'), widths = known('width');
+  let toks = clean.split(' ').filter(Boolean);
+  let width = '', size = '', color = '';
+  const last = () => toks[toks.length-1];
+  if(toks.length > 1 && (widths.has(last().toLowerCase()) || /^\d{1,2}[A-Za-z]{1,2}$/.test(last()))){ width = canonicalizeWidth(toks.pop()); }
+  if(toks.length > 1 && (sizes.has(last().toLowerCase()) || /^\d+(\.\d+)?$/.test(last()))){ size = toks.pop(); }
+  for(const n of [2,1]){
+    if(toks.length > n && colors.has(toks.slice(-n).join(' ').toLowerCase())){ color = toks.splice(-n).join(' '); break; }
+  }
+  // New color on a model that already exists ("Jakarta red 40"): if the
+  // leading words are a saved product name, whatever follows is the color.
+  if(!color && toks.length > 1){
+    const names = known('name');
+    for(let n = toks.length - 1; n >= 1; n--){
+      if(names.has(toks.slice(0, n).join(' ').toLowerCase()) && toks.length - n <= 2){ color = toks.slice(n).join(' '); toks = toks.slice(0, n); break; }
+    }
+  }
+  const name = toks.join(' ');
+  if(!name) return { name: clean, color: '', size: '', width: '' };
+  return { name, color, size, width };
+}
+function findProductByParts(d){
+  return db.products.find(p => normKey(p.name)===normKey(d.name) && normKey(p.color)===normKey(d.color) &&
+    normKey(p.size)===normKey(d.size) && normKey(p.width)===normKey(d.width)) || null;
+}
+function describeNewProduct(d){
+  return [d.name, d.color && ('color ' + d.color), d.size && ('size ' + d.size), d.width && ('width ' + d.width)].filter(Boolean).join(' · ');
+}
 function renderItemSuggestions(productInput, query){
   const box = productInput.closest('.field').querySelector('.item-suggestions');
   if(!box) return;
@@ -1794,7 +1829,19 @@ function updateSaleItemHint(productInput){
   const hint = row && row.querySelector('.sale-stock-hint');
   const priceInput = row && row.querySelector('.fSaleItemPrice');
   const p = findProductByTypedLabel(productInput.value);
-  if(!p){ if(hint){ hint.textContent = ''; hint.classList.remove('low'); } return; }
+  if(!p){
+    if(hint){
+      const typed = (productInput.value||'').trim();
+      hint.classList.remove('low');
+      if(!typed){ hint.textContent = ''; }
+      else {
+        const d = parseTypedProduct(typed), ex = findProductByParts(d);
+        hint.textContent = ex ? ((ex.stock||0) + ' unit' + ((ex.stock||0)===1?'':'s') + ' currently in stock')
+                              : 'New product — will be created when you tap Sold: ' + describeNewProduct(d);
+      }
+    }
+    return;
+  }
   if(hint){
     hint.textContent = (p.stock||0) + ' unit' + ((p.stock||0)===1?'':'s') + ' currently in stock';
     hint.classList.toggle('low', (p.stock||0)<=LOW_STOCK);
@@ -1819,7 +1866,7 @@ function addSaleItemRow(prefillLabel, prefillQty, prefillPrice){
     <div style="display:flex;gap:8px;align-items:flex-end">
       <div class="field" style="flex:1;margin-bottom:0;position:relative">
         <label>Item</label>
-        <input class="fSaleItemProduct" placeholder="Type to search (optional — leave blank for now)" autocomplete="off">
+        <input class="fSaleItemProduct" placeholder="Type to search, or type a new product to add it (optional)" autocomplete="off">
         <div class="item-suggestions ship-dest-suggestions"></div>
       </div>
       <button type="button" class="icon-btn sale-item-remove" data-action="remove-sale-item" title="Remove item">✕</button>
@@ -3154,16 +3201,14 @@ $('saleForm').addEventListener('submit', e=>{
     // can be logged (customer/shipping/payment info and all) and the item
     // filled in later by editing it.
     if(!label) continue;
+    // Not a saved product yet? It is created automatically below, once the
+    // rest of the form has passed validation.
     const p = findProductByTypedLabel(label);
-    if(!p){
-      e.preventDefault();
-      askAlert('Couldn\'t find "' + label + '" — pick one from the suggestions as you type.');
-      return;
-    }
+    const newParts = p ? null : parseTypedProduct(label);
     const qty = Math.max(1, parseInt(row.querySelector('.fSaleItemQty').value,10) || 1);
     const priceRaw = row.querySelector('.fSaleItemPrice').value;
     const price = priceRaw === '' ? null : Math.max(0, parseFloat(priceRaw) || 0);
-    items.push({ p, qty, price });
+    items.push({ p, newParts, qty, price });
   }
 
   // Date is optional — leave it blank to log as today. If filled, it must
@@ -3194,6 +3239,21 @@ $('saleForm').addEventListener('submit', e=>{
   const paidRaw = $('fSalePaid').value.trim();
   const paid = paidRaw === '' ? null : Math.max(0, Number(paidRaw) || 0);
   const nowIso = now.toISOString();
+  // Auto-create any typed products that aren't saved yet (stock 0 — a sale of
+  // something with no stock logged just leaves it at 0). If the same product
+  // is typed on two lines, or already exists under different spacing/casing,
+  // the existing record is reused instead of making a duplicate.
+  items.forEach(item => {
+    if(item.p) return;
+    const d = item.newParts;
+    let prod = findProductByParts(d);
+    if(!prod){
+      prod = { id: uid(), name: d.name, color: d.color, size: d.size, width: d.width, stock: 0, updatedAt: nowIso };
+      db.products.push(prod);
+    }
+    if(item.price != null && getPriceForName(prod.name) == null && item.price > 0) setPriceForName(prod.name, item.price);
+    item.p = prod;
+  });
   const customer = $('fSaleCustomer').value.trim();
   const phone = $('fSalePhone').value.trim();
   const address = $('fSaleAddress').value.trim();
