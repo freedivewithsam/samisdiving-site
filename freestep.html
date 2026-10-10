@@ -2084,7 +2084,14 @@ function parseCustomerPaste(raw){
   const rest = lines.slice(1);
   const prefix = rest.slice(0, -1).join(' ');
   const lastLine = rest.length ? rest[rest.length-1] : '';
-  const tokens = lastLine.split(',').map(t=>t.trim()).filter(Boolean);
+  // Abbreviations: "Kec." = Kecamatan, "Kab." = Kabupaten, "Kel." = Kelurahan.
+  // When the pasted line runs them together without commas
+  // ("... Kec. Jetis Kab. Sleman 55232"), start a new part at each marker so
+  // they're still picked out. ("Kota" is left alone — it also appears in
+  // street names.)
+  const tokens = lastLine
+    .replace(/([^,\s])\s+(?=(?:kel|kec|kab)\.|(?:kelurahan|kecamatan|kabupaten)\s)/gi, '$1, ')
+    .split(',').map(t=>t.trim()).filter(Boolean);
 
   let kecamatan = '', kabupaten = '', kelurahan = '', postal = '';
   let postalIdx = -1;
@@ -2095,12 +2102,20 @@ function parseCustomerPaste(raw){
   const remainder = [];
   tokens.forEach((tok, i) => {
     if(POSTAL_TOK.test(tok)){ postal = tok.replace(/\.$/,''); return; }
-    const kecM = tok.match(/^kec\.?\s*(.+)$/i);
+    const kecM = tok.match(/^kec(?:amatan)?\.?\s*(.+)$/i);
     if(kecM){ kecamatan = kecM[1].trim(); return; }
     const kelM = tok.match(/^kel(?:urahan)?\.?\s*(.+)$/i);
     if(kelM){ kelurahan = kelM[1].trim(); remainder.push(tok); return; }
-    const kabM = tok.match(/^(kota|kab\.?|kabupaten)\s+.+$/i);
-    if(kabM){ kabupaten = tok; return; }
+    const kabM = tok.match(/^(kabupaten|kota|kab\.?)\s*(.+)$/i);
+    if(kabM && (/^kab\.$/i.test(kabM[1]) || /^\s/.test(tok.slice(kabM[1].length)))){
+      // "Kab." is short for Kabupaten — spell it out so it matches the destination search.
+      // A postal code stuck on the end ("Kab. Sleman 55232") belongs to postal.
+      let rest = kabM[2].trim();
+      const pm = rest.match(/\s+(\d{5})\.?$/);
+      if(pm){ postal = pm[1]; rest = rest.slice(0, pm.index).trim(); }
+      kabupaten = /^kab\.?$/i.test(kabM[1]) ? 'Kabupaten ' + rest : kabM[1] + ' ' + rest;
+      return;
+    }
     // Anything left over after the postal code has been seen is usually
     // a trailing province abbreviation — not part of the street address.
     if(postalIdx !== -1 && i > postalIdx) return;
