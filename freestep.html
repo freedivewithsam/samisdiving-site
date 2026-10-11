@@ -1416,7 +1416,9 @@ async function syncUmkmAutomatically(){
     // human logged into samisdiving.html, not freestep). freestep's backend
     // authenticates the pull itself with a separate service-only credential.
     const url = syncUrl + (syncUrl.indexOf('?')===-1?'?':'&') + 'action=freedivingIncome';
-    const resp = await jsonpFetch(url);
+    // Two Apps Script hops (freestep -> samisdiving -> the sheet) plus a cold
+    // start can take well over the 15s default, so allow up to 60s here.
+    const resp = await jsonpFetch(url, 60000);
     if(resp && resp.error) throw new Error(resp.error);
     const data = (resp && resp.data) || {};
     const freediveByMonth = {};
