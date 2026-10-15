@@ -1029,8 +1029,9 @@ function setPinError(msg){ const el = $('pinError'); if(el) el.textContent = msg
 function clearPinBuffer(){ pinBuffer=''; updatePinDots(); }
 function setPinTitle(t){ const el = $('pinLockTitle'); if(el) el.textContent = t; }
 
+let lastUnlockAt = 0, authGraceTries = 0;
 function unlockApp(token){
-  authToken = token;
+  authToken = token; lastUnlockAt = Date.now(); authGraceTries = 0;
   try { localStorage.setItem(AUTH_KEY, token); } catch(e){}
   const lock = $('pinLockScreen'); if(lock) lock.style.display = 'none';
   const wrap = $('mainWrap'); if(wrap) wrap.classList.remove('pin-locked');
@@ -1040,6 +1041,24 @@ function unlockApp(token){
 /* Called whenever the server rejects our token (expired, or the PIN was
    reset from another device) — forces re-entry rather than silently
    failing every subsequent sync. */
+/* The server said "401" to a request that used `usedToken`. Decide whether that
+   is a real expiry:
+   - the token that failed is no longer the current one (the person already
+     signed in again while that request was in flight) -> ignore it;
+   - the sign-in was only moments ago (a brand-new token cannot have expired,
+     so this is a hiccup) -> try again shortly instead of locking the app;
+   - otherwise lock. Returns true only when the app was actually locked. */
+function authRejected(usedToken){
+  if(usedToken && usedToken !== authToken) return false;
+  if(authToken && Date.now() - lastUnlockAt < 90000 && authGraceTries < 3){
+    authGraceTries++;
+    setSyncStatus('Reconnecting…');
+    setTimeout(() => { if(authToken) enqueue(async () => { await pullJob({full: true}); await pushJob(); }); }, 3000);
+    return false;
+  }
+  handleAuthExpired();
+  return true;
+}
 function handleAuthExpired(){
   authToken = null;
   try { localStorage.removeItem(AUTH_KEY); } catch(e){}
@@ -1683,18 +1702,19 @@ async function confirmOp(opId){
 }
 async function sendDelta(built){
   const opId = 'op' + Date.now().toString(36) + uid();
-  const payload = Object.assign({token: authToken, delta: true, opId: opId}, built.payload);
+  const usedToken = authToken;
+  const payload = Object.assign({token: usedToken, delta: true, opId: opId}, built.payload);
   let r;
   try{ r = await cloudPost(payload); }
   catch(e){ return {ok: false, offline: !navigator.onLine, error: (e && e.message) || 'network error'}; }
   if(r.data){
     const d = r.data;
-    if(d.code === 401) return {ok: false, auth: true};
+    if(d.code === 401) return {ok: false, auth: true, usedToken: usedToken};
     if(d.error) return {ok: false, busy: /busy/i.test(d.error), error: d.error};
     return {ok: true, version: typeof d.version === 'number' ? d.version : null, duplicate: !!d.duplicate};
   }
   const st = await confirmOp(opId);
-  if(st.auth) return {ok: false, auth: true};
+  if(st.auth) return {ok: false, auth: true, usedToken: usedToken};
   if(st.applied){
     if(r.thrown && transport.write !== 'legacy'){ transport.write = 'legacy'; saveTransport(); }
     return {ok: true, version: st.version};
@@ -1773,7 +1793,8 @@ async function pullJob(opts){
   opts = opts || {};
   if(!syncUrl || !authToken) return {skipped: true};
   if(uiState !== 'saving') setSyncStatus('Checking for updates…');
-  const params = {token: authToken, format: 'json'};
+  const usedToken = authToken;
+  const params = {token: usedToken, format: 'json'};
   if(!opts.full && typeof syncState.version === 'number') params.since = syncState.version;
   let data;
   try{ data = await cloudGet(params); }
@@ -1785,7 +1806,7 @@ async function pullJob(opts){
   }
   lastPullAt = Date.now();
   if(!data){ setSyncStatus('Cloud sent an empty reply — will try again.'); return {ok: false}; }
-  if(data.code === 401){ handleAuthExpired(); return {ok: false, auth: true}; }
+  if(data.code === 401){ authRejected(usedToken); return {ok: false, auth: true}; }
   if(data.error){ setSyncStatus('Cloud error: ' + data.error); return {ok: false}; }
   if(data.unchanged){ if(uiState === 'offline') uiState = 'idle'; setSyncStatus(okText()); updateSaveBtnText(); return {ok: true, unchanged: true}; }
   const res = applyRemote(data);
@@ -1812,7 +1833,11 @@ async function pushJob(){
     setUiState('saving', 'Saving…');
     const res = await sendDelta(built);
     if(!res.ok){
-      if(res.auth){ setUiState('error', 'Session expired — enter your PIN; your changes are kept.'); handleAuthExpired(); return res; }
+      if(res.auth){
+        if(authRejected(res.usedToken)) setUiState('error', 'Session expired — enter your PIN; your changes are kept.');
+        else if(uiState === 'saving') setUiState('dirty', 'Reconnecting… your changes are kept.');
+        return res;
+      }
       if(res.offline || !navigator.onLine){ setUiState('offline', 'Offline — changes are kept on this device and will sync when you are back online.'); return res; }
       setUiState('error', res.busy ? 'The sheet is busy — retrying shortly…' : ('Could not save yet — retrying… (' + (res.error || 'unknown problem') + ')'));
       scheduleRetry();
@@ -1893,9 +1918,10 @@ async function resetLocalAndRepull(){
   await enqueue(async () => {
     setSyncStatus('Discarding local data and pulling fresh from cloud…');
     let data;
-    try{ data = await cloudGet({token: authToken, format: 'json'}); }
+    const usedToken = authToken;
+    try{ data = await cloudGet({token: usedToken, format: 'json'}); }
     catch(e){ setSyncStatus('Reset failed — check your connection.'); return; }
-    if(data && data.code === 401){ handleAuthExpired(); return; }
+    if(data && data.code === 401){ authRejected(usedToken); return; }
     if(!data || data.error || !Array.isArray(data.students)){
       setSyncStatus('Cloud error: ' + ((data && data.error) || 'unexpected reply'));
       return;
