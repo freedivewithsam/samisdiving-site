@@ -601,11 +601,15 @@
       <div class="ac-list" id="fTypeList"></div>
     </div>
     <div class="field">
-      <label for="fSessDate">Session's date</label>
+      <label for="fSessDate">Start date</label>
       <div class="field-row">
         <div class="date-field"><input id="fSessDate" type="text" inputmode="numeric" placeholder="DD-MM-YYYY" pattern="\d{2}-\d{2}-\d{4}" title="Use DD-MM-YYYY" maxlength="10"><span class="date-pick-icon" aria-hidden="true">📅</span><input type="date" class="date-pick-overlay" data-target="fSessDate" tabindex="-1" aria-label="Pick a date"></div>
         <input id="fSessTime" type="text" inputmode="numeric" placeholder="HH:MM" title="24-hour HH:MM, e.g. 14:30" maxlength="5">
       </div>
+    </div>
+    <div class="field">
+      <label for="fSessEndDate">End date <span style="font-weight:400;color:var(--ink-soft)">(optional &mdash; leave blank for a one-day session)</span></label>
+      <div class="date-field"><input id="fSessEndDate" type="text" inputmode="numeric" placeholder="DD-MM-YYYY" pattern="\d{2}-\d{2}-\d{4}" title="Use DD-MM-YYYY" maxlength="10"><span class="date-pick-icon" aria-hidden="true">📅</span><input type="date" class="date-pick-overlay" data-target="fSessEndDate" tabindex="-1" aria-label="Pick an end date"></div>
     </div>
     <div class="field"><label for="fSessPrice">Price (IDR)</label><input id="fSessPrice" type="number" min="0" step="1" placeholder="0"></div>
     <div class="field">
@@ -1336,7 +1340,7 @@ function normPaidBack(list){
    fingerprint, and only a real edit changes it. */
 const NORM = {
   students: st => ({name:_S(st.name), pkg:_S(st.pkg), total:_N(st.total), focus:_S(st.focus), phone:_S(st.phone)}),
-  sessions: s => ({type:_S(s.type || 'pool').toLowerCase(), date:_S(s.date), note:_S(s.note), status:_S(s.status || 'scheduled').toLowerCase(), price:_N(s.price), publicBusy: s.publicBusy !== false}),
+  sessions: s => ({type:_S(s.type || 'pool').toLowerCase(), date:_S(s.date), ...(s.endDate ? {endDate:_S(s.endDate)} : {}), note:_S(s.note), status:_S(s.status || 'scheduled').toLowerCase(), price:_N(s.price), publicBusy: s.publicBusy !== false}),
   payments: p => ({name:_S(p.name || 'Session'), price:_N(p.price), deposit:_N(p.deposit), depositDate:_S(p.depositDate), balance:_N(p.balance), balanceDate:_S(p.balanceDate)}),
   expenses: e => ({item:_S(e.item), price:_N(e.price), date:_S(e.date)}),
   personal: t => ({type: t.type === 'income' ? 'income' : 'expense', item:_S(t.item), price:_N(t.price), date:_S(t.date), category:_S(t.category), paidBack:normPaidBack(t.paidBack)}),
@@ -2211,6 +2215,13 @@ function nextSession(st){
   const up = st.sessions.filter(s=>s.status==='scheduled' && s.date).sort((a,b)=>a.date.localeCompare(b.date));
   return up[0] || null;
 }
+/* A session's "when": start date/time, plus " → DD-MM-YYYY" if it has an end date. */
+function fmtSessWhen(s){
+  const start = s && s.date ? fmtDate(s.date) : null;
+  if(!start) return null;
+  const end = s.endDate ? dateOnlyIsoToParts(s.endDate) : '';
+  return end ? `${start} \u2192 ${end}` : start;
+}
 function fmtDate(iso){
   if(!iso) return null;
   const d = new Date(iso);
@@ -2643,7 +2654,13 @@ function groupSessionsByDay(){
       (st.sessions||[]).forEach(s=>{
         if(!s.date || typeof s.date !== 'string') return;
         const dayKey = s.date.slice(0,10);
-        (byDay[dayKey] ||= []).push({ kind:'session', st, s, sortKey: s.date });
+        // A session with an end date shows on every day from start to end.
+        let keys = s.endDate ? dateRangeKeys(dayKey, s.endDate.slice(0,10)) : [dayKey];
+        if(!keys.length) keys = [dayKey];
+        keys.forEach((k,i)=>{
+          const spanPos = keys.length<2 ? null : (i===0 ? 'start' : i===keys.length-1 ? 'end' : 'mid');
+          (byDay[k] ||= []).push({ kind:'session', st, s, spanPos, sortKey: i===0 ? s.date : k + 'T00:00' });
+        });
       });
     });
   }
@@ -2745,10 +2762,18 @@ function renderCalendarMonth(byDay){
           return `<div class="cal-evt" style="background:${bg};color:${fg};${spanStyle}" data-action="edit-cal-event" data-calevent="${ev.id}" title="${esc(label)}">${esc(label)}</div>`;
         }
         const {st,s} = entry;
-        const t = fmtTimeOnly(s.date);
+        const isFollowDay = entry.spanPos==='mid' || entry.spanPos==='end';
+        const t = isFollowDay ? '' : fmtTimeOnly(s.date);
         const typeClass = calTypeColorClass(s.type);
         const label = (t?t+' - ':'') + typeLabel(s.type) + ' - ' + st.name;
-        return `<div class="cal-evt ${typeClass}" data-action="cal-open-sess" data-student="${st.id}" data-sess="${s.id}" title="${esc(label)}">${esc(label)}</div>`;
+        // Multi-day sessions bridge the gap between day cells like multi-day events do.
+        const sConnL = isFollowDay && col!==0;
+        const sConnR = (entry.spanPos==='start'||entry.spanPos==='mid') && col!==6;
+        let sSpan = '';
+        if(sConnL) sSpan += 'margin-left:-7px;border-top-left-radius:0;border-bottom-left-radius:0;';
+        if(sConnR) sSpan += 'margin-right:-7px;border-top-right-radius:0;border-bottom-right-radius:0;';
+        if(sConnL||sConnR) sSpan += 'position:relative;z-index:2;';
+        return `<div class="cal-evt ${typeClass}"${sSpan ? ` style="${sSpan}"` : ''} data-action="cal-open-sess" data-student="${st.id}" data-sess="${s.id}" title="${esc(label)}">${esc(label)}</div>`;
       }).join('')}
       ${dayEvents.length>cap ? `<div class="cal-evt-more">+${dayEvents.length-cap} more</div>` : ''}
     </div>`;
@@ -2876,7 +2901,7 @@ function renderDashboard(){
     sts.forEach(st=>{
       (st.sessions||[]).forEach(sess=>{
         const typeText = typeLabel(sess.type||'').toLowerCase();
-        const dateText = sess.date ? fmtDate(sess.date).toLowerCase() : '';
+        const dateText = sess.date ? (fmtSessWhen(sess) || '').toLowerCase() : '';
         if(typeText.includes(searchQuery) || dateText.includes(searchQuery)){
           matches.push({st, sess});
         }
@@ -2890,7 +2915,7 @@ function renderDashboard(){
         <div class="tx">
           <div class="mid">
             <div class="item">${esc(st.name)}</div>
-            <div class="txdate">${sess.date ? fmtDate(sess.date) : 'No date'} <span class="chip ${chipClass(sess.type)}">${typeLabel(sess.type)}</span></div>
+            <div class="txdate">${sess.date ? fmtSessWhen(sess) : 'No date'} <span class="chip ${chipClass(sess.type)}">${typeLabel(sess.type)}</span></div>
           </div>
           <div class="acts">
             <button class="icon-btn icon-btn-view" title="Open student" data-action="open-student" data-student="${st.id}">→</button>
@@ -2984,7 +3009,7 @@ function renderDetail(){
     <div class="sess ${s.status==='completed'?'done':''}">
       <div class="n">${s.status==='completed'?'✓':idx}</div>
       <div class="mid">
-        <div class="when">${s.date ? fmtDate(s.date) : 'Not scheduled yet'}</div>
+        <div class="when">${s.date ? fmtSessWhen(s) : 'Not scheduled yet'}</div>
         ${s.note ? `<div class="snote">${esc(s.note)}</div>` : ''}
       </div>
       <div class="chips">
@@ -3622,6 +3647,7 @@ function openSessModal(studentId, sessId){
   const parts = sess && sess.date ? sessIsoToParts(sess.date) : {date:'', time:''};
   $('fSessDate').value = parts.date;
   $('fSessTime').value = parts.time;
+  $('fSessEndDate').value = sess && sess.endDate ? dateOnlyIsoToParts(sess.endDate) : '';
   // Only ever shows an existing session's own price when editing.
   $('fSessPrice').value = sess && sess.price ? sess.price : '';
   // Defaults checked (busy) for a brand-new session, and matches the
@@ -4020,14 +4046,28 @@ $('studentForm').addEventListener('submit', ()=>{
   save(); render();
 });
 
-$('sessForm').addEventListener('submit', ()=>{
+$('sessForm').addEventListener('submit', (e)=>{
   normalizeTimeField('fSessTime');
   const st = db.students.find(s=>s.id===sessStudentId);
   const existing = editingSess ? st.sessions.find(x=>x.id===editingSess) : null;
 
+  const startIso = sessPartsToIso($('fSessDate').value, $('fSessTime').value);
+  // End date is optional: blank (or the same day as the start) = a one-day session.
+  let endIso = null;
+  const endRaw = $('fSessEndDate').value.trim();
+  if(endRaw){
+    endIso = dateOnlyPartsToIso(endRaw);
+    if(!endIso){ e.preventDefault(); askAlert('Please enter a valid end date (DD-MM-YYYY), or leave it blank for a one-day session.'); return; }
+    if(!startIso){ e.preventDefault(); askAlert('Please enter the start date and time first, then the end date.'); return; }
+    const startDay = startIso.slice(0,10);
+    if(endIso < startDay){ e.preventDefault(); askAlert("The end date can't be before the start date."); return; }
+    if(endIso === startDay) endIso = null;
+  }
+
   const data = {
     type: ($('fType').value.trim() || 'Pool').toLowerCase(),
-    date: sessPartsToIso($('fSessDate').value, $('fSessTime').value),
+    date: startIso,
+    endDate: endIso,
     price: parseFloat($('fSessPrice').value) || 0,
     publicBusy: $('fSessPublicBusy').checked,
   };
@@ -4184,6 +4224,13 @@ $('fSessDate').addEventListener('input', ()=>{
   if(digits.length > 2) out += '-' + digits.slice(2,4);
   if(digits.length > 4) out += '-' + digits.slice(4,8);
   $('fSessDate').value = out;
+});
+$('fSessEndDate').addEventListener('input', ()=>{
+  let digits = $('fSessEndDate').value.replace(/\D/g,'').slice(0,8);
+  let out = digits.slice(0,2);
+  if(digits.length > 2) out += '-' + digits.slice(2,4);
+  if(digits.length > 4) out += '-' + digits.slice(4,8);
+  $('fSessEndDate').value = out;
 });
 
 
