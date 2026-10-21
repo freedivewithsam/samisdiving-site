@@ -142,6 +142,9 @@
     color:var(--ink-soft);border-top:1px solid var(--mist);border-bottom:1px solid var(--mist);
     padding:16px 0;margin:0 0 40px;
   }
+  .courses-note{flex-direction:column;gap:8px}
+  .courses-note > span, #pool-course .meta-row > span, #molchanovs-wave1 .meta-row > span, #aida-2 .meta-row > span, #depth-coaching .meta-row > span, #pool-coaching .meta-row > span{position:relative;padding-left:18px}
+  .courses-note > span::before, #pool-course .meta-row > span::before, #molchanovs-wave1 .meta-row > span::before, #aida-2 .meta-row > span::before, #depth-coaching .meta-row > span::before, #pool-coaching .meta-row > span::before{content:"";position:absolute;left:0;top:.62em;width:6px;height:6px;border-radius:50%;background:var(--coral)}
   .course-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0;border-top:1px solid var(--ink)}
   .course{
     padding:34px 26px 30px;border-bottom:1px solid var(--ink);border-right:1px solid var(--ink);
@@ -231,6 +234,7 @@
   }
 
   #pool-course .meta-row span strong, #molchanovs-wave1 .meta-row span strong, #aida-2 .meta-row span strong, #depth-coaching .meta-row span strong, #pool-coaching .meta-row span strong{color:var(--ink);font-weight:600}
+  #pool-course .meta-row, #molchanovs-wave1 .meta-row, #aida-2 .meta-row, #depth-coaching .meta-row, #pool-coaching .meta-row{flex-direction:column;gap:8px}
   .cap-note-detail{font-family:"Lora",serif;font-size:14.5px;letter-spacing:.03em;color:var(--ink);margin:0 0 18px}
   #pool-course .schedule{margin:0 0 40px}
   #pool-course .schedule h3{
@@ -475,7 +479,7 @@
       <p class="eyebrow">Freediving courses &amp; coaching</p>
       <h1>freedive with <em>Sam</em></h1>
       <p style="margin-bottom:6px">Your pink instructor and a no-fins specialist.</p>
-      <p style="margin-top:0">Available to teach in English, Indonesian, and 中文</p>
+      <p style="margin-top:0">Teaching courses in English, Indonesian, and 中文</p>
       <div class="hero-actions">
         <a href="#courses" class="btn btn-solid">See courses</a>
         <a href="https://wa.me/6287777836365" class="btn btn-coral">Book a free intro video call</a>
@@ -781,8 +785,8 @@
     <div class="prep-block">
       <h3>Driver recommendation</h3>
       <div class="driver-row">
-        <p>There's no Gojek or Grab here in Amed — if you need a driver or want to rent a scooter, you can ask <strong>Iluh</strong>.</p>
-        <a href="https://wa.me/6283129150730" class="btn btn-coral">WhatsApp Iluh</a>
+        <p>There's no Gojek or Grab here in Amed — if you need a driver or want to rent a scooter, you can ask <strong>Devid</strong>.</p>
+        <a href="https://wa.me/6285213238430" class="btn btn-coral">WhatsApp Devid</a>
       </div>
     </div>
 
@@ -1261,7 +1265,7 @@
     'Stopper color': [
       ['Black','#1B1B1B'], ['White','#F4F1EA'], ['Pink','#F4A6C0'], ['Aqua','#5CD6D0'],
       ['Neo','#7CE01A'], ['Lilac','#C3A6E0'], ['Purple','#8A56C2'], ['Red','#D9372E'],
-      ['Grey','#8E9196'], ['Orange','#F2862E'], ['Brown','#6B4A32']
+      ['Grey','#8E9196'], ['Brown','#6B4A32']
     ],
     'End lock color': [
       ['Black','#1B1B1B'], ['White','#F4F1EA'], ['Transparent','#B4B8BC']
