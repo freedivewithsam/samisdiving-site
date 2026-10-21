@@ -402,6 +402,10 @@
   .gear-card .gear-copy .tag{font-family:"Nunito",sans-serif;font-weight:700;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;display:block}
   .gear-card .gear-copy h3{font-family:"Nunito",sans-serif;font-weight:800;font-size:22px;margin-bottom:10px}
   .gear-card .gear-copy .price{font-family:"Nunito",sans-serif;font-weight:800;font-size:18px;color:var(--ink);margin:0 0 10px}
+  .gear-card .gear-copy .gear-points{list-style:none;margin:0 0 18px;padding:0;color:var(--ink-soft);font-size:15px}
+  .gear-card .gear-copy .gear-points li{position:relative;padding-left:18px;margin-bottom:6px}
+  .gear-card .gear-copy .gear-points li::before{content:"";position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:50%;background:var(--coral)}
+  .gear-card .gear-copy .gear-btn{display:inline-block}
   .gear-card .gear-copy p{color:var(--ink-soft);font-size:15px;margin:0;max-width:44ch}
 
   /* ================= ASCENT / CTA ================= */
@@ -849,6 +853,11 @@
       <div class="gear-copy">
         <h3>Mask strap</h3>
         <div class="price">IDR 100K</div>
+        <ul class="gear-points">
+          <li>Say goodbye to tangled hair!</li>
+          <li>Easily attached with cable tie.</li>
+        </ul>
+        <a href="https://photos.app.goo.gl/dLiNqjczNmXDup8C6" target="_blank" rel="noopener noreferrer" class="btn btn-solid gear-btn">Available to order</a>
       </div>
     </article>
     <div class="color-picker" data-product="mask strap">
