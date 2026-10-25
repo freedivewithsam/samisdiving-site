@@ -642,7 +642,11 @@
       </div>
     </div>
     <div class="field">
-      <div class="date-field"><input id="fCalEvEndDate" type="text" inputmode="numeric" placeholder="End date (optional)" pattern="\d{2}-\d{2}-\d{4}" title="Use DD-MM-YYYY" maxlength="10"><span class="date-pick-icon" aria-hidden="true">📅</span><input type="date" class="date-pick-overlay" data-target="fCalEvEndDate" tabindex="-1" aria-label="Pick a date"></div>
+      <label for="fCalEvEndDate">End <span style="font-weight:400;color:var(--ink-soft)">(optional &mdash; leave blank for a one-day event)</span></label>
+      <div class="field-row">
+        <div class="date-field"><input id="fCalEvEndDate" type="text" inputmode="numeric" placeholder="End date (optional)" pattern="\d{2}-\d{2}-\d{4}" title="Use DD-MM-YYYY" maxlength="10"><span class="date-pick-icon" aria-hidden="true">📅</span><input type="date" class="date-pick-overlay" data-target="fCalEvEndDate" tabindex="-1" aria-label="Pick an end date"></div>
+        <input id="fCalEvEndTime" type="text" inputmode="numeric" placeholder="Finish HH:MM (optional)" title="24-hour HH:MM, e.g. 17:00 — needs an end date" maxlength="5" disabled>
+      </div>
     </div>
     <div class="field">
       <label class="checkbox-field"><input type="checkbox" class="checkbox-input" id="fCalEvPublicBusy" checked> Show as busy on public site</label>
@@ -2327,12 +2331,48 @@ function dateOnlyIsoToParts(iso){
   if(!m) return '';
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
-/* Inclusive list of 'YYYY-MM-DD' day keys from start to end (or just start if no end). */
+/* Turns whatever a date comes back as into a plain local 'YYYY-MM-DD' day
+   key. Google Sheets can turn a typed date into a real date cell, which
+   then syncs back as e.g. "2026-10-29T16:00:00.000Z" (UTC) instead of
+   "2026-10-30" — the old range code couldn't read that and dropped the
+   whole multi-day event from the calendar. Returns '' if unreadable. */
+function toDayKey(v){
+  if(v == null || v === '') return '';
+  const s = String(v).trim();
+  // Plain local value: "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM" (no zone suffix)
+  if(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?$/.test(s)) return s.slice(0,10);
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? '' : localDateKey(d);
+}
+/* Same idea for a time: "HH:MM" out of "HH:MM", "YYYY-MM-DDTHH:MM", or a
+   zoned/Date-ish value. Returns '' if there's no time in it. */
+function toTimeHM(v){
+  if(v == null || v === '') return '';
+  const s = String(v).trim();
+  let m = s.match(/^(\d{1,2}):(\d{2})$/);
+  if(m) return m[1].padStart(2,'0') + ':' + m[2];
+  m = s.match(/^\d{4}-\d{2}-\d{2}T(\d{2}):(\d{2})(:\d{2}(\.\d+)?)?$/);
+  if(m) return m[1] + ':' + m[2];
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  const d = new Date(s);
+  if(isNaN(d.getTime())) return '';
+  if(d.getHours() === 0 && d.getMinutes() === 0) return ''; // local midnight = a date-only cell, not a real time
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+/* Inclusive list of 'YYYY-MM-DD' day keys from start to end (or just start if no end).
+   Never returns an empty list for a readable start: an unreadable end, or
+   one before the start, falls back to a one-day entry rather than making
+   the event vanish from the calendar. */
 function dateRangeKeys(startIso, endIso){
   const keys = [];
+  startIso = toDayKey(startIso);
+  if(!startIso) return keys;
+  endIso = toDayKey(endIso);
+  if(!endIso || endIso < startIso) endIso = startIso;
   const [sy,sm,sd] = startIso.split('-').map(Number);
   let cur = new Date(sy, sm-1, sd);
-  const end = endIso ? (()=>{ const [ey,em,ed]=endIso.split('-').map(Number); return new Date(ey,em-1,ed); })() : cur;
+  const [ey,em,ed] = endIso.split('-').map(Number);
+  const end = new Date(ey,em-1,ed);
   let guard = 0;
   while(cur <= end && guard < 366){
     keys.push(localDateKey(cur));
@@ -2346,7 +2386,7 @@ function dateRangeKeys(startIso, endIso){
    annually-repeating calendar events across other years. Handles Feb 29
    by falling back to Feb 28 in non-leap years. */
 function shiftYear(iso, year){
-  const [,m,d] = iso.split('-').map(Number);
+  const [,m,d] = toDayKey(iso).split('-').map(Number);
   const dt = new Date(year, m-1, d);
   if(dt.getMonth() !== m-1) dt.setDate(0); // Feb 29 -> Feb 28 in non-leap years
   return localDateKey(dt);
@@ -2602,11 +2642,13 @@ function countCalendarEventsInMonth(year, month){
   const monthStart = `${year}-${String(month).padStart(2,'0')}-01`;
   const monthEnd = `${year}-${String(month).padStart(2,'0')}-${String(new Date(year, month, 0).getDate()).padStart(2,'0')}`;
   (db.calendarEvents||[]).forEach(ev=>{
-    if(!ev.date || typeof ev.date !== 'string') return;
-    let start = ev.date, end = ev.endDate || ev.date;
+    const evStart = toDayKey(ev.date);
+    if(!evStart) return;
+    const evEnd = toDayKey(ev.endDate);
+    let start = evStart, end = (evEnd && evEnd >= evStart) ? evEnd : evStart;
     if(ev.repeatsAnnually){
-      start = shiftYear(ev.date, year);
-      end = ev.endDate ? shiftYear(ev.endDate, year) : start;
+      start = shiftYear(evStart, year);
+      end = (evEnd && evEnd >= evStart) ? shiftYear(evEnd, year) : start;
     }
     // Overlap test: the event's range and the month's range intersect.
     if(start > monthEnd || end < monthStart) return;
@@ -2655,7 +2697,7 @@ function groupSessionsByDay(){
         if(!s.date || typeof s.date !== 'string') return;
         const dayKey = s.date.slice(0,10);
         // A session with an end date shows on every day from start to end.
-        let keys = s.endDate ? dateRangeKeys(dayKey, s.endDate.slice(0,10)) : [dayKey];
+        let keys = s.endDate ? dateRangeKeys(dayKey, s.endDate) : [dayKey];
         if(!keys.length) keys = [dayKey];
         keys.forEach((k,i)=>{
           const spanPos = keys.length<2 ? null : (i===0 ? 'start' : i===keys.length-1 ? 'end' : 'mid');
@@ -2665,13 +2707,16 @@ function groupSessionsByDay(){
     });
   }
   (db.calendarEvents||[]).forEach(ev=>{
-    if(!ev.date || typeof ev.date !== 'string') return;
+    if(!ev.date) return;
     if(calendarTypeFilter && calEventLabel(ev) !== calendarTypeFilter) return;
+    const evStart = toDayKey(ev.date);
+    if(!evStart) return;
+    const startTime = toTimeHM(ev.time);
     if(!ev.repeatsAnnually){
-      const keys = dateRangeKeys(ev.date, ev.endDate);
+      const keys = dateRangeKeys(evStart, ev.endDate);
       keys.forEach((dayKey,i)=>{
         const spanPos = keys.length<2 ? null : (i===0 ? 'start' : i===keys.length-1 ? 'end' : 'mid');
-        (byDay[dayKey] ||= []).push({ kind:'custom', ev, spanPos, sortKey: ev.date + 'T' + (ev.time || '00:00') });
+        (byDay[dayKey] ||= []).push({ kind:'custom', ev, spanPos, sortKey: i===0 ? evStart + 'T' + (startTime || '00:00') : dayKey + 'T00:00' });
       });
       return;
     }
@@ -2679,11 +2724,12 @@ function groupSessionsByDay(){
     // across a window of years around today so it shows up on every visit.
     // For birthdays, the year in the original date doubles as the birth
     // year so we can show the age reached on each future occurrence.
-    const birthYear = Number(ev.date.slice(0,4));
+    const birthYear = Number(evStart.slice(0,4));
     const thisYear = new Date().getFullYear();
+    const evEnd = toDayKey(ev.endDate);
     for(let y = thisYear - 5; y <= thisYear + 5; y++){
-      const shifted = shiftYear(ev.date, y);
-      const shiftedEnd = ev.endDate ? shiftYear(ev.endDate, y) : null;
+      const shifted = shiftYear(evStart, y);
+      const shiftedEnd = (evEnd && evEnd >= evStart) ? shiftYear(evEnd, y) : null;
       const age = isBirthdayType(ev.type) ? y - birthYear : null;
       const keys = dateRangeKeys(shifted, shiftedEnd);
       keys.forEach((dayKey,i)=>{
@@ -2750,7 +2796,14 @@ function renderCalendarMonth(byDay){
         if(entry.kind==='custom'){
           const ev = entry.ev;
           const {bg,fg} = getEventTypeColor(ev.type);
-          const label = `${ev.time ? ev.time+' - ' : ''}${calEventLabel(ev)}${ev.title ? ' - '+ev.title : ''}${entry.age!=null ? ' - '+entry.age : ''}`;
+          // Start time on the first day, finish time on the last day
+          // ("until 17:00"), both on a one-day event ("09:00–17:00").
+          const sT = toTimeHM(ev.time), eT = toTimeHM(ev.endDate);
+          let timeTxt = '';
+          if(!entry.spanPos) timeTxt = sT && eT ? `${sT}–${eT}` : (sT || (eT ? 'until '+eT : ''));
+          else if(entry.spanPos==='start') timeTxt = sT;
+          else if(entry.spanPos==='end') timeTxt = eT ? 'until '+eT : '';
+          const label = `${timeTxt ? timeTxt+' - ' : ''}${calEventLabel(ev)}${ev.title ? ' - '+ev.title : ''}${entry.age!=null ? ' - '+entry.age : ''}`;
           // A multi-day event's bar bridges the small gap between day cells
           // so it reads as one continuous strip rather than separate chips.
           const connectsLeft = (entry.spanPos==='mid'||entry.spanPos==='end') && col!==0;
@@ -3664,9 +3717,11 @@ function openCalEventModal(id, prefillDate){
   $('calEventModalTitle').textContent = ev ? 'Edit event' : 'New calendar event';
   $('fCalEvType').value = ev ? (ev.type||'') : '';
   $('fCalEvTitle').value = ev ? ev.title : '';
-  $('fCalEvDate').value = ev ? dateOnlyIsoToParts(ev.date) : (prefillDate ? dateOnlyIsoToParts(prefillDate) : '');
-  $('fCalEvTime').value = ev ? (ev.time || '') : '';
-  $('fCalEvEndDate').value = ev && ev.endDate ? dateOnlyIsoToParts(ev.endDate) : '';
+  $('fCalEvDate').value = ev ? dateOnlyIsoToParts(toDayKey(ev.date)) : (prefillDate ? dateOnlyIsoToParts(prefillDate) : '');
+  $('fCalEvTime').value = ev ? toTimeHM(ev.time) : '';
+  $('fCalEvEndDate').value = ev && ev.endDate ? dateOnlyIsoToParts(toDayKey(ev.endDate)) : '';
+  $('fCalEvEndTime').value = ev && ev.endDate ? toTimeHM(ev.endDate) : '';
+  syncCalEvEndTimeState();
   // Same "!== false" default as sessions — see openSessModal()'s own
   // comment for why this matches how the backend treats it.
   $('fCalEvPublicBusy').checked = !ev || ev.publicBusy !== false;
@@ -4149,10 +4204,26 @@ attachFilteredSuggestions('pTxCategory', 'pTxCategoryList', knownCategories);
 
 $('calEventForm').addEventListener('submit', (e)=>{
   normalizeTimeField('fCalEvTime');
+  normalizeTimeField('fCalEvEndTime');
   const isoDate = dateOnlyPartsToIso($('fCalEvDate').value);
   if(!isoDate){ e.preventDefault(); askAlert('Please enter a valid date (DD-MM-YYYY).'); return; }
-  const isoEnd = $('fCalEvEndDate').value.trim() ? dateOnlyPartsToIso($('fCalEvEndDate').value) : null;
   const time = $('fCalEvTime').value.trim() || null;
+  if(time && !/^\d{2}:\d{2}$/.test(time)){ e.preventDefault(); askAlert('Please enter the start time as HH:MM (24-hour), or leave it blank.'); return; }
+  // End is optional. Blank end date = one-day event, and the finish time
+  // stays empty. The finish time rides along in the same endDate field as
+  // "YYYY-MM-DDTHH:MM" (the same format sessions already sync with), so
+  // the sheet needs no new column.
+  let isoEnd = null;
+  const endRaw = $('fCalEvEndDate').value.trim();
+  if(endRaw){
+    const endDay = dateOnlyPartsToIso(endRaw);
+    if(!endDay){ e.preventDefault(); askAlert('Please enter a valid end date (DD-MM-YYYY), or leave it blank for a one-day event.'); return; }
+    if(endDay < isoDate){ e.preventDefault(); askAlert("The end date can't be before the start date."); return; }
+    const endTime = $('fCalEvEndTime').value.trim();
+    if(endTime && !/^\d{2}:\d{2}$/.test(endTime)){ e.preventDefault(); askAlert('Please enter the finish time as HH:MM (24-hour), or leave it blank.'); return; }
+    if(endTime && endDay === isoDate && time && endTime < time){ e.preventDefault(); askAlert("The finish time can't be before the start time."); return; }
+    isoEnd = endTime ? `${endDay}T${endTime}` : (endDay === isoDate ? null : endDay);
+  }
   const type = resolveCalEvType($('fCalEvType').value);
   const data = {
     kind: 'event',
@@ -4190,7 +4261,17 @@ $('fCalEvEndDate').addEventListener('input', ()=>{
   if(digits.length > 2) out += '-' + digits.slice(2,4);
   if(digits.length > 4) out += '-' + digits.slice(4,8);
   $('fCalEvEndDate').value = out;
+  syncCalEvEndTimeState();
 });
+/* The finish time only applies when there's an end date — with no end
+   date it's disabled and kept empty. */
+function syncCalEvEndTimeState(){
+  const hasEnd = !!$('fCalEvEndDate').value.trim();
+  $('fCalEvEndTime').disabled = !hasEnd;
+  if(!hasEnd) $('fCalEvEndTime').value = '';
+}
+$('fCalEvEndDate').addEventListener('change', syncCalEvEndTimeState);
+wireTimeAutoColon($('fCalEvEndTime'));
 
 ['fSpDepositDate','fSpBalanceDate'].forEach(id=>{
   $(id).addEventListener('input', ()=>{
