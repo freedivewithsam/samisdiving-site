@@ -2253,15 +2253,19 @@ async function detectBarcodeValue(img){
 }
 function findOrderNo(text){
   const counts = {};
-  const re = /\b([S5][PF])\s?([0-9OoIl|]{15,24})/g;
+  // OCR sometimes splits the number with a space ("SP19828831 77549814318"),
+  // so allow single spaces inside the digit run and strip them.
+  const re = /\b([S5][PF])\s?((?:[0-9OoIl|]\s?){15,26})/g;
   let m;
   while((m = re.exec(text))){
-    const digits = m[2].replace(/[Oo]/g,'0').replace(/[Il|]/g,'1');
+    let digits = m[2].replace(/\s/g,'').replace(/[Oo]/g,'0').replace(/[Il|]/g,'1');
+    // J&T order numbers are SP + 19 digits; anything past that is an icon read as a digit.
+    if(digits.length > 19) digits = digits.slice(0, 19);
     const code = 'SP' + digits;
     counts[code] = (counts[code]||0) + 1;
   }
-  // Most frequent reading wins; on a tie the shorter one (no icon read as a digit).
-  return Object.keys(counts).sort((a,b) => (counts[b]-counts[a]) || (a.length-b.length))[0] || '';
+  // Prefer a full 19-digit reading, then the most frequent one.
+  return Object.keys(counts).sort((a,b) => ((b.length===21)-(a.length===21)) || (counts[b]-counts[a]) || (a.length-b.length))[0] || '';
 }
 function parseOrderScreenshotText(text){
   const lines = text.split('\n').map(l => l.replace(/[|©®@&]+/g,' ').replace(/\s+/g,' ').trim()).filter(Boolean);
@@ -2274,18 +2278,19 @@ function parseOrderScreenshotText(text){
   const cleanName = s => (s||'').replace(/^[^A-Za-z]+/,'').replace(/^(?:[A-Z0-9]{1,2}\s+)+(?=[A-Za-z]{2,})/,'')
     .replace(/[^A-Za-z.'\s]+$/,'').trim();
   // "Province,Kab. X,Kecamatan" — the Order Detail region line.
-  const REGION = /^([A-Za-z .]+?)\s*,\s*((?:Kab(?:upaten)?\.?|Kota)\s*[^,]+?)\s*,\s*(.+)$/i;
+  const REGION = /^([A-Za-z .]+?)\s*,\s*([A-Za-z .]+?)\s*,\s*([A-Za-z .()-]+?)\s*$/i;
   const STOP = /item name|billed|weight|dimension|package|payment|insurance|item price|show the qr|order detail|order again/i;
 
+  // The receiver block = an unmasked phone line followed (within 2 lines)
+  // by "Province,City,Kecamatan". The sender's phone is masked (*****),
+  // so its block never qualifies. Last qualifying block wins.
   let best = null;
-  lines.forEach((l, i) => {
-    const m = l.match(REGION);
-    if(!m) return;
-    // The receiver is the region line with an unmasked phone just above it.
-    let phoneIdx = -1;
-    for(let k = i-1; k >= Math.max(0, i-3); k--){ if(isRealPhone(lines[k])){ phoneIdx = k; break; } }
-    if(phoneIdx === -1) return;
-    best = { i, m, phoneIdx };
+  lines.forEach((l, phoneIdx) => {
+    if(!isRealPhone(l)) return;
+    for(let i = phoneIdx+1; i <= Math.min(lines.length-1, phoneIdx+2); i++){
+      const m = lines[i].match(REGION);
+      if(m){ best = { i, m, phoneIdx }; break; }
+    }
   });
 
   const out = { name:'', phone:'', address:'', kecamatan:'', kabupaten:'', provinsi:'', postal:'', full:false };
@@ -2300,7 +2305,8 @@ function parseOrderScreenshotText(text){
     if(sameLine) out.name = cleanName(sameLine.split(PHONE)[0]) || out.name;
     out.provinsi = m[1].trim();
     const kab = m[2].trim();
-    out.kabupaten = /^kab/i.test(kab) ? 'Kabupaten ' + kab.replace(/^kab(?:upaten)?\.?\s*/i,'') : kab.replace(/^kota\s*/i,'Kota ');
+    out.kabupaten = /^kab/i.test(kab) ? 'Kabupaten ' + kab.replace(/^kab(?:upaten)?\.?\s*/i,'')
+                  : /^kota\b/i.test(kab) ? kab.replace(/^kota\s*/i,'Kota ') : kab;
     out.kecamatan = m[3].trim();
     const street = [];
     for(let k = i+1; k < lines.length && k <= i+4; k++){
