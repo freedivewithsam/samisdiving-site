@@ -1480,10 +1480,10 @@ function renderSales(){
       const paidMembers = members.filter(m=>m.paid!=null);
       const totalPaid = paidMembers.reduce((a,m)=>a+(m.paid||0),0);
       const withShip = members.find(m=>m.shipCost!=null || m.shipCostActual!=null);
+      // Shows just the shipping fee actually paid to the courier (falls back
+      // to the quoted fee only when no actual figure was entered).
       const shipHtml = withShip
-        ? (withShip.shipCostActual!=null && withShip.shipCostActual!==(withShip.shipCost||0)
-            ? `<div class="sale-date">Shipping: ${esc((withShip.shipCost||0).toLocaleString())} charged, ${esc(withShip.shipCostActual.toLocaleString())} actual</div>`
-            : `<div class="sale-date">Shipping: ${esc((withShip.shipCost||0).toLocaleString())}</div>`)
+        ? `<div class="sale-date">Shipping: ${esc((withShip.shipCostActual!=null ? withShip.shipCostActual : (withShip.shipCost||0)).toLocaleString())}</div>`
         : '';
       // Actual expense = real shipping cost paid to courier (falls back to the
       // quoted shipping cost when no actual figure was entered yet). Balance
