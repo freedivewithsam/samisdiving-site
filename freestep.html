@@ -345,7 +345,6 @@
       <div class="field"><label for="fSalePaid">Total</label><input id="fSalePaid" type="number" min="0" step="any"></div>
       <div class="field"><label for="fSaleDate">Date (leave empty for today)</label><input id="fSaleDate" type="text" inputmode="numeric" placeholder="DDMMYYYY" maxlength="10"></div>
     </div>
-    <div class="field"><label for="fShipCost">Shipping fee charged to customer (added to Total)</label><input id="fShipCost" type="number" min="0" step="any"></div>
     <div class="field">
       <label for="fShipCostActual">Actual shipping fee paid to courier</label>
       <input id="fShipCostActual" type="number" min="0" step="any">
@@ -2036,16 +2035,20 @@ function parseCustomerPaste(raw){
    postal code. Older sales saved before this change still have those
    separate fields, so addressBlockFor() folds them back into one block
    when such a sale is opened or reused. */
+// Drops a 5-digit postal code from an address line ("Blok C, 61256" -> "Blok C").
+function stripPostal(line){
+  return (line||'').replace(/[\s,]*\b\d{5}\b\.?(?=[\s,]*$)/,'').replace(/[\s,]+$/,'').trim();
+}
 function addressBlockFor(s, customer){
   if(!s) return '';
   const hasOld = s.phone || s.kecamatan || s.kabupaten || s.province || s.postalCode;
-  if(!hasOld) return s.address || '';
+  if(!hasOld) return (s.address || '').split('\n').map(stripPostal).filter(Boolean).join('\n');
   return [
     [customer || s.customer || '', s.phone || ''].filter(Boolean).join(' '),
     s.address || '',
     [s.kecamatan, s.kabupaten].filter(Boolean).join(', '),
-    [s.province, s.postalCode].filter(Boolean).join(' ')
-  ].map(l => l.trim()).filter(Boolean).join('\n');
+    s.province || ''
+  ].map(l => stripPostal(l)).filter(Boolean).join('\n');
 }
 // First line of a pasted block, minus any phone number / "Nama:" label = the name.
 function nameFromAddressBlock(text){
@@ -2054,6 +2057,8 @@ function nameFromAddressBlock(text){
     .replace(/[,(]?\s*\(?(?:\+?62|0)8[\d\s-]{6,}\)?\s*$/,'').replace(/[,\s]+$/,'').trim();
 }
 $('fSaleAddress').addEventListener('paste', () => setTimeout(() => {
+  const box = $('fSaleAddress');
+  box.value = box.value.split('\n').map(stripPostal).join('\n');
   if(!$('fSaleCustomer').value.trim()){
     const n = nameFromAddressBlock($('fSaleAddress').value);
     if(n && n.length <= 60) $('fSaleCustomer').value = n;
@@ -2116,9 +2121,6 @@ function applyShipCost(cost){
   paidInput.value = basePaid + amount;
   shipCostApplied = amount;
 }
-$('fShipCost').addEventListener('input', debounce(() => {
-  applyShipCost(parseFloat($('fShipCost').value) || 0);
-}, 400));
 
 /* ---------- shipping label ----------
    Renders a courier-style label onto a canvas sized at ~300dpi for a
@@ -2274,7 +2276,7 @@ function parseOrderScreenshotText(text){
     }
     // The receiver block exactly as laid out on the screenshot:
     // "Name phone", then the region line, then each street line.
-    out.block = [(out.name + ' ' + rawPhone(lines[phoneIdx])).trim(), lines[i]].concat(street).join('\n');
+    out.block = [(out.name + ' ' + rawPhone(lines[phoneIdx])).trim(), lines[i]].concat(street.map(stripPostal)).filter(Boolean).join('\n');
     let addr = street.join(' ').replace(/\s*,\s*/g, ', ').trim();
     const pm = addr.match(/\b(\d{5})\b(?!.*\b\d{5}\b)/);
     if(pm){ out.postal = pm[1]; addr = addr.replace(pm[0], '').replace(/[\s,]+$/,'').trim(); }
@@ -2952,7 +2954,6 @@ function openSaleModal(saleId){
   $('saleSubmitBtn').textContent = s ? 'Save changes' : 'Sold';
   $('pasteParseStatus').textContent = '';
   $('pasteParseStatus').classList.remove('low');
-  $('fShipCost').value = '';
   $('fShipCostActual').value = '';
   saleBarcodeDataUrl = null;
   $('fShipOrderNo').value = '';
@@ -2987,7 +2988,6 @@ function openSaleModal(saleId){
     const withShip = group.find(gs => gs.shipCost!=null || gs.shipCostActual!=null);
     if(withShip){
       if(withShip.shipCost!=null){
-        $('fShipCost').value = withShip.shipCost;
         // Keep the running "already folded into Total" tracker in sync with
         // what's restored here, so editing the shipping cost or items below
         // subtracts the right amount back out of Total rather than double-
@@ -3138,7 +3138,7 @@ $('saleForm').addEventListener('submit', e=>{
     item.p = prod;
   });
   const customer = $('fSaleCustomer').value.trim();
-  const address = $('fSaleAddress').value.trim();
+  const address = $('fSaleAddress').value.split('\n').map(stripPostal).filter(Boolean).join('\n');
   // No longer collected separately — everything lives in the address box.
   const phone = '', kecamatan = '', kabupaten = '', postalCode = '', province = '';
   const orderNo = $('fShipOrderNo').value.trim().toUpperCase();
