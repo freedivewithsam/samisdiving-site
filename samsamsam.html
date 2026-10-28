@@ -339,6 +339,9 @@
     box-shadow:0 10px 40px rgba(58,27,44,.25);color:var(--ink);
   }
   dialog::backdrop{background:rgba(58,27,44,.35)}
+  dialog[open]{max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+  /* While a pop-up is open the page behind it must not scroll (see the script at the end). */
+  html:has(dialog[open]),body:has(dialog[open]){overflow:hidden}
   .modal-in{padding:22px}
   .modal-in h3{font-family:"Poppins",serif;font-weight:600;margin:0 0 16px;font-size:19px}
   .modal-in p{margin:0}
@@ -4243,6 +4246,36 @@ startAppAfterUnlock();
       evaluate(e.target);
     }
   }, true);
+})();
+</script>
+<script>
+/* ---------- keep the page behind a pop-up from scrolling ----------
+   On phones (iPhone Safari especially) a swipe inside a pop-up such as
+   "Log a sale" could scroll the page underneath instead of the pop-up,
+   leaving the bottom of the form unreachable. While any <dialog> is
+   open the page is pinned in place, and released (back at the same
+   scroll position) once every dialog is closed. */
+(function(){
+  var locked = false, savedY = 0, b = document.body;
+  function sync(){
+    var open = !!document.querySelector('dialog[open]');
+    if(open && !locked){
+      savedY = window.scrollY || window.pageYOffset || 0;
+      b.style.position = 'fixed'; b.style.top = (-savedY) + 'px';
+      b.style.left = '0'; b.style.right = '0'; b.style.width = '100%';
+      locked = true;
+    } else if(!open && locked){
+      b.style.position = ''; b.style.top = ''; b.style.left = ''; b.style.right = ''; b.style.width = '';
+      window.scrollTo(0, savedY);
+      locked = false;
+    }
+  }
+  var mo = new MutationObserver(sync);
+  document.querySelectorAll('dialog').forEach(function(d){
+    mo.observe(d, { attributes:true, attributeFilter:['open'] });
+    d.addEventListener('close', sync);
+  });
+  sync();
 })();
 </script>
 </body>

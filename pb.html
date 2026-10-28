@@ -92,9 +92,10 @@
 
   dialog{border:none;border-radius:0;padding:0;background:transparent;max-width:none;width:100%}
   dialog::backdrop{background:rgba(62,58,46,.4)}
+  html:has(dialog[open]),body:has(dialog[open]){overflow:hidden}
   #calcDialog, #cartDialog{position:fixed;inset:0;margin:0;align-items:flex-end;justify-content:center;max-height:none;height:100%;background:transparent}
   #calcDialog[open], #cartDialog[open]{display:flex}
-  .modal-in{background:var(--card);border-radius:20px 20px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));max-width:560px;width:100%;margin:0 auto;max-height:88vh;overflow-y:auto;box-shadow:0 -6px 24px rgba(0,0,0,.15)}
+  .modal-in{background:var(--card);border-radius:20px 20px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));max-width:560px;width:100%;margin:0 auto;max-height:88vh;max-height:88dvh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;box-shadow:0 -6px 24px rgba(0,0,0,.15)}
   @media (min-width:640px){ #calcDialog, #cartDialog{align-items:center} .modal-in{border-radius:20px;margin-top:0} }
   .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
   .modal-head h3{margin:0;font-size:16px}
@@ -937,6 +938,36 @@ document.getElementById('saveCalcBtn').addEventListener('click', () => {
   clearTimeout(saveStatusTimer);
   saveStatusTimer = setTimeout(() => statusEl.classList.remove('show'), 1800);
 });
+</script>
+<script>
+/* ---------- keep the page behind a pop-up from scrolling ----------
+   On phones (iPhone Safari especially) a swipe inside a pop-up such as
+   "Log a sale" could scroll the page underneath instead of the pop-up,
+   leaving the bottom of the form unreachable. While any <dialog> is
+   open the page is pinned in place, and released (back at the same
+   scroll position) once every dialog is closed. */
+(function(){
+  var locked = false, savedY = 0, b = document.body;
+  function sync(){
+    var open = !!document.querySelector('dialog[open]');
+    if(open && !locked){
+      savedY = window.scrollY || window.pageYOffset || 0;
+      b.style.position = 'fixed'; b.style.top = (-savedY) + 'px';
+      b.style.left = '0'; b.style.right = '0'; b.style.width = '100%';
+      locked = true;
+    } else if(!open && locked){
+      b.style.position = ''; b.style.top = ''; b.style.left = ''; b.style.right = ''; b.style.width = '';
+      window.scrollTo(0, savedY);
+      locked = false;
+    }
+  }
+  var mo = new MutationObserver(sync);
+  document.querySelectorAll('dialog').forEach(function(d){
+    mo.observe(d, { attributes:true, attributeFilter:['open'] });
+    d.addEventListener('close', sync);
+  });
+  sync();
+})();
 </script>
 </body>
 </html>
