@@ -338,8 +338,7 @@
       <button type="button" class="btn btn-ghost btn-small" id="orderShotsBtn" style="margin-bottom:8px">📷 Upload order screenshots</button>
       <div id="pasteParseStatus" class="sale-stock-hint" style="margin-bottom:0"></div>
     </div>
-    <div class="field"><label for="fSaleCustomer">Customer name</label><input id="fSaleCustomer" list="customerOptions"></div>
-    <datalist id="customerOptions"></datalist>
+    <div class="field" style="position:relative"><label for="fSaleCustomer">Customer name</label><input id="fSaleCustomer" autocomplete="off"><div class="ship-dest-suggestions" id="customerSuggestions"></div></div>
     <div class="field"><label for="fSaleAddress">Name, phone &amp; address</label><textarea id="fSaleAddress" rows="5" style="width:100%;font-family:inherit;font-size:14px;padding:10px 12px;border:1.5px solid var(--rose-line);border-radius:12px;box-sizing:border-box" placeholder="Upload the order screenshots, or paste the name, phone and address here. It's kept exactly as written."></textarea></div>
     <datalist id="saleProductOptions"></datalist>
     <div id="saleItemsList"></div>
@@ -1772,11 +1771,27 @@ function refreshSaleProductOptions(){
 // Lets the customer-name field offer past customers as a dropdown — pick
 // one and autofillAddressFromHistory (below) fills in their address, the
 // same way it already does when you type a name that matches exactly.
-function refreshCustomerOptions(){
-  const list = $('customerOptions');
-  const names = [...new Set(db.sales.map(s=>(s.customer||'').trim()).filter(Boolean))]
+// Uses the same custom suggestion box as the Item field (not a native
+// <datalist>, whose popup the browser positions and sizes on its own and
+// can end up misaligned with the input inside this modal).
+function pastCustomerNames(){
+  return [...new Set(db.sales.map(s=>(s.customer||'').trim()).filter(Boolean))]
     .sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
-  list.innerHTML = names.map(n=>`<option value="${esc(n)}"></option>`).join('');
+}
+function renderCustomerSuggestions(){
+  const box = $('customerSuggestions');
+  if(!box) return;
+  const q = $('fSaleCustomer').value.trim().toLowerCase();
+  const words = q.split(/\s+/).filter(Boolean);
+  const names = pastCustomerNames().filter(n => words.every(w => n.toLowerCase().includes(w)));
+  // A name that's already typed out in full needs no suggestion.
+  if(!names.length || (names.length === 1 && names[0].toLowerCase() === q)){ box.classList.remove('open'); box.innerHTML = ''; return; }
+  box.innerHTML = names.map(n => `<div class="ship-dest-item" data-name="${esc(n)}">${esc(n)}</div>`).join('');
+  box.classList.add('open');
+}
+function refreshCustomerOptions(){
+  // Names are read fresh each time the box opens; just refresh it if it's showing.
+  if($('customerSuggestions') && $('customerSuggestions').classList.contains('open')) renderCustomerSuggestions();
 }
 function updateSaleItemHint(productInput){
   const row = productInput.closest('.sale-item-row');
@@ -2094,6 +2109,23 @@ function autofillAddressFromHistory(){
   $('pasteParseStatus').textContent = 'Filled in from a previous sale for this customer — no need to paste again.';
 }
 $('fSaleCustomer').addEventListener('blur', autofillAddressFromHistory);
+$('fSaleCustomer').addEventListener('focus', renderCustomerSuggestions);
+$('fSaleCustomer').addEventListener('input', renderCustomerSuggestions);
+$('fSaleCustomer').addEventListener('keydown', e => {
+  if(e.key === 'Escape' || e.key === 'Tab') $('customerSuggestions').classList.remove('open');
+});
+$('customerSuggestions').addEventListener('click', e => {
+  const item = e.target.closest('.ship-dest-item');
+  if(!item) return;
+  $('fSaleCustomer').value = item.dataset.name;
+  $('customerSuggestions').classList.remove('open');
+  autofillAddressFromHistory();
+});
+document.addEventListener('click', e => {
+  if(!e.target.closest('#fSaleCustomer') && !e.target.closest('#customerSuggestions')){
+    $('customerSuggestions').classList.remove('open');
+  }
+});
 // Picking a name straight from the customerOptions dropdown fires 'input'
 // with an exact match — fill in the address right away rather than
 // waiting for the field to lose focus.
