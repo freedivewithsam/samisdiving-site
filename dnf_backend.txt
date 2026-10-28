@@ -1,0 +1,239 @@
+/**
+ * DNF Dive Log — Google Sheets backend
+ * ------------------------------------
+ * SETUP (about 5 minutes):
+ * 1. Go to sheets.google.com and create a new blank spreadsheet (e.g. "DNF Dive Log").
+ * 2. In the menu: Extensions → Apps Script.
+ * 3. Delete anything in the editor and paste this whole file in.
+ * 4. Click Deploy → New deployment.
+ *    - Click the gear icon next to "Select type" and choose "Web app".
+ *    - Execute as: Me
+ *    - Who has access: Anyone
+ *    - Click Deploy, then authorize it when Google asks.
+ * 5. Copy the "Web app URL" it gives you — that's what you paste into the
+ *    dive log page's "Apps Script web app URL" field.
+ * 6. Re-run "Deploy → Manage deployments → Edit → Deploy" any time you change this file.
+ *    IMPORTANT: saving in the editor does NOT update the live Web App URL —
+ *    you must create a new deployment version, or the URL keeps running
+ *    whatever code was live at the last deployment.
+ *
+ * This script keeps two sheet tabs:
+ *  - "DiveLog": one row per attempt, grouped into sessions by (date, pool_length).
+ *    Adding a session for a date/pool combo that already has rows replaces
+ *    those rows, so re-syncing an edited session doesn't create duplicates,
+ *    and a 25m session and a 50m session logged on the same date stay separate.
+ *  - "PeriodDates": one row per logged period start date. The whole list is
+ *    replaced on every save, since the page always sends its full current
+ *    list of period dates.
+ *
+ * FIX (2026-07-30): dates are now compared/grouped through normalizeDate_()
+ * everywhere. Previously, deleteRowsForSession_ compared a sheet cell's
+ * value directly against the incoming date string. Once a cell got written,
+ * Sheets auto-converted it from plain text ("2026-07-30") into a real Date
+ * object, so String(cellValue) (a full JS date string) never matched
+ * String(incomingDateString) again. That silently broke the "replace old
+ * rows" step, so every edit/re-sync just appended new rows on top of the
+ * old ones instead of replacing them — producing duplicate, conflicting
+ * attempts per session (the "jumbled" data).
+ *
+ * FIX (2026-08-12): doGet/doPost now wrap their work in try/catch and
+ * always return JSON, even on failure (e.g. the script lock times out
+ * because two requests overlap, or any other unexpected error). Before
+ * this, an uncaught error meant Apps Script served its own HTML error
+ * page instead of JSON. The page's fetch() call then failed inside
+ * res.json() with no useful detail, surfacing only the generic
+ * "Sync failed — check your connection or the Web App URL." message
+ * regardless of what actually went wrong. Errors now come back as
+ * { ok:false, error: "<message>" } so the real cause is visible (e.g. by
+ * pasting the Web App URL directly into a browser tab).
+ *
+ * REMOVED (2026-08-12 #5): wetsuit and cycle columns/fields have been
+ * taken back out. DiveLog is back to the original 9-column layout:
+ * date, pool_length, attempt, time_seconds, distance_m, avg_velocity,
+ * min_hr, avg_hr, max_hr. If your sheet still has the wetsuit/cycle
+ * columns (C and D) from the previous version, delete those two columns
+ * manually in the sheet (select columns C:D → right-click → "Delete
+ * columns C - D") so the layout matches HEADERS below before you sync
+ * again — otherwise new rows will land under the wrong headers.
+ */
+
+const SHEET_NAME = 'DiveLog';
+const HEADERS = ['date', 'pool_length', 'attempt', 'time_seconds', 'distance_m', 'avg_velocity', 'min_hr', 'avg_hr', 'max_hr'];
+
+const PERIOD_SHEET_NAME = 'PeriodDates';
+const PERIOD_HEADERS = ['date'];
+
+function getSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME);
+    sheet.appendRow(HEADERS);
+  }
+  return sheet;
+}
+
+function getPeriodSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(PERIOD_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(PERIOD_SHEET_NAME);
+    sheet.appendRow(PERIOD_HEADERS);
+  }
+  return sheet;
+}
+
+function jsonOut_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Turns a Date object (as read back from a sheet cell that Sheets
+// auto-converted) OR a plain "YYYY-MM-DD" string (as sent by the page)
+// into the same canonical "YYYY-MM-DD" string, so the two can always be
+// compared or grouped reliably no matter which form a given cell is in.
+function normalizeDate_(d) {
+  if (Object.prototype.toString.call(d) === '[object Date]' && !isNaN(d)) {
+    return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  const s = String(d);
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  const parsed = new Date(s);
+  if (!isNaN(parsed)) return Utilities.formatDate(parsed, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return s;
+}
+
+// Reads all rows and groups them back into
+// { sessions: [{date, pool_length, attempts:[...]}], periodDates: [...] }
+// Also takes the script lock (briefly) so a "Sync now" can't read the
+// sheet in the middle of another request's delete-then-append cycle.
+//
+// Wrapped end-to-end in try/catch: if the lock can't be acquired in time,
+// or any other error happens, this still returns JSON (ok:false + error
+// message) instead of letting Apps Script serve an HTML error page that
+// would break the page's res.json() call with no useful detail.
+function doGet(e) {
+  try {
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    let values, periodValues;
+    try {
+      const sheet = getSheet_();
+      values = sheet.getDataRange().getValues();
+      const periodSheet = getPeriodSheet_();
+      periodValues = periodSheet.getDataRange().getValues();
+    } finally {
+      lock.releaseLock();
+    }
+
+    const rows = values.slice(1); // skip header row
+    const byKey = {};
+
+    rows.forEach(function (r) {
+      if (!r[0]) return;
+      const date = normalizeDate_(r[0]);
+      const poolLength = r[1];
+      const key = date + '|' + String(poolLength);
+      if (!byKey[key]) byKey[key] = { date: date, pool_length: poolLength, attempts: [] };
+      byKey[key].attempts.push({
+        attempt: r[2],
+        time_seconds: r[3],
+        distance_m: r[4],
+        avg_velocity: r[5],
+        min_hr: r[6],
+        avg_hr: r[7],
+        max_hr: r[8]
+      });
+    });
+
+    const sessions = Object.keys(byKey).sort().map(function (key) {
+      const s = byKey[key];
+      s.attempts.sort(function (a, b) { return a.attempt - b.attempt; });
+      return s;
+    });
+
+    const periodDates = periodValues.slice(1)
+      .map(function (r) { return r[0] ? normalizeDate_(r[0]) : null; })
+      .filter(Boolean)
+      .sort();
+
+    return jsonOut_({ sessions: sessions, periodDates: periodDates });
+  } catch (err) {
+    return jsonOut_({ ok: false, error: String(err && err.message ? err.message : err), sessions: [], periodDates: [] });
+  }
+}
+
+// Adds or replaces a (date, pool_length) session's rows, or deletes them,
+// or replaces the full list of logged period start dates.
+// Wrapped in a script lock: without this, two doPost calls arriving close
+// together (e.g. adding several sessions in one batch) can interleave —
+// one call's delete-then-append reads a sheet snapshot that's already
+// stale because of the other call's writes. That's what was splitting
+// single sessions into extra ones. The lock forces requests to run one
+// at a time so each read-delete-append cycle finishes cleanly.
+//
+// Also wrapped end-to-end in try/catch for the same reason as doGet: any
+// failure (lock timeout, bad JSON body, etc.) still comes back as JSON
+// (ok:false + error) instead of an HTML error page.
+function doPost(e) {
+  try {
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000); // wait up to 30s for another request to finish
+    try {
+      const body = JSON.parse(e.postData.contents);
+
+      if (body.action === 'save_periods') {
+        savePeriodDates_(body.periodDates || []);
+        return jsonOut_({ ok: true, periodDates: (body.periodDates || []).length });
+      }
+
+      const sheet = getSheet_();
+      deleteRowsForSession_(sheet, body.date, body.pool_length);
+
+      if (body.action === 'delete') {
+        return jsonOut_({ ok: true, deleted: body.date, pool_length: body.pool_length });
+      }
+
+      (body.attempts || []).forEach(function (a) {
+        sheet.appendRow([
+          body.date, body.pool_length,
+          a.attempt, a.time_seconds, a.distance_m,
+          a.avg_velocity, a.min_hr, a.avg_hr, a.max_hr
+        ]);
+      });
+
+      return jsonOut_({ ok: true, added: (body.attempts || []).length });
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (err) {
+    return jsonOut_({ ok: false, error: String(err && err.message ? err.message : err) });
+  }
+}
+
+function deleteRowsForSession_(sheet, date, poolLength) {
+  const targetDate = normalizeDate_(date);
+  const values = sheet.getDataRange().getValues();
+  for (let i = values.length - 1; i >= 1; i--) {
+    if (!values[i][0]) continue;
+    if (normalizeDate_(values[i][0]) === targetDate && String(values[i][1]) === String(poolLength)) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+}
+
+// Replaces the entire PeriodDates tab contents with the given list of
+// "YYYY-MM-DD" dates. The page always sends its full current list, so a
+// wholesale replace keeps this simple and avoids duplicate/stale rows.
+function savePeriodDates_(dates) {
+  const sheet = getPeriodSheet_();
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, 1).clearContent();
+  }
+  const unique = Array.from(new Set(dates.filter(Boolean))).sort();
+  if (unique.length) {
+    sheet.getRange(2, 1, unique.length, 1).setValues(unique.map(function (d) { return [d]; }));
+  }
+}
