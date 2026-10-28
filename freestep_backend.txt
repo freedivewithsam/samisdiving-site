@@ -1,0 +1,696 @@
+/* freestep — cloud backend
+   Four sheets:
+   - "Products": current stock. One row per product — ID, Name, Color,
+     Size, Width, Stock, Updated At.
+   - "Sales": a log of sales. One row per sale — ID, Date, Product Name,
+     Color, Size, Width, Quantity, Price, Updated At, Customer, Amount Paid,
+     Phone, Address, Kecamatan, Kabupaten, Postal Code, Province,
+     Ship Cost, Ship Cost Actual, Group ID.
+   - "Deleted": tombstones so a deletion on one device isn't silently
+     resurrected by a stale sync from another — Type (Product/Sale), ID,
+     Deleted At.
+   - "StockLog": append-only history of stock movements (product created,
+     edited, imported, or restocked from a deleted/edited sale), shown on
+     a product's detail page. One row per event — ID, Product ID, Type,
+     Delta, Date. Entries are immutable facts, so this sheet is merged
+     additively (union by ID) rather than replaced like Products/Sales.
+   - "TaxIncome": the app's Tax tab — one row per month with a UMKM
+     (freestep) figure and a Freelance (freediving) figure. Manually typed
+     in on the app's Tax tab (or filled by its "Pull July & August"
+     button), then synced here just like every other sheet so it survives
+     a lost/reset device and shows up the same on every device.
+
+   The client merges by ID + Updated At before every push (see
+   freestep.html's mergeRecords), so this script's job is just to persist
+   whatever merged state it's given, and to hand back IDs and timestamps
+   unchanged so the client's next merge is comparing apples to apples.
+   TaxIncome is small, manually-edited data rather than an ID-keyed log,
+   so it's merged by month key instead (see mergeTaxIncome below) — each
+   month's figure independently keeps whichever save is newer, so two
+   devices editing different months (or even the same month) never
+   silently clobber each other's entry outright the way a full-sheet
+   overwrite would.
+
+   No login/PIN is required to reach the DATA endpoints of this script —
+   anyone with the Web App URL can still read and write the sheet (see
+   readAllDataRaw / doPost below, which are unchanged from before). What
+   IS PIN-protected is the app's own UI: freestep.html shows a PIN lock
+   screen before it will render anything, and unlocking it goes through
+   the login/resetPin actions added below (same server-side pattern
+   samisdiving.html's backend uses for its own PIN lock) — the PIN and
+   recovery password are only ever checked here, never stored or hashed
+   client-side. Keep the Web App URL private the same way you'd keep a
+   shared spreadsheet link private; the PIN lock is a screen-lock for the
+   app's UI, not an access-control layer on the data endpoint itself.
+
+   JSONP: doGet supports a ?callback= param (see jsonpOut below) so a
+   DIFFERENT app (samisdiving.html, pulling this store's sales in as
+   income/expense entries) can read this data via a <script> tag instead
+   of fetch() — Apps Script Web App responses can never carry the
+   Access-Control-Allow-Origin header a real cross-origin website needs
+   to read them via fetch(), a hard platform limitation, not a settings
+   problem. A <script> tag isn't subject to that same restriction. The
+   PIN lock's own login/resetPin actions use this same GET+JSONP path.
+
+   ---------------------------------------------------------------------
+   TAX SHEET TAB — a separate "Refresh Tax" / "Tax Summary" pair of
+   sheets, built by refreshTaxTab() below and driven from the "freestep
+   Tax" menu (appears when you open this Sheet). That feature pulls
+   freediving's income live from the separate samisdiving Apps Script
+   over UrlFetchApp (server-to-server, no CORS/JSONP needed for that
+   direction) and combines it with this sheet's own Sales data into a
+   line-by-line ledger + monthly/yearly rollup — a different, read-only
+   view from the TaxIncome sheet above (which is the app's own editable
+   monthly figures). Refreshing it only ever writes to "Tax" and "Tax
+   Summary"; every other sheet is read-only from that code path.
+   ---------------------------------------------------------------------
+*/
+
+const PRODUCT_HEADERS = ['ID', 'Product Name', 'Color', 'Size', 'Width', 'Stock', 'Updated At'];
+const SALE_HEADERS = [
+  'ID', 'Date', 'Product Name', 'Color', 'Size', 'Width', 'Quantity', 'Price', 'Updated At',
+  'Customer', 'Amount Paid', 'Phone', 'Address', 'Kecamatan', 'Kabupaten',
+  'Postal Code', 'Province', 'Ship Cost', 'Ship Cost Actual', 'Group ID'
+];
+const DELETED_HEADERS = ['Type', 'ID', 'Deleted At'];
+const STOCKLOG_HEADERS = ['ID', 'Product ID', 'Type', 'Delta', 'Date'];
+const TAXINCOME_HEADERS = ['Month', 'UMKM (IDR)', 'Freelance (IDR)', 'Freediving (IDR)'];
+
+const SAMISDIVING_URL = 'https://script.google.com/macros/s/AKfycbyULNw9UH0NRW1l88BtUYb2kqhQQyG71ZPCqSJ4CF6KLQ8vkaWBkKHX8FV04isLXDMt/exec';
+const TAX_LEDGER_HEADERS = ['Source', 'Date', 'Description', 'Amount (IDR)'];
+const TAX_SUMMARY_HEADERS = ['Period', 'Freediving Income (IDR)', 'FreeStep Income (IDR)', 'Total Income (IDR)'];
+const TAX_TRIGGER_FN = 'refreshTaxTab';
+
+function jsonOut(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+function jsonpOut(obj, callbackName) {
+  const safe = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(callbackName) ? callbackName : 'callback';
+  return ContentService.createTextOutput(safe + '(' + JSON.stringify(obj) + ')').setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
+
+/* ---------- PIN lock (server-side auth) ----------
+   Same pattern as samisdiving's backend: the PIN and recovery password
+   are only ever checked here, in Script Properties (never in the sheet,
+   never in the client). A successful login or reset hands back an opaque
+   session token good for 30 days, which the client caches in
+   localStorage. Defaults below (PIN / recovery password
+   — real values kept private, not in this copy) are seeded into Script Properties the first time this runs
+   and only ever read from there afterward — resetting the PIN via the
+   "forgot PIN" flow updates the stored hash, not these constants. */
+const PIN_PROP_KEY = 'FREESTEP_PIN_HASH';
+const RECOVERY_PROP_KEY = 'FREESTEP_RECOVERY_HASH';
+const TOKENS_PROP_KEY = 'FREESTEP_AUTH_TOKENS';
+const DEFAULT_PIN = 'REDACTED_IN_GITHUB_COPY';
+const DEFAULT_RECOVERY_PASSWORD = 'REDACTED_IN_GITHUB_COPY';
+const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function hashValue_(v) {
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, (v || '').toString());
+  return digest.map(b => ((b + 256) % 256).toString(16).padStart(2, '0')).join('');
+}
+
+function getStoredPinHash_() {
+  const props = PropertiesService.getScriptProperties();
+  let h = props.getProperty(PIN_PROP_KEY);
+  if (!h) {
+    h = hashValue_(DEFAULT_PIN);
+    props.setProperty(PIN_PROP_KEY, h);
+  }
+  return h;
+}
+
+function getStoredRecoveryHash_() {
+  const props = PropertiesService.getScriptProperties();
+  let h = props.getProperty(RECOVERY_PROP_KEY);
+  if (!h) {
+    h = hashValue_(DEFAULT_RECOVERY_PASSWORD);
+    props.setProperty(RECOVERY_PROP_KEY, h);
+  }
+  return h;
+}
+
+function readTokens_() {
+  const props = PropertiesService.getScriptProperties();
+  try {
+    return JSON.parse(props.getProperty(TOKENS_PROP_KEY) || '{}');
+  } catch (e) {
+    return {};
+  }
+}
+
+function writeTokens_(tokens) {
+  PropertiesService.getScriptProperties().setProperty(TOKENS_PROP_KEY, JSON.stringify(tokens));
+}
+
+// Prunes expired tokens on every issue/check so the stored blob never
+// grows unbounded across logins.
+function pruneTokens_(tokens) {
+  const now = Date.now();
+  const kept = {};
+  Object.keys(tokens || {}).forEach(t => {
+    if (tokens[t] && tokens[t] > now) kept[t] = tokens[t];
+  });
+  return kept;
+}
+
+function issueToken_() {
+  const tokens = pruneTokens_(readTokens_());
+  const token = Utilities.getUuid();
+  tokens[token] = Date.now() + TOKEN_TTL_MS;
+  writeTokens_(tokens);
+  return token;
+}
+
+function isValidToken_(token) {
+  if (!token) return false;
+  const tokens = readTokens_();
+  const expiry = tokens[token];
+  return !!(expiry && expiry > Date.now());
+}
+
+function handleLoginRaw(pin) {
+  if (!pin) return { error: 'PIN required.' };
+  if (hashValue_(pin) !== getStoredPinHash_()) return { error: 'Incorrect PIN.' };
+  return { ok: true, token: issueToken_() };
+}
+
+function handleResetPinRaw(recoveryPassword, newPin) {
+  if (!recoveryPassword) return { error: 'Recovery password required.' };
+  if (!newPin || !/^\d{4,8}$/.test(newPin)) return { error: 'New PIN must be 4-8 digits.' };
+  if (hashValue_(recoveryPassword) !== getStoredRecoveryHash_()) return { error: 'Incorrect recovery password.' };
+  PropertiesService.getScriptProperties().setProperty(PIN_PROP_KEY, hashValue_(newPin));
+  return { ok: true, token: issueToken_() };
+}
+
+/* ---------- entry points ---------- */
+
+function readAllDataRaw() {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+  } catch (lockErr) {
+    return { error: 'Server busy, please retry.' };
+  }
+  try {
+    const products = readProducts();
+    const sales = readSales();
+    const deleted = readDeleted();
+    const stockLog = readStockLog();
+    const taxIncome = readTaxIncomeSheet();
+    return {
+      products: products, sales: sales,
+      deletedProductIds: deleted.products, deletedSaleIds: deleted.sales,
+      stockLog: stockLog,
+      taxIncome: taxIncome
+    };
+  } catch (err) {
+    return { error: err.message };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function doGet(e) {
+  const callback = e && e.parameter && e.parameter.callback;
+  const action = e && e.parameter && e.parameter.action;
+  let data;
+  if (action === 'login') {
+    data = handleLoginRaw(e.parameter.pin);
+  } else if (action === 'resetPin') {
+    data = handleResetPinRaw(e.parameter.recoveryPassword, e.parameter.newPin);
+  } else if (action === 'freedivingIncome') {
+    // Proxies the freediving-income pull server-to-server so freestep.html's
+    // client never has to talk to samisdiving's backend (or hold any of its
+    // credentials) directly — see fetchSamisdivingData below.
+    try {
+      data = { ok: true, data: fetchSamisdivingData() };
+    } catch (err) {
+      data = { error: err.message };
+    }
+  } else {
+    data = readAllDataRaw();
+  }
+  if (callback) return jsonpOut(data, callback);
+  return jsonOut(data);
+}
+
+function doPost(e) {
+  if (!e || !e.postData || !e.postData.contents) {
+    return jsonOut({ error: 'No data received.' });
+  }
+  let data;
+  try {
+    data = JSON.parse(e.postData.contents);
+  } catch (err) {
+    return jsonOut({ error: 'Malformed request.' });
+  }
+
+  // Reads can also go through POST with {action:'getData'} — kept for
+  // any caller that isn't doing the JSONP <script> approach, though that
+  // hits the same CORS wall a plain GET does for a real cross-origin
+  // caller (see the note on jsonpOut above).
+  if (data.action === 'getData') {
+    const result = readAllDataRaw();
+    return jsonOut(result);
+  }
+
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+  } catch (lockErr) {
+    return jsonOut({ error: 'Server busy, please retry.' });
+  }
+  try {
+    const existingDeleted = readDeleted();
+    const deletedProducts = Object.assign({}, existingDeleted.products, data.deletedProductIds || {});
+    const deletedSales = Object.assign({}, existingDeleted.sales, data.deletedSaleIds || {});
+    writeDeleted(deletedProducts, deletedSales);
+
+    const products = (data.products || []).filter(p => p && p.id && !(p.id in deletedProducts));
+    const sales = (data.sales || []).filter(s => s && s.id && !(s.id in deletedSales));
+    writeProducts(products);
+    writeSales(sales);
+
+    const existingLog = readStockLog();
+    const mergedLog = mergeStockLog(existingLog, data.stockLog || []);
+    writeStockLog(mergedLog);
+
+    const mergedTaxIncome = mergeTaxIncome(readTaxIncomeSheet(), data.taxIncome || {});
+    writeTaxIncomeSheet(mergedTaxIncome);
+
+    return jsonOut({ ok: true, taxIncome: mergedTaxIncome });
+  } catch (err) {
+    return jsonOut({ error: err.message });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/* ---------- Products sheet (current stock) ---------- */
+
+function readProducts() {
+  const sheet = getSheet('Products', PRODUCT_HEADERS);
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const products = [];
+  rows.forEach((row, idx) => {
+    const rowNum = idx + 2;
+    const name = (row[1] || '').toString().trim();
+    if (!name) return;
+    products.push({
+      id: (row[0] || '').toString().trim() || stableId('p', name, row[2], row[3], row[4]), // fallback for old rows saved before IDs were stored
+      name: name,
+      color: row[2] || '',
+      size: (row[3] || '').toString(),
+      width: row[4] || '',
+      stock: Number(row[5]) || 0,
+      updatedAt: row[6] || ''
+    });
+  });
+  return products;
+}
+
+function writeProducts(products) {
+  const sheet = getSheet('Products', PRODUCT_HEADERS);
+  const outRows = products.map(p => [
+    p.id || '', p.name || '', p.color || '', p.size || '', p.width || '', p.stock || 0, p.updatedAt || ''
+  ]);
+  clearBelowHeader(sheet);
+  if (outRows.length) sheet.getRange(2, 1, outRows.length, PRODUCT_HEADERS.length).setValues(outRows);
+}
+
+/* ---------- Sales sheet (transaction log) ---------- */
+
+function readSales() {
+  // Column 12 = Phone, 16 = Postal Code — both can legitimately start
+  // with "0" (Indonesian mobile numbers, some postal codes) and must
+  // never be auto-converted to a number.
+  const sheet = getSheet('Sales', SALE_HEADERS, [12, 16]);
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const sales = [];
+  rows.forEach((row, idx) => {
+    const rowNum = idx + 2;
+    const name = (row[2] || '').toString().trim();
+    if (!name) return;
+    sales.push({
+      id: (row[0] || '').toString().trim() || stableId('s', name, row[3], row[4], row[5], row[1]), // fallback for old rows saved before IDs were stored
+      date: row[1] instanceof Date ? row[1].toISOString() : (row[1] || '').toString(),
+      name: name,
+      color: row[3] || '',
+      size: (row[4] || '').toString(),
+      width: row[5] || '',
+      qty: Number(row[6]) || 0,
+      // The price actually charged for this line item. Kept separate from
+      // "Amount Paid" (which is the whole transaction's total, only ever
+      // stored on the first item) so re-opening a sale to edit it — or
+      // regenerating its invoice — shows what was really charged instead
+      // of falling back to whatever the product's default price is today.
+      price: row[7] === '' || row[7] == null ? null : Number(row[7]),
+      updatedAt: row[8] || '',
+      customer: (row[9] || '').toString(),
+      paid: row[10] === '' || row[10] == null ? null : Number(row[10]),
+      phone: (row[11] || '').toString(),
+      address: (row[12] || '').toString(),
+      kecamatan: (row[13] || '').toString(),
+      kabupaten: (row[14] || '').toString(),
+      postalCode: (row[15] || '').toString(),
+      province: (row[16] || '').toString(),
+      shipCost: row[17] === '' || row[17] == null ? null : Number(row[17]),
+      shipCostActual: row[18] === '' || row[18] == null ? null : Number(row[18]),
+      groupId: (row[19] || '').toString() || null
+    });
+  });
+  return sales;
+}
+
+function writeSales(sales) {
+  // Column 12 = Phone, 16 = Postal Code — both can legitimately start
+  // with "0" (Indonesian mobile numbers, some postal codes) and must
+  // never be auto-converted to a number.
+  const sheet = getSheet('Sales', SALE_HEADERS, [12, 16]);
+  const outRows = sales.map(s => [
+    s.id || '', s.date || '', s.name || '', s.color || '', s.size || '', s.width || '', s.qty || 0,
+    s.price == null ? '' : s.price,
+    s.updatedAt || '', s.customer || '', s.paid == null ? '' : s.paid,
+    s.phone || '', s.address || '', s.kecamatan || '', s.kabupaten || '',
+    s.postalCode || '', s.province || '',
+    s.shipCost == null ? '' : s.shipCost, s.shipCostActual == null ? '' : s.shipCostActual,
+    s.groupId || ''
+  ]);
+  clearBelowHeader(sheet);
+  if (outRows.length) sheet.getRange(2, 1, outRows.length, SALE_HEADERS.length).setValues(outRows);
+}
+
+/* ---------- Deleted sheet (tombstones) ---------- */
+
+function readDeleted() {
+  const sheet = getSheet('Deleted', DELETED_HEADERS);
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const products = {}, sales = {};
+  rows.forEach(row => {
+    const type = (row[0] || '').toString();
+    const id = (row[1] || '').toString();
+    const at = row[2] || '';
+    if (!id) return;
+    if (type === 'Product') products[id] = at;
+    else if (type === 'Sale') sales[id] = at;
+  });
+  return { products: products, sales: sales };
+}
+
+function writeDeleted(products, sales) {
+  const sheet = getSheet('Deleted', DELETED_HEADERS);
+  const outRows = [];
+  Object.keys(products || {}).forEach(id => outRows.push(['Product', id, products[id]]));
+  Object.keys(sales || {}).forEach(id => outRows.push(['Sale', id, sales[id]]));
+  clearBelowHeader(sheet);
+  if (outRows.length) sheet.getRange(2, 1, outRows.length, DELETED_HEADERS.length).setValues(outRows);
+}
+
+/* ---------- StockLog sheet (append-only stock movement history) ---------- */
+
+function readStockLog() {
+  const sheet = getSheet('StockLog', STOCKLOG_HEADERS);
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const log = [];
+  rows.forEach(row => {
+    const id = (row[0] || '').toString().trim();
+    if (!id) return;
+    log.push({
+      id: id,
+      productId: (row[1] || '').toString(),
+      type: (row[2] || '').toString(),
+      delta: Number(row[3]) || 0,
+      date: row[4] instanceof Date ? row[4].toISOString() : (row[4] || '').toString()
+    });
+  });
+  return log;
+}
+
+function writeStockLog(log) {
+  const sheet = getSheet('StockLog', STOCKLOG_HEADERS);
+  const outRows = log.map(l => [l.id || '', l.productId || '', l.type || '', l.delta || 0, l.date || '']);
+  clearBelowHeader(sheet);
+  if (outRows.length) sheet.getRange(2, 1, outRows.length, STOCKLOG_HEADERS.length).setValues(outRows);
+}
+
+// Additive union by ID — stock-log entries are immutable historical facts,
+// never edited after the fact, so unlike Products/Sales there's no
+// "newer wins" comparison to make: once an entry exists anywhere, keep it.
+function mergeStockLog(existing, incoming) {
+  const map = new Map();
+  (existing || []).forEach(l => { if (l && l.id) map.set(l.id, l); });
+  (incoming || []).forEach(l => { if (l && l.id && !map.has(l.id)) map.set(l.id, l); });
+  return Array.from(map.values());
+}
+
+/* ---------- TaxIncome sheet (Tax tab's manually-edited monthly figures) ---------- */
+
+function readTaxIncomeSheet() {
+  const sheet = getSheet('TaxIncome', TAXINCOME_HEADERS);
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const umkm = {}, freelance = {}, freediving = {};
+  rows.forEach(row => {
+    const mk = (row[0] || '').toString().trim();
+    if (!mk) return;
+    if (row[1] !== '' && row[1] != null) umkm[mk] = Number(row[1]) || 0;
+    if (row[2] !== '' && row[2] != null) freelance[mk] = Number(row[2]) || 0;
+    if (row[3] !== '' && row[3] != null) freediving[mk] = Number(row[3]) || 0;
+  });
+  return { umkm: umkm, freelance: freelance, freediving: freediving };
+}
+
+function writeTaxIncomeSheet(taxIncome) {
+  const sheet = getSheet('TaxIncome', TAXINCOME_HEADERS);
+  const umkm = (taxIncome && taxIncome.umkm) || {};
+  const freelance = (taxIncome && taxIncome.freelance) || {};
+  const freediving = (taxIncome && taxIncome.freediving) || {};
+  const months = Array.from(new Set(Object.keys(umkm).concat(Object.keys(freelance)).concat(Object.keys(freediving)))).sort();
+  const outRows = months.map(mk => [
+    mk,
+    umkm[mk] != null ? umkm[mk] : '',
+    freelance[mk] != null ? freelance[mk] : '',
+    freediving[mk] != null ? freediving[mk] : ''
+  ]);
+  clearBelowHeader(sheet);
+  if (outRows.length) sheet.getRange(2, 1, outRows.length, TAXINCOME_HEADERS.length).setValues(outRows);
+}
+
+// Merges by month key instead of a full-sheet overwrite — each month's
+// UMKM/Freelance/Freediving figure independently keeps whichever save
+// mentioned it most recently (the incoming save wins for any month it sets
+// a value for; a month it leaves out is left exactly as the sheet already
+// had it). This is what lets two devices edit different months of the Tax
+// tab without one save wiping out the other's.
+function mergeTaxIncome(existing, incoming) {
+  const umkm = Object.assign({}, (existing && existing.umkm) || {}, (incoming && incoming.umkm) || {});
+  const freelance = Object.assign({}, (existing && existing.freelance) || {}, (incoming && incoming.freelance) || {});
+  const freediving = Object.assign({}, (existing && existing.freediving) || {}, (incoming && incoming.freediving) || {});
+  return { umkm: umkm, freelance: freelance, freediving: freediving };
+}
+
+/* ---------- shared helpers ---------- */
+
+// textCols: 1-based column numbers that must always store plain text —
+// e.g. a phone number or postal code starting with "0". Sheets otherwise
+// auto-detects a numeric-looking value and silently drops the leading
+// zero (the same reason the Date columns elsewhere are pinned to '@').
+// Applied on every call (new sheet or existing) since it's a cheap
+// format-only operation and an existing sheet's columns are never
+// reformatted by the header self-heal below.
+function getSheet(name, headers, textCols) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.setFrozenRows(1);
+    applyTextColumnFormats(sheet, textCols);
+    return sheet;
+  }
+  // Self-heal: if a new column was added to this schema since the sheet
+  // was created, extend the header row rather than leaving it short —
+  // existing data columns are never touched, only appended to.
+  if (sheet.getLastColumn() < headers.length) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  }
+  applyTextColumnFormats(sheet, textCols);
+  return sheet;
+}
+
+function applyTextColumnFormats(sheet, textCols) {
+  (textCols || []).forEach(col => {
+    sheet.getRange(2, col, 2000, 1).setNumberFormat('@');
+  });
+}
+
+function clearBelowHeader(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+}
+
+// Deterministic ID for legacy rows that predate the ID column, so a row's
+// identity doesn't drift just because its position in the sheet shifted
+// on rewrite. Same inputs always produce the same ID.
+function stableId(prefix) {
+  const parts = Array.prototype.slice.call(arguments, 1).map(v => (v == null ? '' : v.toString()));
+  const raw = parts.join('|');
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, raw);
+  const hex = digest.map(b => ((b + 256) % 256).toString(16).padStart(2, '0')).join('');
+  return prefix + hex.slice(0, 10);
+}
+
+/* ---------- Tax tab (combined ledger + summary, "freestep Tax" menu) ---------- */
+
+// Server-to-server call to the samisdiving Apps Script. Uses samisdiving's
+// public, read-only 'incomeLines' action, which returns only payment amounts
+// and dates (no names, no login or key needed). No CORS issue here either
+// (that's a browser-only restriction on fetch()); UrlFetchApp isn't a browser.
+function fetchSamisdivingData() {
+  const res = UrlFetchApp.fetch(SAMISDIVING_URL + '?action=incomeLines', { muteHttpExceptions: true });
+  let data;
+  try { data = JSON.parse(res.getContentText()); }
+  catch (e) { throw new Error('samisdiving did not return data — is its new version deployed? (HTTP ' + res.getResponseCode() + ')'); }
+  if (data && data.error) throw new Error('samisdiving: ' + data.error);
+  return data;
+}
+
+// One line per deposit/balance payment actually received — this already
+// includes the legacy Income-sheet fallback, since buildStudentsPayload()
+// on the samisdiving side folds that into each student's sessionPayments
+// before this script ever sees it.
+function buildFreediveIncomeLines() {
+  const data = fetchSamisdivingData();
+  const lines = [];
+  (data.students || []).forEach(st => {
+    (st.sessionPayments || []).forEach(pmt => {
+      const label = pmt.name ? (st.name + ' — ' + pmt.name) : st.name;
+      if (pmt.deposit) {
+        lines.push({ source: 'Freediving', date: pmt.depositDate || '', description: label + ' (Deposit)', amount: pmt.deposit || 0 });
+      }
+      if (pmt.balance) {
+        lines.push({ source: 'Freediving', date: pmt.balanceDate || '', description: label + ' (Balance)', amount: pmt.balance || 0 });
+      }
+    });
+  });
+  return lines;
+}
+
+// One line per sale line item (price x qty) — a line with no price on
+// file (never set when the sale was logged) is excluded rather than
+// silently counted as zero, since there's no way to recover what it
+// actually sold for.
+function buildFreestepIncomeLines() {
+  return readSales().map(s => {
+    const amount = (s.price != null ? s.price : 0) * (s.qty || 0);
+    const dateOnly = (s.date || '').toString().slice(0, 10);
+    const desc = [s.name, s.color, s.size, s.width].filter(Boolean).join(' / ') + (s.customer ? (' — ' + s.customer) : '');
+    return { source: 'FreeStep', date: dateOnly, description: desc, amount: amount };
+  }).filter(l => l.amount > 0);
+}
+
+function taxMonthKey(dateStr) {
+  const m = (dateStr || '').toString().match(/^(\d{4})-(\d{2})/);
+  if (m) return m[1] + '-' + m[2];
+  const d = new Date(dateStr);
+  if (!isNaN(d.getTime())) return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM');
+  return 'Unknown';
+}
+
+function writeTaxLedger(lines) {
+  const sheet = getSheet('Tax', TAX_LEDGER_HEADERS);
+  const outRows = lines.map(l => [l.source, l.date, l.description, l.amount]);
+  clearBelowHeader(sheet);
+  if (outRows.length) sheet.getRange(2, 1, outRows.length, TAX_LEDGER_HEADERS.length).setValues(outRows);
+}
+
+function writeTaxSummary(lines) {
+  const monthly = {}, yearly = {};
+  lines.forEach(l => {
+    const mk = taxMonthKey(l.date);
+    const yk = mk === 'Unknown' ? 'Unknown' : mk.slice(0, 4);
+    if (!monthly[mk]) monthly[mk] = { freedive: 0, freestep: 0 };
+    if (!yearly[yk]) yearly[yk] = { freedive: 0, freestep: 0 };
+    const bucket = l.source === 'Freediving' ? 'freedive' : 'freestep';
+    monthly[mk][bucket] += l.amount;
+    yearly[yk][bucket] += l.amount;
+  });
+
+  const outRows = [['Monthly', '', '', '']];
+  Object.keys(monthly).sort().forEach(mk => {
+    const b = monthly[mk];
+    outRows.push([mk, b.freedive, b.freestep, b.freedive + b.freestep]);
+  });
+  outRows.push(['', '', '', '']);
+  outRows.push(['Yearly', '', '', '']);
+  Object.keys(yearly).sort().forEach(yk => {
+    const b = yearly[yk];
+    outRows.push([yk, b.freedive, b.freestep, b.freedive + b.freestep]);
+  });
+  const grandFreedive = lines.filter(l => l.source === 'Freediving').reduce((s, l) => s + l.amount, 0);
+  const grandFreestep = lines.filter(l => l.source === 'FreeStep').reduce((s, l) => s + l.amount, 0);
+  outRows.push(['', '', '', '']);
+  outRows.push(['All-time total', grandFreedive, grandFreestep, grandFreedive + grandFreestep]);
+
+  const sheet = getSheet('Tax Summary', TAX_SUMMARY_HEADERS);
+  clearBelowHeader(sheet);
+  sheet.getRange(2, 1, outRows.length, TAX_SUMMARY_HEADERS.length).setValues(outRows);
+}
+
+// The actual refresh — call this manually (see refreshTaxTabFromMenu),
+// on a daily trigger (see enableDailyTaxRefresh), or from the Apps
+// Script editor. Only ever writes to "Tax" and "Tax Summary" — every
+// other sheet in this spreadsheet is read-only from here.
+function refreshTaxTab() {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+  } catch (lockErr) {
+    throw new Error('Server busy, please retry.');
+  }
+  try {
+    const lines = buildFreediveIncomeLines().concat(buildFreestepIncomeLines());
+    lines.sort((a, b) => {
+      const da = a.date || '9999', db = b.date || '9999';
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+    writeTaxLedger(lines);
+    writeTaxSummary(lines);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function refreshTaxTabFromMenu() {
+  try {
+    refreshTaxTab();
+    SpreadsheetApp.getUi().alert('Tax tab refreshed.');
+  } catch (err) {
+    SpreadsheetApp.getUi().alert('Could not refresh: ' + err.message);
+  }
+}
+
+function disableDailyTaxRefreshTriggers_() {
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === TAX_TRIGGER_FN) ScriptApp.deleteTrigger(t);
+  });
+}
+
+function enableDailyTaxRefresh() {
+  disableDailyTaxRefreshTriggers_();
+  ScriptApp.newTrigger(TAX_TRIGGER_FN).timeBased().everyDays(1).atHour(3).create();
+  SpreadsheetApp.getUi().alert('Daily auto-refresh enabled — the Tax tab will rebuild itself every day, around 3am.');
+}
+
+function disableDailyTaxRefresh() {
+  disableDailyTaxRefreshTriggers_();
+  SpreadsheetApp.getUi().alert('Daily auto-refresh disabled.');
+}
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('freestep Tax')
+    .addItem('Refresh Tax tab now', 'refreshTaxTabFromMenu')
+    .addItem('Enable daily auto-refresh', 'enableDailyTaxRefresh')
+    .addItem('Disable daily auto-refresh', 'disableDailyTaxRefresh')
+    .addToUi();
+}
