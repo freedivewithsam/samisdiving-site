@@ -279,6 +279,7 @@
     </div>
     <div class="header-actions">
       <button id="add-open-modal-btn">Add session(s)</button>
+      <button id="manual-open-modal-btn">+ Manual entry</button>
       <button class="ghost" id="period-open-modal-btn">+ Log period</button>
       <button class="ghost" id="sheet-sync-now-btn">Sync now</button>
       <a class="ghost" id="nav-back-btn" href="https://samisdiving.com/nav" style="display:inline-flex; align-items:center; text-decoration:none;">Nav</a>
@@ -350,6 +351,28 @@
       <div class="modal-actions">
         <button id="add-btn" disabled>Add session(s)</button>
         <span class="status" id="status-msg"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="manual-modal-overlay">
+    <div class="modal-box">
+      <button class="modal-close" id="manual-modal-close-btn" title="Close">×</button>
+      <h3>Manual entry</h3>
+      <label for="manual-pool-select">Pool length</label>
+      <select id="manual-pool-select">
+        <option value="25">25 m</option>
+        <option value="50">50 m</option>
+      </select>
+      <label for="manual-time-input" style="margin-top:12px;">Time (MM:SS)</label>
+      <input type="text" id="manual-time-input" inputmode="numeric" placeholder="e.g. 1:30">
+      <label for="manual-distance-input" style="margin-top:12px;">Distance (m)</label>
+      <input type="text" id="manual-distance-input" inputmode="decimal" placeholder="e.g. 75">
+      <label for="manual-date-input" style="margin-top:12px;">Date</label>
+      <input type="date" id="manual-date-input">
+      <div class="modal-actions">
+        <button id="manual-save-btn">Log session</button>
+        <span class="status" id="manual-status-msg"></span>
       </div>
     </div>
   </div>
@@ -619,6 +642,67 @@
     setStatus(done + ' session(s) added' + (failed ? ', ' + failed + ' failed — try a clearer screenshot or check the .fit file' : '.'), failed ? 'err' : 'ok');
     if(!state.queue.length) fileInput.value = '';
     if(!state.queue.length && !failed) setTimeout(closeAddModal, 700);
+  });
+
+  // ---------- manual entry ----------
+  // Logs one dive typed in by hand (pool length, time, distance) as a new
+  // session dated today (or the date picked). The sheet stores one session
+  // per date + pool length, so if that exact combination already exists
+  // the dive is added to it as its next attempt instead of overwriting it.
+  const manualOverlay = document.getElementById('manual-modal-overlay');
+  const manualPool = document.getElementById('manual-pool-select');
+  const manualTime = document.getElementById('manual-time-input');
+  const manualDist = document.getElementById('manual-distance-input');
+  const manualDate = document.getElementById('manual-date-input');
+  const manualMsg = document.getElementById('manual-status-msg');
+  function setManualMsg(msg, kind){ manualMsg.textContent = msg; manualMsg.className = 'status' + (kind ? ' '+kind : ''); }
+  function openManualModal(){
+    manualDate.value = todayISO();
+    manualTime.value = ''; manualDist.value = '';
+    setManualMsg('');
+    manualOverlay.classList.add('open');
+    manualTime.focus();
+  }
+  function closeManualModal(){ manualOverlay.classList.remove('open'); }
+  document.getElementById('manual-open-modal-btn').addEventListener('click', openManualModal);
+  document.getElementById('manual-modal-close-btn').addEventListener('click', closeManualModal);
+  manualOverlay.addEventListener('click', e=>{ if(e.target === manualOverlay) closeManualModal(); });
+  [manualTime, manualDist].forEach(inp=> inp.addEventListener('keydown', e=>{
+    if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('manual-save-btn').click(); }
+  }));
+  document.getElementById('manual-save-btn').addEventListener('click', async ()=>{
+    const poolLength = parseInt(manualPool.value, 10);
+    const seconds = mmssToSec(manualTime.value.trim());
+    const distance = parseFloat(manualDist.value.trim().replace(',', '.'));
+    const date = manualDate.value || todayISO();
+    if(!(seconds > 0)){ setManualMsg('Enter the time, e.g. 1:30.', 'err'); return; }
+    if(!(distance > 0)){ setManualMsg('Enter the distance in metres.', 'err'); return; }
+    const attempt = {
+      attempt: 1, time_seconds: Math.round(seconds), distance_m: distance,
+      avg_velocity: Math.round(distance / seconds * 100) / 100,
+      min_hr: null, avg_hr: null, max_hr: null
+    };
+    let session = state.sessions.find(s => s.date === date && s.poolLength === poolLength);
+    let note;
+    if(session){
+      attempt.attempt = session.attempts.length + 1;
+      session.attempts.push(attempt);
+      note = 'Added as attempt ' + attempt.attempt + ' of that day\'s ' + poolLength + 'm session.';
+    }else{
+      session = { id: uid(), date, poolLength, cycle: '', attempts: [attempt] };
+      state.sessions.push(session);
+      note = 'New session logged.';
+    }
+    state.sessions.sort((a,b)=> a.date.localeCompare(b.date));
+    state.selectedSessionId = session.id;
+    renderAll();
+    if(state.sheetUrl){
+      setManualMsg('Saving…');
+      try{ await pushSessionToSheet(session); }
+      catch(err){ console.error(err); flashSyncBtn('Save not synced'); setManualMsg(note + ' (not synced to the sheet)', 'err'); return; }
+    }
+    setManualMsg(note, 'ok');
+    setTimeout(closeManualModal, 700);
   });
 
   // ---------- extraction via Claude ----------
@@ -1182,7 +1266,7 @@ function jsonResponse_(obj){
       const sess = state.sessions.filter(s=>s.poolLength===poolLen);
       const all = sess.flatMap(s=>s.attempts);
       const times = all.map(a=>a.time_seconds).filter(v=>v!=null);
-      const hrVals = all.map(a=>a.avg_hr).filter(v=>v!=null);
+      const hrVals = all.map(a=>a.avg_hr).filter(v=>v!=null && v!=='' && !isNaN(v));
       const pace = avgPacePer50(poolLen);
       const speed = avgSpeed(poolLen);
       return [
@@ -1250,7 +1334,7 @@ function jsonResponse_(obj){
         const arr = byAttempt[num];
         const times = arr.map(a=>a.time_seconds).filter(v=>v!=null);
         const vels = arr.map(a=>a.avg_velocity).filter(v=>v!=null);
-        const hrs = arr.map(a=>a.avg_hr).filter(v=>v!=null);
+        const hrs = arr.map(a=>a.avg_hr).filter(v=>v!=null && v!=='' && !isNaN(v));
         const t = times.length ? secToMMSS(avg(times)) : '—';
         const v = vels.length ? avg(vels).toFixed(2)+' m/s' : '—';
         const h = hrs.length ? Math.round(avg(hrs))+' bpm' : '—';
