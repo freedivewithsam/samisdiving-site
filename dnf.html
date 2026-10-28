@@ -427,7 +427,11 @@
     <div class="section-title">Session detail</div>
     <div class="card">
       <div class="detail-head">
-        <select id="session-select"></select>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button class="ghost" id="session-prev-btn" title="Previous session" aria-label="Previous session" style="padding:8px 14px;">&larr;</button>
+          <select id="session-select"></select>
+          <button class="ghost" id="session-next-btn" title="Next session" aria-label="Next session" style="padding:8px 14px;">&rarr;</button>
+        </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button class="ghost" id="merge-session-btn" style="display:none;">Merge same-date sessions</button>
           <button class="ghost" id="remove-session-btn">Remove session</button>
@@ -1750,11 +1754,31 @@ function jsonResponse_(obj){
     }
     sel.value = state.selectedSessionId;
     updateMergeBtn();
+    updateSessionArrows();
   }
+  // ← goes to the previous (older) session, → to the next (newer) one.
+  function updateSessionArrows(){
+    const idx = state.sessions.findIndex(s=>s.id===state.selectedSessionId);
+    document.getElementById('session-prev-btn').disabled = idx <= 0;
+    document.getElementById('session-next-btn').disabled = idx < 0 || idx >= state.sessions.length - 1;
+  }
+  function stepSession(delta){
+    const idx = state.sessions.findIndex(s=>s.id===state.selectedSessionId);
+    const next = state.sessions[idx + delta];
+    if(!next) return;
+    state.selectedSessionId = next.id;
+    document.getElementById('session-select').value = next.id;
+    renderDetailTable();
+    updateMergeBtn();
+    updateSessionArrows();
+  }
+  document.getElementById('session-prev-btn').addEventListener('click', ()=> stepSession(-1));
+  document.getElementById('session-next-btn').addEventListener('click', ()=> stepSession(1));
   document.getElementById('session-select').addEventListener('change', e=>{
     state.selectedSessionId = e.target.value;
     renderDetailTable();
     updateMergeBtn();
+    updateSessionArrows();
   });
 
   // Two sessions count as "the same session, split apart" if they share a
