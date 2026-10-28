@@ -438,7 +438,6 @@
     </div>
     <div class="header-actions">
       <a class="btn btn-ghost btn-small" href="https://samisdiving.com/nav">🧭 Nav</a>
-      <button class="btn btn-peach btn-small" data-action="toggle-discreet" id="discreetBtn">Show totals</button>
       <button class="btn btn-peach btn-small" data-action="sync-now-header" id="syncNowBtn">💾 Save</button>
       <button class="btn btn-primary btn-small" data-action="new-cal-event" id="addCalEventBtn" style="display:none">+ Add event</button>
       <button class="btn btn-primary btn-small" data-action="new-student" id="newStudentBtn">+ New student</button>
@@ -1858,10 +1857,8 @@ function money(n){ return 'IDR ' + Math.round(n||0).toLocaleString('id-ID'); }
    shoulder. It's a per-device display setting, not part of the data, so
    it lives in its own localStorage key and never syncs to the cloud. */
 const DISCREET_KEY = 'freedive-crm-discreet';
-// Always starts hidden when the app is opened — tapping "Show totals"
-// only reveals them for this visit; the next time the file is opened
-// (or the page is refreshed) it goes back to hidden.
-let discreetMode = true;
+// Totals are always shown — the "Show totals" button was removed.
+let discreetMode = false;
 function saveDiscreetMode(){ /* intentionally not persisted — always hidden on open */ }
 function updateDiscreetBtn(){
   const btn = $('discreetBtn');
@@ -3668,7 +3665,6 @@ document.addEventListener('click', e => {
   if(!el) return;
   const a = el.dataset.action, sid = el.dataset.student, xid = el.dataset.sess;
   if(a==='go-tab'){ if(el.dataset.tab !== currentTab) previousTab = currentTab; currentTab = el.dataset.tab; currentStudent = null; searchQuery=''; personalMonth='all'; financeMonth='all'; categoryFilter=null; calendarTypeFilter=null; if($('searchInput')) $('searchInput').value=''; render(); window.scrollTo(0,0); }
-  else if(a==='toggle-discreet'){ discreetMode = !discreetMode; saveDiscreetMode(); updateDiscreetBtn(); render(); }
   else if(a==='filter-category'){ categoryFilter = (categoryFilter === el.dataset.cat) ? null : el.dataset.cat; render(); }
   else if(a==='clear-category-filter'){ categoryFilter = null; render(); }
   else if(a==='cal-prev' || a==='cal-next' || a==='cal-today'){
