@@ -280,7 +280,6 @@
     <div class="header-actions">
       <button id="add-open-modal-btn">Add session(s)</button>
       <button class="ghost" id="period-open-modal-btn">+ Log period</button>
-      <button class="ghost" id="sheet-open-modal-btn">Connect sheet <span id="sheet-connected-dot" style="display:none; color:var(--accent);">●</span></button>
       <button class="ghost" id="sheet-sync-now-btn">Sync now</button>
       <a class="ghost" id="nav-back-btn" href="https://samisdiving.com/nav" style="display:inline-flex; align-items:center; text-decoration:none;">Nav</a>
     </div>
@@ -763,7 +762,7 @@
     sheetUrlInput.focus();
   }
   function closeSheetModal(){ sheetModalOverlay.classList.remove('open'); }
-  sheetOpenModalBtn.addEventListener('click', openSheetModal);
+  if(sheetOpenModalBtn) sheetOpenModalBtn.addEventListener('click', openSheetModal);
   sheetModalCloseBtn.addEventListener('click', closeSheetModal);
   sheetModalOverlay.addEventListener('click', e=>{ if(e.target === sheetModalOverlay) closeSheetModal(); });
 
@@ -1065,7 +1064,7 @@ function jsonResponse_(obj){
       if(periodDates) state.periodDates = periodDates;
       state.selectedSessionId = sessions.length ? sessions[sessions.length-1].id : null;
       sheetUrlInput.value = url;
-      sheetDot.style.display = 'inline';
+      if(sheetDot) sheetDot.style.display = 'inline';
       if(LS) LS.setItem(SYNC_KEY, url);
       if(LS) LS.setItem(PERIOD_KEY, JSON.stringify(state.periodDates));
       setConnectStatus('Connected.', 'ok');
