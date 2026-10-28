@@ -1,10 +1,4 @@
 User-agent: *
-Disallow: /freestep
-Disallow: /samsamsam
-Disallow: /dnf
-Disallow: /dnfonline
-Disallow: /calculator
-Disallow: /pb
-Disallow: /nav.html
-Disallow: /split
-Disallow: /comp
+Allow: /$
+Allow: /index.html
+Disallow: /
