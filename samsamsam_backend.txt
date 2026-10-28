@@ -1,0 +1,2207 @@
+/* Freedive Coach CRM — cloud backend
+   "Students" sheet holds students and their SCHEDULED SESSIONS only — one
+   row per scheduled session, with the student's name/package/total-
+   sessions/focus repeated only on their FIRST row so it isn't retyped for
+   every session. There is no price/payment data on this sheet anymore.
+
+   "Payments" sheet holds the actual money side — one row per "session
+   payment" entry the app's Payments tab creates (a name like "Session 1"
+   or "Package", a price, a deposit paid + date, and a balance paid +
+   date). A student can have any number of these rows. The Student Name is
+   repeated on every row here (unlike the Students sheet) since each row
+   is a self-contained entry, not a continuation of the one before it.
+
+   "Income" sheet is a legacy holdover from an even older version of the
+   app (before the Payments tab existed) — it only holds one deposit/
+   balance total per student. It is still read for backward compatibility
+   (folded into a single "Package" row on the Payments sheet for any
+   student who has no rows of their own there yet) but the app no longer
+   writes new data there.
+
+   "Expenses" sheet holds one row per expense entry (ID, item, price,
+   date). "Personal" sheet holds the app's Personal Finance tab entries —
+   one row per manually-added personal expense/income item (ID, type,
+   item, price, date, category), PLUS a mirrored copy of every
+   Freediving-sourced income/expense entry (tagged "Freediving" in the
+   Source column) so the raw sheet reflects the same combined picture the
+   app shows. It's rewritten from scratch on every save, so it always
+   matches the Students/Payments/Expenses sheets. The app itself derives
+   the Freediving entries live from Students/Payments/Expenses on read and
+   ignores the "Freediving"-tagged rows here to avoid double-counting
+   them. Each Payments-sheet row's deposit and/or balance becomes its own
+   mirrored row (item name suffixed "(Deposit)"/"(Balance)").
+
+   MERGE-BASED SAVES (Expenses & manually-added Personal entries):
+   these two sheets used to be fully cleared and rewritten from whatever
+   the saving device currently had loaded — which meant if you added an
+   expense on your phone, then saved something on your PC before it had
+   ever reloaded, the PC's save would silently wipe the phone's entry
+   (the PC didn't know it existed, so its "full" list didn't include it).
+   Both sheets now carry a stable ID column (col A) and doPost MERGES
+   incoming entries by that id instead of replacing the whole sheet:
+     - an incoming entry whose id already exists on the sheet -> updates
+       that row in place
+     - an incoming entry with no id -> treated as new, gets a fresh id
+     - an id listed in data.deletedExpenseIds / data.deletedPersonalIds
+       -> that row is removed
+     - any existing row not mentioned either way -> left untouched
+   The mirrored "Freediving" rows on the Personal sheet are still fully
+   regenerated every save (they're derived, never hand-edited, so there's
+   nothing to merge — and it's safe now that the Expenses/Payments data
+   feeding them is itself protected against overwrite loss).
+   Every save response now also returns the merged finance/personalFinance
+   lists (with real ids) so the saving device immediately has the shared
+   truth instead of relying on stale local data until its next reload.
+
+   "Expenses" sheet holds one row per expense entry (item, price, date).
+   "Personal" sheet holds the app's Personal Finance tab entries — one row
+   per manually-added personal expense/income item (expenses also carry a
+   Category), PLUS a mirrored copy of every Freediving-sourced income/expense
+   entry (tagged "Freediving" in the Source column) so the raw sheet
+   reflects the same combined picture the app shows. It's rewritten from
+   scratch on every save, so it always matches the Students/Payments/
+   Expenses sheets. The app itself derives the Freediving entries live
+   from Students/Payments/Expenses on read and ignores the
+   "Freediving"-tagged rows here to avoid double-counting them. Each
+   Payments-sheet row's deposit and/or balance becomes its own mirrored
+   row (item name suffixed "(Deposit)"/"(Balance)").
+
+   Dates on the Students sheet are DD-MM-YYYY HH:MM, 24-hour, for the
+   session date column. Dates on the Payments sheet (Deposit Date /
+   Balance Date), and on the Income, Expenses, and Personal sheets, are
+   DD-MM-YYYY, or DD-MM-YYYY HH:MM when a time was recorded.
+
+   All money cells (Price/Deposit/Balance/Paid) are read through
+   parseAmount() rather than raw Number() — see that function for why. */
+
+const DATA_HEADERS = ['Student Name', 'Package', 'Total Sessions', 'Focus', 'Session Type', 'Date (DD-MM-YYYY HH:MM)', 'Note', 'Status', 'Calendar Synced', 'Event ID', 'Phone', 'Program', 'Session Price (IDR)', 'Student ID', 'Session ID', 'Public Busy', 'End Date (YYYY-MM-DD)'];
+const PAYMENT_HEADERS = ['Student Name', 'Session Name', 'Price (IDR)', 'Deposit (IDR)', 'Deposit Date (DD-MM-YYYY)', 'Balance Paid (IDR)', 'Balance Date (DD-MM-YYYY)', 'Payment ID'];
+const INCOME_HEADERS = ['Student Name', 'Deposit (IDR)', 'Deposit Date (DD-MM-YYYY)', 'Balance Paid (IDR)', 'Balance Date (DD-MM-YYYY)'];
+
+function jsonOut(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/* JSONP output — for the "read data" path only (doGet, see below). Plain
+   fetch()-based JSON reads/writes hit a hard limitation of Apps Script Web
+   Apps: ContentService has no way to set the Access-Control-Allow-Origin
+   header, so a real cross-origin website calling it via fetch() gets
+   blocked by the browser even though the request itself succeeds
+   server-side (shows as "200 OK" but still CORS-blocked in devtools — this
+   is NOT a "who has access" misconfiguration, it's a hard platform
+   limitation). A <script src="...?callback=fn"> tag isn't subject to that
+   same restriction (that's the whole JSONP technique), so reads go through
+   that instead. Writes can't use JSONP (no way to POST a large JSON body
+   via a URL), so those still use fetch() — in `mode:'no-cors'`, which
+   sends the request and lets it save normally, just without the browser
+   allowing the JS to read the response back (the client does a JSONP
+   re-read afterward to pick up the merged result instead). */
+function jsonpOut(obj, callbackName) {
+  const safe = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(callbackName) ? callbackName : 'callback';
+  return ContentService.createTextOutput(safe + '(' + JSON.stringify(obj) + ')').setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
+
+/* ---------- PIN lock (server-side auth) ----------
+   Gates the app behind a PIN checked here on the server, not in the
+   client file — the client never stores or computes a hash, it just
+   sends the plain PIN over the request and gets back a session token
+   (or doesn't). Only the hash is kept (in Script Properties, alongside a
+   default baked in below so the very first run already has one without
+   a manual setup step), never the PIN itself.
+
+   Login/reset issue a session token (see TOKEN_TTL_MS below for how
+   long it lasts). Each token is kept as its OWN Script Property
+   ("TOKEN_<id>" -> expiryMs) rather than all together in one JSON blob —
+   that blob used to be read, modified and rewritten with no locking, so
+   two devices logging in around the same time could overwrite each
+   other's token and one would get "session expired" straight away. With
+   one property per token, a login only ever touches its own key.
+   isValidToken() checks the token and slides its expiry forward while
+   it's being used, so it behaves like an idle timeout rather than a
+   fixed countdown from the moment the PIN was typed. Every read (JSONP, via ?token=) and write (POST, via
+   data.token) must carry a valid token except the 'login'/'resetPin'
+   actions themselves, which are how a token is obtained in the first
+   place.
+   5 failed PIN attempts locks further attempts out for 5 minutes,
+   tracked per-script (not per-device — this is a shared single-PIN app,
+   not a multi-user one), to slow down PIN guessing. */
+const PIN_HASH_DEFAULT = '6c94e35ccc352d4e9ef0b99562cff995a5741ce8de8ad11b568892934daee366';
+const RECOVERY_HASH_DEFAULT = '814516e44155f4828197c54e3418d06818082b524710318926eaa21f1168e6b7';
+const TOKEN_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours of IDLE time — slides forward on every use
+const TOKEN_REFRESH_AFTER_MS = 10 * 60 * 1000; // only rewrite the expiry if the last extension was 10+ min ago
+const TOKEN_PREFIX = 'TOKEN_';
+/* Server-to-server key used by the separate freestep backend to pull payment
+   data (its Tax tab's freediving income). Not a login: it is only accepted by
+   the 'serviceRead' POST action below, never by a browser page.
+   The key itself is NOT stored in this file. Set it once in Apps Script:
+   Project Settings -> Script Properties -> add property SERVICE_KEY, with the
+   same value as SERVICE_KEY in the freestep script. Until it is set,
+   serviceRead refuses every request. */
+function getServiceKey() {
+  return PropertiesService.getScriptProperties().getProperty('SERVICE_KEY') || '';
+}
+const MAX_LOGIN_FAILS = 5;
+const LOCKOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+function sha256Hex(str) {
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, str, Utilities.Charset.UTF_8);
+  return bytes.map(b => ((b + 256) % 256).toString(16).padStart(2, '0')).join('');
+}
+function getPinHash() {
+  return PropertiesService.getScriptProperties().getProperty('PIN_HASH') || PIN_HASH_DEFAULT;
+}
+function setPinHash(hash) {
+  PropertiesService.getScriptProperties().setProperty('PIN_HASH', hash);
+}
+function getRecoveryHash() {
+  return PropertiesService.getScriptProperties().getProperty('RECOVERY_HASH') || RECOVERY_HASH_DEFAULT;
+}
+// Legacy storage (all tokens in one JSON blob) — only still read so that
+// anyone already signed in at the moment this version is deployed isn't
+// kicked out; isValidToken() migrates a legacy token to its own key the
+// first time it's used. Nothing writes to this blob anymore.
+function getTokenStore() {
+  const raw = PropertiesService.getScriptProperties().getProperty('TOKENS');
+  try { return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+}
+function issueToken() {
+  const props = PropertiesService.getScriptProperties();
+  const token = Utilities.getUuid();
+  const now = Date.now();
+  // Tidy up expired tokens while we're here, so they don't pile up.
+  const all = props.getProperties();
+  Object.keys(all).forEach(k => {
+    if (k.indexOf(TOKEN_PREFIX) === 0 && Number(all[k]) < now) props.deleteProperty(k);
+  });
+  props.setProperty(TOKEN_PREFIX + token, String(now + TOKEN_TTL_MS));
+  return token;
+}
+// PIN lock turned OFF: every read and write is allowed without signing in.
+// To turn the PIN back on, change true to false.
+const PIN_DISABLED = true;
+function isValidToken(token) {
+  if (PIN_DISABLED) return true;
+  if (!token) return false;
+  token = token.toString();
+  if (token.length > 64) return false;
+  const props = PropertiesService.getScriptProperties();
+  const key = TOKEN_PREFIX + token;
+  const now = Date.now();
+  const expiry = Number(props.getProperty(key) || 0);
+  if (!expiry) {
+    // Not found under its own key — might be a token issued before this
+    // version, still sitting in the legacy blob. Honour it once (and move
+    // it over) if it hasn't expired.
+    const legacyExpiry = getTokenStore()[token];
+    if (legacyExpiry && legacyExpiry > now) {
+      props.setProperty(key, String(now + TOKEN_TTL_MS));
+      return true;
+    }
+    return false;
+  }
+  if (expiry <= now) return false;
+  // Sliding expiry: being used keeps it alive. Only rewrite when the last
+  // extension is a while ago, not on every single request.
+  if (expiry - now < TOKEN_TTL_MS - TOKEN_REFRESH_AFTER_MS) {
+    props.setProperty(key, String(now + TOKEN_TTL_MS));
+  }
+  return true;
+}
+function checkLockout() {
+  const props = PropertiesService.getScriptProperties();
+  const until = Number(props.getProperty('LOCKOUT_UNTIL') || 0);
+  return until > Date.now() ? until : 0;
+}
+function recordFailedAttempt() {
+  const props = PropertiesService.getScriptProperties();
+  const fails = Number(props.getProperty('LOGIN_FAILS') || 0) + 1;
+  props.setProperty('LOGIN_FAILS', String(fails));
+  if (fails >= MAX_LOGIN_FAILS) {
+    props.setProperty('LOCKOUT_UNTIL', String(Date.now() + LOCKOUT_MS));
+    props.setProperty('LOGIN_FAILS', '0');
+  }
+}
+function clearFailedAttempts() {
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('LOGIN_FAILS', '0');
+  props.deleteProperty('LOCKOUT_UNTIL');
+}
+function handleLoginRaw(data) {
+  const lockedUntil = checkLockout();
+  if (lockedUntil) {
+    return { error: 'Too many failed attempts. Try again in a few minutes.', lockedUntil: lockedUntil };
+  }
+  const pin = (data.pin || '').toString().trim();
+  if (!pin || sha256Hex(pin) !== getPinHash()) {
+    recordFailedAttempt();
+    return { error: 'Incorrect PIN.' };
+  }
+  clearFailedAttempts();
+  return { ok: true, token: issueToken() };
+}
+function handleResetPinRaw(data) {
+  const recoveryPw = (data.recoveryPassword || '').toString();
+  const newPin = (data.newPin || '').toString().trim();
+  if (!recoveryPw || sha256Hex(recoveryPw) !== getRecoveryHash()) {
+    return { error: 'Incorrect recovery password.' };
+  }
+  if (!/^\d{4,8}$/.test(newPin)) {
+    return { error: 'New PIN must be 4-8 digits.' };
+  }
+  setPinHash(sha256Hex(newPin));
+  clearFailedAttempts();
+  return { ok: true, token: issueToken() };
+}
+function handleLogin(data) { return jsonOut(handleLoginRaw(data)); }
+function handleResetPin(data) { return jsonOut(handleResetPinRaw(data)); }
+function unauthorized() {
+  return jsonOut({ error: 'Unauthorized — please sign in again.', code: 401 });
+}
+
+const EXPENSE_HEADERS = ['ID', 'Item', 'Price (IDR)', 'Date (DD-MM-YYYY)'];
+const PERSONAL_HEADERS = ['ID', 'Type', 'Item', 'Price (IDR)', 'Date (DD-MM-YYYY)', 'Category', 'Source', 'Paid Back By (JSON)'];
+
+/* "Paid Back By" on a Personal expense: the part of that expense friends
+   later reimbursed (e.g. a shared dinner put on the person's own card).
+   Stored as a small JSON list [{"name":"A","amount":50000}, ...] in its
+   own column. The expense's Price column always stays the FULL amount
+   actually paid — that's what has to keep matching the credit card
+   bill — and the app subtracts the reimbursed total from it to get the
+   person's real, net expense. */
+function parsePaidBack(raw) {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw.toString());
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map(x => ({ name: ((x && x.name) || '').toString().trim(), amount: Number(x && x.amount) || 0 }))
+      .filter(x => x.amount > 0);
+  } catch (e) {
+    return [];
+  }
+}
+function normalizePaidBack(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map(x => ({ name: ((x && x.name) || '').toString().trim(), amount: Number(x && x.amount) || 0 }))
+    .filter(x => x.amount > 0);
+}
+function stringifyPaidBack(list) {
+  const clean = normalizePaidBack(list);
+  return clean.length ? JSON.stringify(clean) : '';
+}
+const CALENDAR_EVENT_HEADERS = ['ID', 'Kind', 'Type', 'Title', 'Date (YYYY-MM-DD)', 'End Date (YYYY-MM-DD)', 'Time (HH:MM)', 'Repeats Annually', 'Public Busy'];
+
+/* Stable id generator for mergeable rows (Expenses, manually-added
+   Personal entries). See the "MERGE-BASED SAVES" note at the top of this
+   file for why these exist and how they're used. */
+function generateId() {
+  return Utilities.getUuid();
+}
+
+/* Robustly turns a money cell into a number. Sheets stores a cell typed as
+   a plain number (e.g. app-written values) as an actual JS number, which
+   this returns unchanged. The bug this fixes: a cell typed BY HAND with
+   IDR-style formatting — "Rp 2.500.000", "2,500,000", "2.500.000", stray
+   spaces, etc. — comes back from getValues() as a STRING, and plain
+   Number("2.500.000") is NaN (more than one decimal point), which every
+   read site here used to silently fall back to 0. Worse, "2.500" alone
+   was read as 2.5 — a value 1,000,000x too small — since Number() treats
+   the dot as a decimal point. This strips formatting and infers whether
+   a '.' or ',' is a thousands separator or a real decimal point, so
+   manually-typed amounts parse the same way a human reads them, while a
+   value the app already wrote as a clean number is never altered. */
+function parseAmount(val) {
+  if (val === '' || val === null || val === undefined) return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  const cleaned = val.toString().trim().replace(/[^\d.,\-]/g, '');
+  if (!cleaned) return 0;
+
+  const lastDot = cleaned.lastIndexOf('.');
+  const lastComma = cleaned.lastIndexOf(',');
+  let normalized;
+
+  if (lastDot > -1 && lastComma > -1) {
+    // Both separators present — whichever comes LAST is the decimal point,
+    // every earlier occurrence of the other is a thousands separator.
+    normalized = lastDot > lastComma
+      ? cleaned.replace(/,/g, '')
+      : cleaned.replace(/\./g, '').replace(',', '.');
+  } else if (lastComma > -1) {
+    // Only commas. "2,500,000" -> thousands. "2,5" -> decimal (rare for IDR
+    // but handled): a single comma followed by 1-2 digits at the end.
+    const onlyOneComma = cleaned.indexOf(',') === lastComma;
+    normalized = (onlyOneComma && /,\d{1,2}$/.test(cleaned))
+      ? cleaned.replace(',', '.')
+      : cleaned.replace(/,/g, '');
+  } else if (lastDot > -1) {
+    // Only dots. "2.500.000" -> thousands (repeated, or a single group of
+    // exactly 3 digits after the dot, e.g. "2.500"). "2.5" -> decimal.
+    const parts = cleaned.split('.');
+    const looksLikeThousands = parts.length > 2 || parts[parts.length - 1].length === 3;
+    normalized = looksLikeThousands ? cleaned.replace(/\./g, '') : cleaned;
+  } else {
+    normalized = cleaned;
+  }
+
+  const n = parseFloat(normalized);
+  return isNaN(n) ? 0 : n;
+}
+
+/* Builds the "students" array (name/package/sessions/session-payments,
+   with the legacy Income-sheet fallback folded in) exactly as doGet used
+   to build it inline. Factored out so doPost can return the same shape
+   in its save response, instead of the client having to guess whether
+   its save actually landed correctly. */
+function buildStudentsPayload() {
+  const sheet = getStudentsSheet();
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const studentIdCol = DATA_HEADERS.indexOf('Student ID');
+  const sessionIdCol = DATA_HEADERS.indexOf('Session ID');
+  const publicBusyCol = DATA_HEADERS.indexOf('Public Busy');
+  const endDateCol = DATA_HEADERS.indexOf('End Date (YYYY-MM-DD)');
+  const order = [];
+  const map = {};
+  const nameToId = {}; // lowercased name -> student id, for matching Payments-sheet rows below
+  let lastName = '', lastStudentId = '';
+
+  rows.forEach((row) => {
+    let name = (row[0] || '').toString().trim();
+    let studentId = (row[studentIdCol] || '').toString().trim();
+    if (!name) name = lastName; else lastName = name;
+    if (!studentId) studentId = lastStudentId; else lastStudentId = studentId;
+    if (!name || !studentId) return;
+
+    nameToId[name.toLowerCase()] = studentId;
+    if (!map[studentId]) {
+      map[studentId] = { id: studentId, name: name, pkg: '', total: 0, focus: '', phone: '', sessions: [], sessionPayments: [] };
+      order.push(studentId);
+    }
+    const st = map[studentId];
+    if (!st.pkg && row[1]) st.pkg = row[1];
+    if (!st.total && row[2]) st.total = Number(row[2]) || 0;
+    if (!st.focus && row[3]) st.focus = row[3];
+    if (!st.phone && row[10]) st.phone = row[10].toString().trim();
+
+    const sessionId = (row[sessionIdCol] || '').toString().trim();
+    const type = row[4], dateVal = row[5], note = row[6], status = row[7], program = row[11], price = row[12];
+    if (sessionId && (type || dateVal || note || status)) {
+      st.sessions.push({
+        id: sessionId,
+        type: (type || 'pool').toString().toLowerCase(),
+        date: formatDateForApp(dateVal),
+        endDate: formatSessionEndDate(row[endDateCol]) || null,
+        note: note || '',
+        status: (status || 'scheduled').toString().toLowerCase(),
+        program: (program || '').toString().trim(),
+        price: parseAmount(price),
+        publicBusy: row[publicBusyCol] !== false && row[publicBusyCol] !== 'FALSE'
+      });
+    }
+  });
+
+  // Payments sheet: one row per session-payment entry, Student Name on
+  // every row (not just the first, unlike the Students sheet above).
+  // Matched to a student by name (Payments rows don't carry a Student ID
+  // reference) — same lookup the app has always used here.
+  const paymentsSheet = getPaymentsSheet();
+  const paymentIdCol = PAYMENT_HEADERS.indexOf('Payment ID');
+  const paymentRows = paymentsSheet.getDataRange().getValues().slice(1);
+  paymentRows.forEach((row) => {
+    const name = (row[0] || '').toString().trim();
+    if (!name) return;
+    const key = name.toLowerCase();
+    let studentId = nameToId[key];
+    if (!studentId) {
+      // A student who only exists via Payments rows (no Students-sheet
+      // rows of their own yet) — give them a stable id too.
+      studentId = generateId();
+      nameToId[key] = studentId;
+    }
+    if (!map[studentId]) {
+      map[studentId] = { id: studentId, name: name, pkg: '', total: 0, focus: '', phone: '', sessions: [], sessionPayments: [] };
+      order.push(studentId);
+    }
+    const paymentId = (row[paymentIdCol] || '').toString().trim();
+    map[studentId].sessionPayments.push({
+      id: paymentId || generateId(),
+      name: row[1] || 'Session',
+      price: parseAmount(row[2]),
+      deposit: parseAmount(row[3]),
+      depositDate: formatExpenseDateForApp(row[4]),
+      balance: parseAmount(row[5]),
+      balanceDate: formatExpenseDateForApp(row[6])
+    });
+  });
+
+  const students = order.map(k => {
+    const st = map[k];
+    if (!st.total) st.total = st.sessions.length || 1;
+    return st;
+  });
+
+  // Legacy fallback: a student with no rows of their own on the
+  // Payments sheet yet, but who has an old Income-sheet deposit/balance
+  // total, gets that folded into a single "Package" entry so nothing
+  // from before the Payments tab existed is lost.
+  const incomeMap = readIncome();
+  students.forEach(st => {
+    const key = st.name.toLowerCase();
+    if (!st.sessionPayments.length && Object.prototype.hasOwnProperty.call(incomeMap, key)) {
+      const inc = incomeMap[key];
+      if (inc.depositPaid || inc.balancePaid) {
+        st.sessionPayments.push({
+          id: 'inc-' + key, name: 'Package', price: 0,
+          deposit: inc.depositPaid, depositDate: inc.depositDate,
+          balance: inc.balancePaid, balanceDate: inc.balanceDate
+        });
+      }
+    }
+  });
+
+  return students;
+}
+
+/* Shared by doGet AND doPost's 'getData' action below — see the note on
+   doPost for why reads now also go through POST. 30s (not 20s) because a
+   save can legitimately hold this same lock for 20-25s given how much
+   data there now is — a read that happens to land while one is running
+   needs to outlast it, not just match it, or it fails with "busy" for a
+   save that actually succeeded. This is exactly what the confirmation
+   read pushCloud() does right after its own save hits — same lock. */
+function readAllDataRaw() {
+  const lock = LockService.getScriptLock();
+  const gotLock = lock.tryLock(30000);
+  if (!gotLock) {
+    return { error: 'The sheet is busy — please try again in a moment.' };
+  }
+  try {
+    const version = getDataVersion();
+    const students = buildStudentsPayload();
+    const finance = readExpenses();
+    const personalFinance = readPersonal();
+    const calendarEvents = readCalendarEvents();
+
+    return { students: students, finance: finance, personalFinance: personalFinance, calendarEvents: calendarEvents, version: version };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/* Public busy/free calendar for the marketing site — see the doGet
+   'busyDates' branch above for why this is exposed without a token: it
+   is the ONLY read path in this whole file that deliberately returns no
+   student names, no session notes, no prices, nothing but bare dates.
+   That's what makes it safe to leave unauthenticated even on a public
+   website — worst case someone learns which days are booked, nothing
+   more. A day counts as busy if it has a scheduled or completed session
+   (cancelled sessions don't block the day), or falls inside a custom
+   calendar event's date/endDate range (annually-repeating events are
+   replayed onto this year and next, mirroring how the app's own
+   calendar shows them). */
+/* Public busy/free calendar for the marketing site — see the doGet
+   'busyDates' branch above for why this is exposed without a token: it
+   is the ONLY read path in this whole file that deliberately returns no
+   student names, no session notes, no prices, nothing but bare dates.
+   That's what makes it safe to leave unauthenticated even on a public
+   website — worst case someone learns which days are booked, nothing
+   more. A day counts as busy if it has a scheduled or completed session
+   with its "Public Busy" toggle on (cancelled sessions never count,
+   regardless of the toggle), or falls inside a custom calendar event
+   whose own "Public Busy" toggle is on (annually-repeating events are
+   replayed onto this year and next, mirroring how the app's own
+   calendar shows them). */
+function getBusyDatesRaw() {
+  const busy = {};
+
+  const sheet = getStudentsSheet();
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const dateCol = DATA_HEADERS.indexOf('Date (DD-MM-YYYY HH:MM)');
+  const statusCol = DATA_HEADERS.indexOf('Status');
+  const publicBusyCol = DATA_HEADERS.indexOf('Public Busy');
+  const endDateCol = DATA_HEADERS.indexOf('End Date (YYYY-MM-DD)');
+  rows.forEach(row => {
+    const dateVal = row[dateCol];
+    const status = (row[statusCol] || '').toString().trim().toLowerCase();
+    // Blank counts as busy, same as everywhere else this column is read —
+    // a session saved before this feature existed has nothing in this
+    // cell yet, and should keep counting as busy (matching the old,
+    // every-session-counts behavior) until someone explicitly turns it
+    // off, not silently stop blocking the day just because it hasn't
+    // been re-saved.
+    const publicBusy = row[publicBusyCol] !== false && row[publicBusyCol] !== 'FALSE';
+    if (!dateVal || status === 'cancelled' || !publicBusy) return;
+    const formatted = formatDateForApp(dateVal);
+    if (formatted) {
+      // Multi-day session: every day from the start through the end date
+      // counts as busy. A blank end date is a one-day session.
+      markDateRangeBusy(busy, formatted.slice(0, 10), formatSessionEndDate(row[endDateCol]) || null);
+    }
+  });
+
+  const events = readCalendarEvents();
+  const thisYear = new Date().getFullYear();
+  events.forEach(ev => {
+    if (!ev.date || !ev.publicBusy) return;
+    if (ev.repeatsAnnually) {
+      [thisYear, thisYear + 1].forEach(y => {
+        const startMD = ev.date.slice(5); // "MM-DD"
+        const endMD = ev.endDate ? ev.endDate.slice(5) : null;
+        markDateRangeBusy(busy, y + '-' + startMD, endMD ? y + '-' + endMD : null);
+      });
+    } else {
+      markDateRangeBusy(busy, ev.date, ev.endDate);
+    }
+  });
+
+  return { busyDates: Object.keys(busy).sort() };
+}
+
+/* Marks every day from startStr to endStr (inclusive, "YYYY-MM-DD...")
+   busy in the given map. endStr may be null/absent (single-day). Capped
+   at 366 days as a safety net against a malformed/reversed date range
+   looping forever. */
+function markDateRangeBusy(busy, startStr, endStr) {
+  const start = new Date(startStr.slice(0, 10) + 'T00:00:00');
+  if (isNaN(start.getTime())) return;
+  const end = endStr ? new Date(endStr.slice(0, 10) + 'T00:00:00') : start;
+  const safeEnd = isNaN(end.getTime()) ? start : end;
+  const cursor = new Date(start.getTime());
+  let guard = 0;
+  while (cursor.getTime() <= safeEnd.getTime() && guard < 366) {
+    busy[Utilities.formatDate(cursor, Session.getScriptTimeZone(), 'yyyy-MM-dd')] = true;
+    cursor.setDate(cursor.getDate() + 1);
+    guard++;
+  }
+}
+
+/* Payment amounts + dates only, shaped like the students/sessionPayments data
+   the freestep Tax tab already reads, but with every name left out. */
+function getIncomeLinesRaw() {
+  const all = readAllDataRaw();
+  if (all.error) return { error: all.error };
+  const pays = [];
+  (all.students || []).forEach(st => {
+    (st.sessionPayments || []).forEach(p => {
+      pays.push({ deposit: p.deposit || 0, depositDate: p.depositDate || '', balance: p.balance || 0, balanceDate: p.balanceDate || '' });
+    });
+  });
+  return { students: [{ name: 'Freediving', sessionPayments: pays }] };
+}
+
+function readAllData() {
+  return jsonOut(readAllDataRaw());
+}
+
+/* Reads go through this JSONP-style GET — see the comment on jsonpOut()
+   above for why: a plain fetch()-based GET/POST read gets silently
+   CORS-blocked by the browser for a real cross-origin website, even
+   though the request reaches the backend fine. A ?callback= param means
+   the request came from the app's JSONP loader (a <script> tag), which
+   isn't subject to that restriction; visiting the Web App URL directly
+   in a browser (no callback param) still shows the plain status page. */
+function doGet(e) {
+  const callback = e && e.parameter && e.parameter.callback;
+  const token = e && e.parameter && e.parameter.token;
+  const action = e && e.parameter && e.parameter.action;
+  try {
+    // Login/reset go through this same GET+JSONP path rather than POST —
+    // JSONP (a <script src="..."> tag) is the only reliable way this app
+    // can read the server's response at all (see the note on jsonpOut
+    // above), and that only works for GET. The PIN/recovery password
+    // travel as query params here as a result; that's an acceptable
+    // trade-off for a simple 4-digit-PIN single-user lock like this one,
+    // not a high-security login system.
+    if (action === 'login') {
+      const result = handleLoginRaw({ pin: e.parameter.pin });
+      return callback ? jsonpOut(result, callback) : jsonOut(result);
+    }
+    if (action === 'resetPin') {
+      const result = handleResetPinRaw({ recoveryPassword: e.parameter.recoveryPassword, newPin: e.parameter.newPin });
+      return callback ? jsonpOut(result, callback) : jsonOut(result);
+    }
+    // Public, token-free — used by the marketing site's Availability
+    // calendar. Deliberately returns ONLY a list of "YYYY-MM-DD" dates
+    // that are busy, nothing else (no names, no session/event details) —
+    // see getBusyDatesRaw()'s own comment for why this is safe to leave
+    // unauthenticated even though every other read here requires a token.
+    if (action === 'busyDates') {
+      const result = getBusyDatesRaw();
+      return callback ? jsonpOut(result, callback) : jsonOut(result);
+    }
+    // Public, token-free, read-only — used by the freestep backend's Tax tab.
+    // Returns ONLY payment amounts and dates (no student names, no session
+    // details), the same idea as busyDates above. Anyone who has this Web App
+    // URL can read these figures, so keep the URL private.
+    if (action === 'incomeLines') {
+      const result = getIncomeLinesRaw();
+      return callback ? jsonpOut(result, callback) : jsonOut(result);
+    }
+    if (!isValidToken(token)) {
+      const err = { error: 'Unauthorized — please sign in again.', code: 401 };
+      return callback ? jsonpOut(err, callback) : jsonOut(err);
+    }
+    const reply = function (obj) { return callback ? jsonpOut(obj, callback) : jsonOut(obj); };
+    // Did a save with this opId already land? Used by the app when it
+    // could not read a save's response (the older no-cors fallback).
+    if (action === 'opStatus') {
+      return reply({ applied: wasOpApplied(String(e.parameter.opId || '')), version: getDataVersion() });
+    }
+    // Cheap "has anything changed since the version I have?" check — no
+    // sheet is touched, so the focus/open poll costs almost nothing.
+    const since = e.parameter.since;
+    if (since !== undefined && since !== '' && getDataVersion() > 0 && Number(since) === getDataVersion()) {
+      return reply({ unchanged: true, version: getDataVersion() });
+    }
+    const data = readAllDataRaw();
+    if (callback) return jsonpOut(data, callback);
+    if (data.error || e.parameter.format === 'json') return jsonOut(data);
+    const html = '<html><body style="font-family:sans-serif;max-width:560px;margin:40px auto;line-height:1.6">' +
+      '<h2>\u2705 Backend is running</h2>' +
+      '<p>' + data.students.length + ' student(s) on file.</p>' +
+      '</body></html>';
+    return HtmlService.createHtmlOutput(html);
+  } catch (err) {
+    const data = { error: err.message };
+    if (callback) return jsonpOut(data, callback);
+    return jsonOut(data);
+  }
+}
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+
+    // Auth actions never require a token — that's the whole point.
+    if (data.action === 'login') return handleLogin(data);
+    if (data.action === 'resetPin') return handleResetPin(data);
+
+    // Read-only, for the freestep backend's Tax tab (see getServiceKey).
+    // Returns the same data as getData, but is accepted only with the
+    // shared service key and can never write anything.
+    if (data.action === 'serviceRead') {
+      const want = getServiceKey();
+      // Distinct messages (never the key itself) so a setup mistake is easy to spot.
+      if (!want) return jsonOut({ error: 'serviceRead: SERVICE_KEY is not set in this script\'s Script Properties.' });
+      if (!data.key || String(data.key).trim() !== String(want).trim()) return jsonOut({ error: 'serviceRead: the key sent does not match SERVICE_KEY in this script.' });
+      return readAllData();
+    }
+
+    // Every other POST (reads via 'getData', and saves) must carry a
+    // valid session token obtained from a prior 'login' or 'resetPin'.
+    if (!isValidToken(data.token)) {
+      return unauthorized();
+    }
+
+    // Reads can also go through POST with {action:'getData'} as a
+    // fallback (used if a caller can't do the JSONP <script> approach for
+    // some reason) — but this hits the SAME CORS wall as any other
+    // fetch()-based read, so the app itself now prefers the JSONP path
+    // in doGet() above. Kept for backward compatibility.
+    if (data.action === 'getData') return readAllData();
+
+    // Serialize every save. Every sheet here (Students, Expenses, Personal,
+    // CalendarEvents) is fully re-read then rewritten from scratch
+    // on each save. Without a lock, two saves landing close together — two
+    // devices syncing near-simultaneously, or a save racing the 20-second
+    // auto-pull — can each read the sheet before the other's write lands,
+    // then each overwrite it from their own (now-stale) snapshot. The
+    // second write silently erases whatever the first one had just added,
+    // with no error shown anywhere — exactly the "added it, then it
+    // vanished later" symptom. The lock makes sure only one save's
+    // read-modify-write cycle touches the sheets at a time; anything else
+    // waits its turn instead of racing. 30s (not 20s) for the same reason
+    // as readAllDataRaw()'s own lock wait above — a save itself can take
+    // 20-25s, so a SECOND save arriving close behind (a queued retry, or
+    // the person pressing Save again) needs to wait longer than the first
+    // one might still be running, not just as long as it.
+    const lock = LockService.getScriptLock();
+    const gotLock = lock.tryLock(30000);
+    if (!gotLock) {
+      logSaveError('Lock timeout', 'Could not acquire the script lock within 30s — another save was likely still running.', data);
+      return jsonOut({ error: 'The sheet is busy saving another change — please try again in a moment.' });
+    }
+
+    try {
+      return doPostLocked(data);
+    } catch (innerErr) {
+      // A write that throws PARTWAY through is exactly the "edit didn't
+      // actually save, but nothing told me" bug: the save() call itself
+      // uses mode:'no-cors', so its response is invisible to the browser
+      // no matter what this returns — an error here can't be shown to
+      // the person in the moment. Logging it to a Sheet, not just relying
+      // on Apps Script's own Executions log, is what makes an error like
+      // this actually diagnosable afterward instead of vanishing — that
+      // built-in log's retention/availability isn't reliable enough to
+      // depend on for tracking down what happened to a specific save.
+      logSaveError('doPostLocked threw', innerErr && innerErr.message, data);
+      throw innerErr;
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (err) {
+    logSaveError('doPost top-level error', err && err.message, null);
+    return jsonOut({ error: err.message });
+  }
+}
+
+/* Persistent record of any save that failed server-side — see the note
+   above doPostLocked's try/catch for why this exists at all: mode:'no-cors'
+   writes give the browser no way to see a server error, and Apps Script's
+   own Executions log isn't reliable enough to depend on after the fact.
+   Deliberately best-effort: failure to log an error must never mask the
+   original error or throw a new one in its place. */
+function logSaveError(kind, message, data) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName('ErrorLog');
+    if (!sheet) {
+      sheet = ss.insertSheet('ErrorLog');
+      sheet.getRange(1, 1, 1, 4).setValues([['Timestamp', 'Kind', 'Message', 'Payload summary']]);
+      sheet.setFrozenRows(1);
+    }
+    const summary = 'students:' + ((data && data.students && data.students.length) || 0)
+      + ' finance:' + ((data && data.finance && data.finance.length) || 0)
+      + ' personalFinance:' + ((data && data.personalFinance && data.personalFinance.length) || 0);
+    sheet.appendRow([new Date(), kind || '', (message || '').toString().slice(0, 500), summary]);
+    SpreadsheetApp.flush(); // force this to actually persist now, in case the script hangs or crashes right after
+  } catch (logErr) {
+    // Never let logging itself break anything.
+  }
+}
+
+/* ---------- Versioning, op tracking, per-execution guards ---------- */
+
+/* DATA_VERSION goes up by one every time anything is written through the
+   app (or a cleanup menu action). The app sends the version it last saw;
+   if it still matches, the read returns instantly with {unchanged:true}
+   instead of reading every sheet. Edits typed straight into the sheet by
+   hand do not bump it — the app picks those up on its next full pull
+   (every time it is opened). */
+function getDataVersion() {
+  return Number(PropertiesService.getScriptProperties().getProperty('DATA_VERSION')) || 0;
+}
+function bumpDataVersion() {
+  const props = PropertiesService.getScriptProperties();
+  const v = (Number(props.getProperty('DATA_VERSION')) || 0) + 1;
+  props.setProperty('DATA_VERSION', String(v));
+  return v;
+}
+
+/* The last few save ids (opId) that were applied. A save that arrives
+   twice (a retry after a dropped response) is recognised and skipped. */
+function wasOpApplied(opId) {
+  if (!opId) return false;
+  try {
+    const list = JSON.parse(PropertiesService.getScriptProperties().getProperty('RECENT_OPS') || '[]');
+    return list.indexOf(opId) !== -1;
+  } catch (e) { return false; }
+}
+function rememberOp(opId) {
+  if (!opId) return;
+  const props = PropertiesService.getScriptProperties();
+  let list = [];
+  try { list = JSON.parse(props.getProperty('RECENT_OPS') || '[]'); } catch (e) { list = []; }
+  list.push(opId);
+  if (list.length > 40) list = list.slice(list.length - 40);
+  props.setProperty('RECENT_OPS', JSON.stringify(list));
+}
+
+/* Runs fn at most once per script execution. The sheet getters used to
+   repeat their maintenance (format 2000 rows, re-check headers, rewrite the
+   date column...) every time they were called, several times per save. */
+const __ONCE = {};
+function once(key, fn) {
+  if (__ONCE[key]) return;
+  __ONCE[key] = true;
+  fn();
+}
+
+/* Students whose id already exists on the sheet but whose name just
+   changed -> [{from,to}]. Payments are linked to a student by NAME, so a
+   rename has to carry over to that student's Payments rows too. */
+function readStudentNamesById() {
+  const sheet = getStudentsSheet();
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const idCol = DATA_HEADERS.indexOf('Student ID');
+  const nameById = {};
+  let lastName = '', lastId = '';
+  rows.forEach(row => {
+    let name = (row[0] || '').toString().trim();
+    let id = (row[idCol] || '').toString().trim();
+    if (!name) name = lastName; else lastName = name;
+    if (!id) id = lastId; else lastId = id;
+    if (name && id && !nameById[id]) nameById[id] = name;
+  });
+  return nameById;
+}
+function detectStudentRenames(incoming, nameById) {
+  const out = [];
+  (incoming || []).forEach(st => {
+    if (!st || !st.id || !st.name) return;
+    const old = nameById[st.id];
+    const now = String(st.name).trim();
+    if (old && old !== now) out.push({ from: old, to: now });
+  });
+  return out;
+}
+
+function renamePaymentsStudent(renames) {
+  const sheet = getPaymentsSheet();
+  const last = sheet.getLastRow();
+  if (last < 2) return;
+  const range = sheet.getRange(2, 1, last - 1, 1);
+  const vals = range.getValues();
+  const map = {};
+  renames.forEach(r => { map[r.from.toLowerCase()] = r.to; });
+  let changed = false;
+  vals.forEach(r => {
+    const cur = (r[0] || '').toString().trim();
+    const k = cur.toLowerCase();
+    if (k && map[k] !== undefined && cur !== map[k]) { r[0] = map[k]; changed = true; }
+  });
+  if (changed) range.setValues(vals);
+}
+
+/* Delta save: the app sends ONLY what changed since its last confirmed
+   save (changed/new records plus the ids it deleted). Each sheet is
+   touched only if the delta has something for it, and the Personal-sheet
+   mirror of Freediving income/expenses is rebuilt only when payments,
+   expenses or personal entries were part of the change. The merge
+   functions are the same by-id merges the full save has always used, so
+   sending the same delta twice is harmless. Runs under the script lock. */
+function doDeltaLocked(data) {
+  const opId = data.opId ? String(data.opId).slice(0, 64) : '';
+  if (opId && wasOpApplied(opId)) {
+    return jsonOut({ ok: true, delta: true, duplicate: true, version: getDataVersion() });
+  }
+
+  const incStudents = data.students || [];
+  const delStudents = data.deletedStudentIds || [];
+  const delSessions = data.deletedSessionIds || [];
+  const delPayments = data.deletedSessionPaymentIds || [];
+  const incFinance = data.finance || [];
+  const delFinance = data.deletedExpenseIds || [];
+  const incPersonal = data.personalFinance || [];
+  const delPersonal = data.deletedPersonalIds || [];
+  const incEvents = data.calendarEvents || [];
+  const delEvents = data.deletedCalendarEventIds || [];
+
+  const studentsTouched = incStudents.length || delStudents.length || delSessions.length;
+  const nameById = incStudents.length ? readStudentNamesById() : {};
+  // A student sent only to carry sessions/payments (keepProfile) is
+  // identified by the sheet's CURRENT name, never the app's possibly stale one.
+  incStudents.forEach(st => { if (st && st.keepProfile && st.id && nameById[st.id]) st.name = nameById[st.id]; });
+  const renames = incStudents.length ? detectStudentRenames(incStudents, nameById) : [];
+  const paymentsTouched = delPayments.length > 0 || delStudents.length > 0 || renames.length > 0 ||
+    incStudents.some(st => st && st.sessionPayments && st.sessionPayments.length);
+  const expensesTouched = incFinance.length || delFinance.length;
+  const personalTouched = incPersonal.length || delPersonal.length;
+
+  const applied = [];
+  let wrote = false;
+  let version = getDataVersion();
+  try {
+    if (studentsTouched) { wrote = true; mergeStudents(incStudents, delStudents, delSessions); applied.push('students'); }
+    if (renames.length) { wrote = true; renamePaymentsStudent(renames); }
+    if (paymentsTouched) { wrote = true; mergeSessionPayments(incStudents, delPayments); applied.push('payments'); }
+
+    let mergedExpenses = null;
+    if (expensesTouched) { wrote = true; mergedExpenses = mergeExpenses(incFinance, delFinance); applied.push('expenses'); }
+    if (paymentsTouched || expensesTouched || personalTouched) {
+      wrote = true;
+      const freshStudents = buildStudentsPayload();
+      mergePersonal(incPersonal, delPersonal, freshStudents, mergedExpenses || readExpenses());
+      applied.push('personal');
+    }
+    if (incEvents.length || delEvents.length) { wrote = true; mergeCalendarEvents(incEvents, delEvents); applied.push('events'); }
+
+    if (wrote) { version = bumpDataVersion(); wrote = false; }
+    rememberOp(opId);
+  } finally {
+    // A write that threw part-way still changed the sheet: bump so other
+    // devices re-read instead of trusting a stale "unchanged".
+    if (wrote) bumpDataVersion();
+  }
+  return jsonOut({ ok: true, delta: true, version: version, applied: applied });
+}
+
+/* The actual save logic, run only while doPost above holds the script
+   lock — see the comment there for why the lock exists. */
+function doPostLocked(data) {
+    if (data.delta) return doDeltaLocked(data);
+    const incomingStudents = data.students || [];
+
+    // Merge-based save for Students/Sessions — this is the actual fix for
+    // "phone and laptop show different data": mergeStudents() below
+    // merges by id instead of fully clearing and rewriting the sheet from
+    // whatever this one device currently has loaded, which used to
+    // silently discard anything the OTHER device had added that this
+    // device didn't know about yet. See mergeStudents()'s own comment.
+    mergeStudents(incomingStudents, data.deletedStudentIds || [], data.deletedSessionIds || []);
+    mergeSessionPayments(incomingStudents, data.deletedSessionPaymentIds || []);
+    writeIncome(incomingStudents);
+
+    // The authoritative merged view — used both to feed mergePersonal()
+    // below (so its mirrored "Freediving" rows reflect every device's
+    // payments, not just this save's) and as the students returned to
+    // the client at the end.
+    const freshStudents = buildStudentsPayload();
+
+    // Merge-based saves for Expenses and manually-added Personal entries
+    // — see the "MERGE-BASED SAVES" note at the top of this file. Each
+    // returns the authoritative post-merge list (with real ids), which
+    // gets handed straight back to the client below instead of the
+    // client having to guess or re-fetch to find out what actually landed.
+    const mergedExpenses = mergeExpenses(data.finance || [], data.deletedExpenseIds || []);
+    const mergedPersonal = mergePersonal(data.personalFinance || [], data.deletedPersonalIds || [], freshStudents, mergedExpenses);
+    const mergedCalendarEvents = mergeCalendarEvents(data.calendarEvents || [], data.deletedCalendarEventIds || []);
+
+    const result = {
+      ok: true,
+      students: freshStudents,
+      finance: mergedExpenses,
+      personalFinance: mergedPersonal,
+      calendarEvents: mergedCalendarEvents
+    };
+    result.version = bumpDataVersion();
+    if (data.opId) rememberOp(String(data.opId).slice(0, 64));
+    return jsonOut(result);
+}
+
+/* Merges incoming students/sessions into the Students sheet BY ID instead
+   of replacing the whole sheet — THIS IS THE FIX for the "phone and
+   laptop show different data" bug. Previously the sheet was always fully
+   cleared and rewritten from whatever ONE device currently had loaded
+   locally; if that device hadn't pulled the other device's recent
+   changes first, its "full" list didn't include them, and its save
+   silently erased them. Now:
+     - a student whose id already exists -> that student's profile fields
+       (name/package/total/focus/phone) are updated in place
+     - a student with no id -> treated as new, gets a fresh id
+     - a SESSION whose id already exists -> updates in place, wherever it
+       lives in the sheet — sessions merge independently of which student
+       they're nested under in this particular payload, so two devices
+       editing different sessions of the same student (or different
+       students entirely) can't clobber each other
+     - a session with no id -> new, gets a fresh id
+     - an id in deletedStudentIds / deletedSessionIds -> removed
+     - anything not mentioned by this save (student or session) is left
+       completely untouched
+   "Calendar Synced"/"Event ID" are preserved per-session-id across the
+   rewrite, same as they always were — just keyed by the stable session
+   id now instead of a fragile name+type+date+note match. */
+function mergeStudents(incomingStudents, deletedStudentIds, deletedSessionIds) {
+  const sheet = getStudentsSheet(); // also runs the Student ID/Session ID backfill migration
+  const studentIdCol = DATA_HEADERS.indexOf('Student ID');
+  const sessionIdCol = DATA_HEADERS.indexOf('Session ID');
+  const publicBusyCol = DATA_HEADERS.indexOf('Public Busy');
+  const endDateCol = DATA_HEADERS.indexOf('End Date (YYYY-MM-DD)');
+
+  const existingRows = sheet.getDataRange().getValues().slice(1);
+  const studentMap = {};
+  const sessionMap = {};
+  const studentOrder = [];
+  const sessionOrderByStudent = {};
+  let lastName = '', lastStudentId = '';
+
+  existingRows.forEach(row => {
+    let name = (row[0] || '').toString().trim();
+    let studentId = (row[studentIdCol] || '').toString().trim();
+    if (!name) name = lastName; else lastName = name;
+    if (!studentId) studentId = lastStudentId; else lastStudentId = studentId;
+    if (!name || !studentId) return;
+
+    if (!studentMap[studentId]) {
+      studentMap[studentId] = { name: name, pkg: row[1] || '', total: Number(row[2]) || 0, focus: row[3] || '', phone: (row[10] || '').toString().trim() };
+      studentOrder.push(studentId);
+      sessionOrderByStudent[studentId] = [];
+    }
+
+    const sessionId = (row[sessionIdCol] || '').toString().trim();
+    if (sessionId) {
+      sessionMap[sessionId] = {
+        studentId: studentId,
+        type: row[4] || 'pool', date: row[5] || '', note: row[6] || '', status: row[7] || 'scheduled',
+        synced: row[8] || '', eventId: (row[9] || '').toString().trim(),
+        program: row[11] || '', price: row[12] || '',
+        publicBusy: row[publicBusyCol] !== false && row[publicBusyCol] !== 'FALSE',
+        endDate: formatSessionEndDate(row[endDateCol])
+      };
+      sessionOrderByStudent[studentId].push(sessionId);
+    }
+  });
+
+  // Deletions first, so this save can't accidentally "revive" something
+  // it's also asking to delete.
+  const deletedStudentSet = {};
+  (deletedStudentIds || []).forEach(id => { if (id) deletedStudentSet[id] = true; });
+  (deletedSessionIds || []).forEach(id => { if (id) delete sessionMap[id]; });
+  Object.keys(studentMap).forEach(sid => {
+    if (deletedStudentSet[sid]) {
+      (sessionOrderByStudent[sid] || []).forEach(sessId => delete sessionMap[sessId]);
+      delete studentMap[sid];
+      delete sessionOrderByStudent[sid];
+    }
+  });
+
+  // Transition safety net: right after this fix is deployed, a device
+  // can still be holding a student/session id it cached before ids on
+  // this sheet were stable (Student ID/Session ID didn't exist yet, so
+  // the app's earlier ids were derived from row position, or from the
+  // backfill this session — either way they may not match what's on the
+  // sheet now). Falling straight to "unknown id -> create new" would
+  // duplicate every existing student on everyone's next sync. Instead,
+  // if an incoming id doesn't match anything on the sheet, try matching
+  // by name (for students) or by type+date+note (for sessions, the same
+  // key already used for Calendar-sync matching) before creating new —
+  // and once matched, the real sheet id gets returned to the client,
+  // which adopts it going forward, so this only matters once.
+  const nameIndex = {};
+  Object.keys(studentMap).forEach(id => { nameIndex[(studentMap[id].name || '').trim().toLowerCase()] = id; });
+  const sessionKeyIndex = {};
+  Object.keys(sessionMap).forEach(id => {
+    const s = sessionMap[id];
+    const key = s.studentId + '|' + (s.type || '').toLowerCase() + '|' + sheetDateToCanonical(s.date) + '|' + (s.note || '');
+    sessionKeyIndex[key] = id;
+  });
+
+  (incomingStudents || []).filter(st => st && st.name).forEach(st => {
+    let sid = st.id || '';
+    if (!sid || !studentMap[sid]) {
+      const nameMatch = nameIndex[(st.name || '').trim().toLowerCase()];
+      sid = nameMatch || sid || generateId();
+    }
+    if (!studentMap[sid]) { studentOrder.push(sid); }
+    if (!sessionOrderByStudent[sid]) sessionOrderByStudent[sid] = [];
+    // keepProfile: the app is only sending this student to carry changed
+    // sessions/payments, not a profile edit — leave the sheet's current
+    // name/package/focus/phone alone so a stale copy can't overwrite a
+    // newer edit made on another device.
+    if (!(st.keepProfile && studentMap[sid])) {
+      studentMap[sid] = { name: st.name || '', pkg: st.pkg || '', total: st.total || 1, focus: st.focus || '', phone: st.phone || '' };
+    }
+    nameIndex[(st.name || '').trim().toLowerCase()] = sid;
+
+    (st.sessions || []).forEach(s => {
+      const dateCanon = s.date ? formatDateForSheet(s.date) : '';
+      let sessId = s.id || '';
+      if (!sessId || !sessionMap[sessId]) {
+        const compKey = sid + '|' + (s.type || 'pool').toLowerCase() + '|' + sheetDateToCanonical(dateCanon) + '|' + (s.note || '');
+        sessId = sessionKeyIndex[compKey] || sessId || generateId();
+      }
+      const prior = sessionMap[sessId];
+      sessionMap[sessId] = {
+        studentId: sid,
+        type: s.type || 'pool', date: dateCanon, note: s.note || '', status: s.status || 'scheduled',
+        synced: prior ? prior.synced : '', eventId: prior ? prior.eventId : '',
+        program: s.program || '', price: s.price || '',
+        // Defaults to busy (true) unless explicitly turned off — keeps
+        // older app versions that don't send this field at all behaving
+        // the same as before this feature existed.
+        publicBusy: s.publicBusy !== false,
+        // null/'' from the app = no end date (one-day session). An app
+        // that doesn't send the field at all keeps whatever is stored.
+        endDate: s.endDate === undefined ? (prior ? prior.endDate : '') : formatSessionEndDate(s.endDate)
+      };
+      if (sessionOrderByStudent[sid].indexOf(sessId) === -1) sessionOrderByStudent[sid].push(sessId);
+    });
+  });
+
+  const outRows = [];
+  studentOrder.forEach(sid => {
+    const st = studentMap[sid];
+    if (!st) return; // deleted
+    const sessIds = (sessionOrderByStudent[sid] || []).filter(id => sessionMap[id]);
+    if (!sessIds.length) {
+      outRows.push([st.name, st.pkg, st.total || 1, st.focus, '', '', '', '', '', '', st.phone, '', '', sid, '', '', '']);
+      return;
+    }
+    sessIds.forEach((sessId, idx) => {
+      const s = sessionMap[sessId];
+      if (idx === 0) {
+        outRows.push([st.name, st.pkg, st.total || 1, st.focus, s.type, s.date, s.note, s.status, s.synced, s.eventId, st.phone, s.program, s.price, sid, sessId, s.publicBusy, s.endDate || '']);
+      } else {
+        outRows.push(['', '', '', '', s.type, s.date, s.note, s.status, s.synced, s.eventId, '', s.program, s.price, sid, sessId, s.publicBusy, s.endDate || '']);
+      }
+    });
+  });
+
+  clearBelowHeader(sheet);
+  if (outRows.length) sheet.getRange(2, 1, outRows.length, DATA_HEADERS.length).setValues(outRows);
+}
+
+/* Merges incoming session-payments into the Payments sheet BY ID — same
+   fix as mergeStudents() above, replacing the old full-overwrite
+   writePayments(). A payment's Student Name is stored on its own row
+   (unlike Students-sheet sessions, which only carry it on a student's
+   first row) since each Payments row is a self-contained entry, not a
+   continuation of the one before it — same as it's always been. */
+function mergeSessionPayments(incomingStudents, deletedPaymentIds) {
+  const sheet = getPaymentsSheet(); // also runs the Payment ID backfill migration
+  const idCol = PAYMENT_HEADERS.indexOf('Payment ID');
+  const existingRows = sheet.getDataRange().getValues().slice(1);
+  const byId = {};
+  const order = [];
+  existingRows.forEach(row => {
+    if (!row[0]) return;
+    const id = (row[idCol] || '').toString().trim();
+    if (!id) return;
+    byId[id] = {
+      studentName: row[0], name: row[1] || 'Session',
+      price: parseAmount(row[2]), deposit: parseAmount(row[3]), depositDate: row[4] || '',
+      balance: parseAmount(row[5]), balanceDate: row[6] || ''
+    };
+    order.push(id);
+  });
+
+  const deleteSet = {};
+  (deletedPaymentIds || []).forEach(id => { if (id) deleteSet[id] = true; });
+
+  let incomingPaymentCount = 0;
+  (incomingStudents || []).forEach(st => {
+    if (!st.name) return;
+    (st.sessionPayments || []).forEach(pmt => {
+      incomingPaymentCount++;
+      const id = pmt.id || generateId();
+      if (!byId[id]) order.push(id);
+      const isUpdate = !!byId[id];
+      byId[id] = {
+        studentName: st.name, name: pmt.name || 'Session', price: pmt.price || 0,
+        deposit: pmt.deposit || 0, depositDate: pmt.depositDate ? formatExpenseDateForSheet(pmt.depositDate) : '',
+        balance: pmt.balance || 0, balanceDate: pmt.balanceDate ? formatExpenseDateForSheet(pmt.balanceDate) : ''
+      };
+    });
+  });
+
+  const finalOrder = order.filter(id => byId[id] && !deleteSet[id]);
+  const outRows = finalOrder.map(id => {
+    const p = byId[id];
+    return [p.studentName, p.name, p.price, p.deposit, p.depositDate, p.balance, p.balanceDate, id];
+  });
+
+  clearBelowHeader(sheet);
+  if (outRows.length) sheet.getRange(2, 1, outRows.length, PAYMENT_HEADERS.length).setValues(outRows);
+}
+
+/* One-time cleanup tool for the duplication caused by the id-backfill
+   race described on doGet() above (fixed there, but this repairs data
+   already duplicated before that fix landed). Collapses students that
+   share the same name back into a single row-group, and within each,
+   collapses sessions that share the same type+date+note back into a
+   single session — keeping whichever copy has the most complete data
+   (a non-empty package/focus/phone, a "completed" status winning over
+   "scheduled", etc.) rather than just picking the first one seen. Run
+   from the "Freedive CRM" menu; safe to run more than once — an already-
+   clean sheet is unaffected. */
+function dedupeStudentsAndSessions() {
+  const sheet = getStudentsSheet();
+  const studentIdCol = DATA_HEADERS.indexOf('Student ID');
+  const sessionIdCol = DATA_HEADERS.indexOf('Session ID');
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const startCount = rows.length;
+
+  const canonicalIdByName = {};
+  const profile = {};      // canonicalId -> {name,pkg,total,focus,phone}
+  const sessionOrder = {}; // canonicalId -> [sessionKey,...]
+  const sessionByKey = {}; // canonicalId + sessionKey -> session data
+  let lastName = '', lastStudentId = '';
+
+  rows.forEach(row => {
+    let name = (row[0] || '').toString().trim();
+    let studentId = (row[studentIdCol] || '').toString().trim();
+    if (!name) name = lastName; else lastName = name;
+    if (!studentId) studentId = lastStudentId; else lastStudentId = studentId;
+    if (!name || !studentId) return;
+
+    const nameKey = name.toLowerCase();
+    let canonicalId = canonicalIdByName[nameKey];
+    if (!canonicalId) {
+      canonicalId = studentId;
+      canonicalIdByName[nameKey] = canonicalId;
+      profile[canonicalId] = { name: name, pkg: row[1] || '', total: Number(row[2]) || 0, focus: row[3] || '', phone: (row[10] || '').toString().trim() };
+      sessionOrder[canonicalId] = [];
+    } else {
+      const p = profile[canonicalId];
+      if (!p.pkg && row[1]) p.pkg = row[1];
+      if (!p.total && row[2]) p.total = Number(row[2]) || 0;
+      if (!p.focus && row[3]) p.focus = row[3];
+      if (!p.phone && row[10]) p.phone = row[10].toString().trim();
+    }
+
+    const type = row[4], dateVal = row[5], note = row[6], status = row[7];
+    if (!type && !dateVal && !note && !status) return; // student-only row, no session on it
+
+    const sessKey = (type || 'pool').toString().toLowerCase() + '|' + sheetDateToCanonical(dateVal) + '|' + (note || '');
+    const fullKey = canonicalId + '||' + sessKey;
+    const existingSess = sessionByKey[fullKey];
+    const thisSess = {
+      id: (row[sessionIdCol] || '').toString().trim() || generateId(),
+      type: type || 'pool', date: dateVal, note: note || '',
+      status: (status || 'scheduled').toString().toLowerCase(),
+      synced: row[8] || '', eventId: (row[9] || '').toString().trim(),
+      program: row[11] || '', price: row[12] || '',
+      publicBusy: row[DATA_HEADERS.indexOf('Public Busy')] !== false && row[DATA_HEADERS.indexOf('Public Busy')] !== 'FALSE',
+      endDate: formatSessionEndDate(row[DATA_HEADERS.indexOf('End Date (YYYY-MM-DD)')])
+    };
+    if (!existingSess) {
+      sessionByKey[fullKey] = thisSess;
+      sessionOrder[canonicalId].push(fullKey);
+    } else {
+      // Keep the more "complete" copy: prefer completed over scheduled,
+      // prefer whichever already has a Calendar sync/eventId/program/price.
+      if (thisSess.status === 'completed') existingSess.status = 'completed';
+      if (!existingSess.synced && thisSess.synced) existingSess.synced = thisSess.synced;
+      if (!existingSess.eventId && thisSess.eventId) existingSess.eventId = thisSess.eventId;
+      if (!existingSess.program && thisSess.program) existingSess.program = thisSess.program;
+      if (!existingSess.price && thisSess.price) existingSess.price = thisSess.price;
+      if (thisSess.publicBusy === false) existingSess.publicBusy = false;
+      if (!existingSess.endDate && thisSess.endDate) existingSess.endDate = thisSess.endDate;
+    }
+  });
+
+  const outRows = [];
+  Object.keys(profile).forEach(sid => {
+    const st = profile[sid];
+    const keys = sessionOrder[sid] || [];
+    if (!keys.length) {
+      outRows.push([st.name, st.pkg, st.total || 1, st.focus, '', '', '', '', '', '', st.phone, '', '', sid, '', '', '']);
+      return;
+    }
+    keys.forEach((key, idx) => {
+      const s = sessionByKey[key];
+      if (idx === 0) {
+        outRows.push([st.name, st.pkg, st.total || 1, st.focus, s.type, s.date, s.note, s.status, s.synced, s.eventId, st.phone, s.program, s.price, sid, s.id, s.publicBusy, s.endDate || '']);
+      } else {
+        outRows.push(['', '', '', '', s.type, s.date, s.note, s.status, s.synced, s.eventId, '', s.program, s.price, sid, s.id, s.publicBusy, s.endDate || '']);
+      }
+    });
+  });
+
+  clearBelowHeader(sheet);
+  if (outRows.length) sheet.getRange(2, 1, outRows.length, DATA_HEADERS.length).setValues(outRows);
+
+  bumpDataVersion();
+  return { studentsKept: Object.keys(profile).length, rowsBefore: startCount, rowsAfter: outRows.length };
+}
+
+function dedupeStudentsAndSessionsFromMenu() {
+  const result = dedupeStudentsAndSessions();
+  const removed = result.rowsBefore - result.rowsAfter;
+  SpreadsheetApp.getUi().alert(
+    'Cleaned up the Students sheet.\n' +
+    removed + ' duplicate row(s) removed (' + result.rowsBefore + ' \u2192 ' + result.rowsAfter + ').\n' +
+    result.studentsKept + ' student(s) remain.\n\n' +
+    'Reload the app on every device before making other edits, so none of them save an older duplicated copy back over this.'
+  );
+}
+
+/* Same idea as dedupeStudentsAndSessions() above, for the Payments sheet
+   — collapses rows that are identical in every column (student, session
+   name, price, deposit, deposit date, balance, balance date) back down
+   to one. Run from the "Freedive CRM" menu. */
+function dedupePayments() {
+  const sheet = getPaymentsSheet();
+  const idCol = PAYMENT_HEADERS.indexOf('Payment ID');
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const startCount = rows.length;
+  const seen = {};
+  const outRows = [];
+  rows.forEach(row => {
+    if (!row[0]) return;
+    const key = [row[0], row[1], row[2], row[3], row[4], row[5], row[6]].map(v => (v || '').toString().trim().toLowerCase()).join('|');
+    if (seen[key]) return;
+    seen[key] = true;
+    const id = (row[idCol] || '').toString().trim() || generateId();
+    outRows.push([row[0], row[1], row[2], row[3], row[4], row[5], row[6], id]);
+  });
+  clearBelowHeader(sheet);
+  if (outRows.length) sheet.getRange(2, 1, outRows.length, PAYMENT_HEADERS.length).setValues(outRows);
+  bumpDataVersion();
+  return { rowsBefore: startCount, rowsAfter: outRows.length };
+}
+
+function dedupePaymentsFromMenu() {
+  const result = dedupePayments();
+  const removed = result.rowsBefore - result.rowsAfter;
+  SpreadsheetApp.getUi().alert(
+    'Cleaned up the Payments sheet.\n' +
+    removed + ' duplicate row(s) removed (' + result.rowsBefore + ' \u2192 ' + result.rowsAfter + ').'
+  );
+}
+
+/* Reads the Income sheet into { lowercasedName: { depositPaid, depositDate,
+   balancePaid, balanceDate } }. Legacy data only — from before the
+   Payments tab existed. Each date is "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM". */
+function readIncome() {
+  const sheet = getIncomeSheet();
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const map = {};
+  rows.forEach(row => {
+    const name = (row[0] || '').toString().trim();
+    if (!name) return;
+    map[name.toLowerCase()] = {
+      depositPaid: parseAmount(row[1]),
+      depositDate: formatExpenseDateForApp(row[2]),
+      balancePaid: parseAmount(row[3]),
+      balanceDate: formatExpenseDateForApp(row[4])
+    };
+  });
+  return map;
+}
+
+/* The Income sheet is legacy-only now — new deposit/balance data is
+   written to the Payments sheet, so this sheet is simply left untouched
+   on every save (nothing new is ever written here). */
+function writeIncome(students) {
+  // intentionally a no-op — kept only so old Income-sheet rows survive
+  // untouched for readIncome()'s fallback lookups.
+}
+
+/* Reads the Expenses sheet into the app's expense-transaction shape:
+   { id, type: 'expense', item, price, date }. The id is the sheet's own
+   stable ID column now (not derived from row position), so it survives
+   reordering and round-trips correctly through mergeExpenses(). */
+function readExpenses() {
+  const sheet = getExpenseSheet();
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const finance = [];
+  rows.forEach(row => {
+    const item = (row[1] || '').toString().trim();
+    if (!item) return;
+    finance.push({
+      id: (row[0] || '').toString().trim(),
+      type: 'expense',
+      item: item,
+      price: parseAmount(row[2]),
+      date: formatExpenseDateForApp(row[3])
+    });
+  });
+  return finance;
+}
+
+/* Merges incoming expense entries into the Expenses sheet BY ID instead of
+   wiping and rewriting the whole sheet from the client's local copy — see
+   the "MERGE-BASED SAVES" note at the top of this file. An entry whose id
+   already exists on the sheet updates that row; an entry with no id is
+   new and gets one assigned; ids in deletedIds are removed; any existing
+   row not mentioned either way is left untouched. Returns the merged list
+   (with ids) so the caller can hand it straight back to the client. */
+function mergeExpenses(incoming, deletedIds) {
+  const sheet = getExpenseSheet();
+  const existingRows = sheet.getDataRange().getValues().slice(1);
+  const byId = {};
+  const order = [];
+  existingRows.forEach(row => {
+    const id = (row[0] || '').toString().trim();
+    if (!id) return; // shouldn't happen post-migration, but never crash on it
+    byId[id] = { id: id, item: row[1] || '', price: parseAmount(row[2]), date: formatExpenseDateForApp(row[3]) };
+    order.push(id);
+  });
+
+  const deleteSet = {};
+  (deletedIds || []).forEach(id => { if (id) deleteSet[id] = true; });
+
+  (incoming || []).filter(f => f.type !== 'income').forEach(f => {
+    const entry = { id: f.id || generateId(), item: f.item || '', price: f.price || 0, date: f.date || '' };
+    if (!byId[entry.id]) order.push(entry.id);
+    byId[entry.id] = entry;
+  });
+
+  const finalOrder = order.filter(id => byId[id] && !deleteSet[id]);
+  const outRows = finalOrder.map(id => {
+    const eItem = byId[id];
+    return [eItem.id, eItem.item, eItem.price, formatExpenseDateForSheet(eItem.date)];
+  });
+
+  clearBelowHeader(sheet);
+  if (outRows.length) sheet.getRange(2, 1, outRows.length, EXPENSE_HEADERS.length).setValues(outRows);
+
+  return finalOrder.map(id => ({ id: byId[id].id, type: 'expense', item: byId[id].item, price: byId[id].price, date: byId[id].date }));
+}
+
+/* Reads the Personal sheet into the app's finance-transaction shape:
+   { id, type: 'expense'|'income', item, price, date, category }. Only
+   the manually-added rows are returned — rows tagged "Freediving" in the
+   Source column are skipped here because the app derives those live from
+   Students/Payments/Expenses itself; returning them too would show every
+   Freediving entry twice on the Personal Finance tab. The id is the
+   sheet's own stable ID column, for the same reason as readExpenses(). */
+function readPersonal() {
+  const sheet = getPersonalSheet();
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const personal = [];
+  rows.forEach(row => {
+    const item = (row[2] || '').toString().trim();
+    if (!item) return;
+    const source = (row[6] || 'Personal').toString().trim();
+    if (source === 'Freediving') return;
+    const type = (row[1] || 'expense').toString().trim().toLowerCase();
+    personal.push({
+      id: (row[0] || '').toString().trim(),
+      type: type === 'income' ? 'income' : 'expense',
+      item: item,
+      price: parseAmount(row[3]),
+      date: formatExpenseDateForApp(row[4]),
+      category: (row[5] || '').toString().trim(),
+      paidBack: parsePaidBack(row[7])
+    });
+  });
+  return personal;
+}
+
+/* Merges incoming manually-added Personal entries BY ID (same pattern as
+   mergeExpenses above), then re-appends the mirrored "Freediving" rows
+   freshly derived from this save's students/expenses data. Those mirrored
+   rows are always fully regenerated (never hand-edited, so there's
+   nothing to merge for them) — safe now that the underlying Expenses/
+   Payments data is itself protected against overwrite loss. Returns the
+   merged manual-entry list (with ids) for the client. */
+function mergePersonal(incoming, deletedIds, students, expenses) {
+  const sheet = getPersonalSheet();
+  const existingRows = sheet.getDataRange().getValues().slice(1);
+  const byId = {};
+  const order = [];
+  existingRows.forEach(row => {
+    const source = (row[6] || 'Personal').toString().trim();
+    if (source === 'Freediving') return; // mirrored rows are regenerated separately below
+    const id = (row[0] || '').toString().trim();
+    if (!id) return;
+    byId[id] = {
+      id: id, type: (row[1] || 'expense').toString().toLowerCase(),
+      item: row[2] || '', price: parseAmount(row[3]),
+      date: formatExpenseDateForApp(row[4]), category: row[5] || '',
+      paidBack: parsePaidBack(row[7])
+    };
+    order.push(id);
+  });
+
+  const deleteSet = {};
+  (deletedIds || []).forEach(id => { if (id) deleteSet[id] = true; });
+
+  (incoming || []).filter(f => f.item).forEach(f => {
+    const entry = {
+      id: f.id || generateId(), type: f.type === 'income' ? 'income' : 'expense',
+      item: f.item || '', price: f.price || 0, date: f.date || '', category: f.category || '',
+      paidBack: normalizePaidBack(f.paidBack)
+    };
+    if (!byId[entry.id]) order.push(entry.id);
+    byId[entry.id] = entry;
+  });
+
+  const finalOrder = order.filter(id => byId[id] && !deleteSet[id]);
+  const outRows = finalOrder.map(id => {
+    const p = byId[id];
+    return [p.id, p.type, p.item, p.price, formatExpenseDateForSheet(p.date), p.category, 'Personal', stringifyPaidBack(p.paidBack)];
+  });
+
+  // Re-derive the mirrored Freediving rows fresh from this save's data
+  // (using the just-merged expenses list, which is now the source of truth).
+  (expenses || []).filter(f => f.type !== 'income' && f.item).forEach(f => {
+    outRows.push([generateId(), 'expense', f.item || '', f.price || 0, formatExpenseDateForSheet(f.date), '', 'Freediving', '']);
+  });
+  (students || []).forEach(st => {
+    if (!st.name) return;
+    (st.sessionPayments || []).forEach(pmt => {
+      const label = pmt.name ? (st.name + ' — ' + pmt.name) : st.name;
+      if ((pmt.deposit || 0) > 0) {
+        outRows.push([generateId(), 'income', label + ' (Deposit)', pmt.deposit, pmt.depositDate ? formatExpenseDateForSheet(pmt.depositDate) : '', '', 'Freediving', '']);
+      }
+      if ((pmt.balance || 0) > 0) {
+        outRows.push([generateId(), 'income', label + ' (Balance)', pmt.balance, pmt.balanceDate ? formatExpenseDateForSheet(pmt.balanceDate) : '', '', 'Freediving', '']);
+      }
+    });
+  });
+
+  clearBelowHeader(sheet);
+  if (outRows.length) sheet.getRange(2, 1, outRows.length, PERSONAL_HEADERS.length).setValues(outRows);
+
+  return finalOrder.map(id => ({ id: byId[id].id, type: byId[id].type, item: byId[id].item, price: byId[id].price, date: byId[id].date, category: byId[id].category, paidBack: normalizePaidBack(byId[id].paidBack) }));
+}
+
+/* Reads the CalendarEvents sheet into the app's calendar-event shape:
+   { id, kind, type, title, date, endDate, time, repeatsAnnually }. These
+   are the custom events the CRM's Calendar tab creates (birthdays,
+   competitions, hotel stays, etc.) — separate from the scheduled
+   sessions on the Students sheet, which already sync via their own
+   mechanism. */
+function readCalendarEvents() {
+  const sheet = getCalendarEventsSheet();
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const events = [];
+  rows.forEach(row => {
+    const id = (row[0] || '').toString().trim();
+    if (!id) return;
+    events.push({
+      id: id,
+      kind: row[1] || 'event',
+      type: row[2] || '',
+      title: row[3] || 'Event',
+      date: (row[4] || '').toString().trim(),
+      endDate: (row[5] || '').toString().trim() || null,
+      time: (row[6] || '').toString().trim() || null,
+      repeatsAnnually: row[7] === 'Yes',
+      publicBusy: row[8] !== false && row[8] !== 'FALSE'
+    });
+  });
+  return events;
+}
+
+/* Merges incoming calendar events into the CalendarEvents sheet BY ID —
+   same pattern as mergeExpenses/mergePersonal above, see the
+   "MERGE-BASED SAVES" note at the top of this file. An entry whose id
+   already exists updates that row; an entry with no id is new and gets
+   one assigned; ids in deletedIds are removed; any existing row not
+   mentioned either way is left untouched. Returns the merged list (with
+   ids) so the caller can hand it straight back to the client. */
+function mergeCalendarEvents(incoming, deletedIds) {
+  const sheet = getCalendarEventsSheet();
+  const existingRows = sheet.getDataRange().getValues().slice(1);
+  const byId = {};
+  const order = [];
+  existingRows.forEach(row => {
+    const id = (row[0] || '').toString().trim();
+    if (!id) return;
+    byId[id] = {
+      id: id,
+      kind: row[1] || 'event',
+      type: row[2] || '',
+      title: row[3] || 'Event',
+      date: (row[4] || '').toString().trim(),
+      endDate: (row[5] || '').toString().trim() || null,
+      time: (row[6] || '').toString().trim() || null,
+      repeatsAnnually: row[7] === 'Yes',
+      publicBusy: row[8] !== false && row[8] !== 'FALSE'
+    };
+    order.push(id);
+  });
+
+  const deleteSet = {};
+  (deletedIds || []).forEach(id => { if (id) deleteSet[id] = true; });
+
+  (incoming || []).filter(e => e.date).forEach(e => {
+    const entry = {
+      id: e.id || generateId(),
+      kind: e.kind || 'event',
+      type: e.type || '',
+      title: e.title || 'Event',
+      date: e.date || '',
+      endDate: e.endDate || null,
+      time: e.time || null,
+      repeatsAnnually: !!e.repeatsAnnually,
+      // Same "!== false" default-to-busy rule as sessions — see
+      // mergeStudents()'s own comment for why.
+      publicBusy: e.publicBusy !== false
+    };
+    if (!byId[entry.id]) order.push(entry.id);
+    byId[entry.id] = entry;
+  });
+
+  const finalOrder = order.filter(id => byId[id] && !deleteSet[id]);
+  const outRows = finalOrder.map(id => {
+    const ev = byId[id];
+    return [ev.id, ev.kind, ev.type, ev.title, ev.date, ev.endDate || '', ev.time || '', ev.repeatsAnnually ? 'Yes' : '', ev.publicBusy];
+  });
+
+  clearBelowHeader(sheet);
+  if (outRows.length) sheet.getRange(2, 1, outRows.length, CALENDAR_EVENT_HEADERS.length).setValues(outRows);
+
+  return finalOrder.map(id => {
+    const ev = byId[id];
+    return { id: ev.id, kind: ev.kind, type: ev.type, title: ev.title, date: ev.date, endDate: ev.endDate || null, time: ev.time || null, repeatsAnnually: ev.repeatsAnnually, publicBusy: ev.publicBusy };
+  });
+}
+
+function getCalendarEventsSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('CalendarEvents');
+  if (!sheet) {
+    sheet = ss.insertSheet('CalendarEvents');
+    sheet.getRange(1, 1, 1, CALENDAR_EVENT_HEADERS.length).setValues([CALENDAR_EVENT_HEADERS]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(2, 5, 2000, 1).setNumberFormat('@'); // Date column as plain text
+    sheet.getRange(2, 6, 2000, 1).setNumberFormat('@'); // End Date column as plain text
+    sheet.getRange(2, 7, 2000, 1).setNumberFormat('@'); // Time column as plain text
+  } else {
+    // Same pattern as ensurePublicBusyColumn() for Students — a sheet
+    // from before this column existed just gets it appended, existing
+    // rows left blank (which every reader here treats the same as busy).
+    const lastCol = Math.max(sheet.getLastColumn(), 1);
+    const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    if (headerRow.indexOf('Public Busy') === -1) {
+      sheet.getRange(1, lastCol + 1).setValue('Public Busy');
+    }
+  }
+  return sheet;
+}
+
+/* Adds a menu to the spreadsheet for a manual sync. */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('Freedive CRM')
+    .addItem('Repair broken session dates now', 'repairStudentDatesFromMenu')
+    .addSeparator()
+    .addItem('Clean up duplicate students/sessions now', 'dedupeStudentsAndSessionsFromMenu')
+    .addItem('Clean up duplicate payments now', 'dedupePaymentsFromMenu')
+    .addSeparator()
+    .addItem('Delete the old To-Do and Programs sheets', 'deleteUnusedSheetsFromMenu')
+    .addToUi();
+}
+
+/* The To-Do and Programs tabs were removed from the app, so the sheets
+   that stored them are no longer read or written. This deletes them —
+   permanently — after asking first. Run from the "Freedive CRM" menu. */
+function deleteUnusedSheetsFromMenu() {
+  const names = ['Todos', 'TodoChecks', 'ProgramLabels', 'ProgramPrices', 'CustomPrograms'];
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const found = names.filter(n => ss.getSheetByName(n));
+  const ui = SpreadsheetApp.getUi();
+  if (!found.length) { ui.alert('Nothing to delete — the old To-Do and Programs sheets are already gone.'); return; }
+  const answer = ui.alert('Delete old sheets?',
+    'This permanently deletes: ' + found.join(', ') + '.\n\nThe app no longer uses them. Make a copy of the spreadsheet first if you want a backup. Continue?',
+    ui.ButtonSet.YES_NO);
+  if (answer !== ui.Button.YES) return;
+  found.forEach(n => ss.deleteSheet(ss.getSheetByName(n)));
+  bumpDataVersion();
+  ui.alert('Deleted ' + found.length + ' sheet(s).');
+}
+
+function getStudentsSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Students');
+  if (sheet) {
+    ensureStudentsSheetIsSessionsOnly(sheet);
+    return sheet;
+  }
+
+  // One-time migration: an older version of this script used a sheet
+  // called "Data" that had a "Paid (IDR)" column mixed into the session
+  // rows. If that sheet is still around, move its data into the new
+  // "Students" + "Payments" layout instead of starting from a blank sheet.
+  const legacy = ss.getSheetByName('Data');
+  if (legacy) return migrateLegacyDataSheet(legacy);
+
+  sheet = ss.insertSheet('Students');
+  sheet.getRange(1, 1, 1, DATA_HEADERS.length).setValues([DATA_HEADERS]);
+  sheet.setFrozenRows(1);
+  sheet.getRange(2, 6, 2000, 1).setNumberFormat('@'); // keep the Date column (F) as plain text
+  ensureSessionEndDateColumn(sheet);
+  return sheet;
+}
+
+/* Adds the "Event ID" header/column to a Students sheet that doesn't have
+   one yet, without touching any existing data. Needed both for sheets on
+   the current session-only layout created before this feature existed,
+   and as the final step after the older-layout migration below. */
+function ensureEventIdColumn(sheet) {
+  const lastCol = Math.max(sheet.getLastColumn(), 1);
+  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headerRow.indexOf('Event ID') === -1) {
+    sheet.getRange(1, lastCol + 1).setValue('Event ID');
+  }
+}
+
+/* Same pattern as ensureEventIdColumn above, for the "Public Busy"
+   column — whether a session should count toward the marketing site's
+   busy/free availability calendar (see getBusyDatesRaw()). Left blank on
+   existing rows here, but every place that reads this column treats
+   blank the same as busy (everywhere it's read: "!== false"), matching
+   the behavior before this toggle existed — every session counted as
+   busy. So a session only stops blocking the day once someone actually
+   unchecks its "Show as busy on public site" box; it never silently
+   flips just because the row hasn't been re-saved since this shipped. */
+function ensurePublicBusyColumn(sheet) {
+  const lastCol = Math.max(sheet.getLastColumn(), 1);
+  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headerRow.indexOf('Public Busy') === -1) {
+    sheet.getRange(1, lastCol + 1).setValue('Public Busy');
+  }
+}
+
+/* Adds the "End Date (YYYY-MM-DD)" column (last day of a multi-day
+   session; blank = one-day session) to a Students sheet that doesn't
+   have it yet, and keeps the column as plain text so the sheet never
+   turns "2026-03-07" into a Date. Existing rows stay blank. */
+function ensureSessionEndDateColumn(sheet) {
+  const col = DATA_HEADERS.indexOf('End Date (YYYY-MM-DD)') + 1;
+  const lastCol = Math.max(sheet.getLastColumn(), 1);
+  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headerRow.indexOf('End Date (YYYY-MM-DD)') === -1) {
+    sheet.getRange(1, col).setValue('End Date (YYYY-MM-DD)');
+  }
+  sheet.getRange(2, col, 2000, 1).setNumberFormat('@');
+}
+
+/* sheet cell (text "YYYY-MM-DD", or a Date if Sheets ever converted it)
+   or app value -> "YYYY-MM-DD", or '' when blank/unparseable. */
+function formatSessionEndDate(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    return isNaN(val.getTime()) ? '' : Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  const m = val.toString().trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[1] + '-' + m[2] + '-' + m[3] : '';
+}
+
+/* One-time migration + safety backfill: adds "Student ID"/"Session ID"
+   columns to a Students sheet that doesn't have them yet, and generates
+   an id for any row missing one — needed for mergeStudents() to work at
+   all, since merging by id requires every row to actually have one.
+   THIS IS WHAT FIXES THE "phone and laptop show different things" BUG:
+   previously the Students sheet was always fully cleared and rewritten
+   from whichever device saved last, discarding anything the other
+   device had added that this device didn't know about yet. Now every
+   student and every session has its own stable id (matching the id the
+   app already generates for them locally), so mergeStudents() can merge
+   by id instead of blindly overwriting — see that function's own note.
+   Safe to run repeatedly; already-migrated sheets are a no-op. */
+function ensureStudentIdColumns(sheet) {
+  const lastCol = Math.max(sheet.getLastColumn(), 1);
+  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const hasIds = headerRow.indexOf('Student ID') !== -1 && headerRow.indexOf('Session ID') !== -1;
+
+  if (!hasIds) {
+    // Rewrite the header to the full current column set (adds the two
+    // new columns at the end without disturbing any existing ones).
+    sheet.getRange(1, 1, 1, DATA_HEADERS.length).setValues([DATA_HEADERS]);
+  }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  const studentIdCol = DATA_HEADERS.indexOf('Student ID') + 1;
+  const sessionIdCol = DATA_HEADERS.indexOf('Session ID') + 1;
+  const range = sheet.getRange(2, 1, lastRow - 1, DATA_HEADERS.length);
+  const rows = range.getValues();
+  let changed = false;
+  let lastStudentId = '';
+
+  const out = rows.map(row => {
+    let name = (row[0] || '').toString().trim();
+    let studentId = (row[studentIdCol - 1] || '').toString().trim();
+    if (name) {
+      if (!studentId) { studentId = generateId(); changed = true; }
+      lastStudentId = studentId;
+    } else if (!studentId) {
+      studentId = lastStudentId;
+      changed = true;
+    }
+    row[studentIdCol - 1] = studentId;
+
+    const hasSessionData = row[4] || row[5] || row[6] || row[7];
+    let sessionId = (row[sessionIdCol - 1] || '').toString().trim();
+    if (hasSessionData && !sessionId) { sessionId = generateId(); changed = true; }
+    row[sessionIdCol - 1] = sessionId;
+
+    return row;
+  });
+
+  if (changed) range.setValues(out);
+}
+
+/* One-time migration + safety backfill: adds a "Payment ID" column to the
+   Payments sheet and generates an id for any row missing one, for the
+   same reason as ensureStudentIdColumns() above. Safe to run repeatedly. */
+function ensurePaymentIdColumn(sheet) {
+  const lastCol = Math.max(sheet.getLastColumn(), 1);
+  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headerRow.indexOf('Payment ID') === -1) {
+    sheet.getRange(1, 1, 1, PAYMENT_HEADERS.length).setValues([PAYMENT_HEADERS]);
+  }
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  const idCol = PAYMENT_HEADERS.indexOf('Payment ID') + 1;
+  const range = sheet.getRange(2, 1, lastRow - 1, PAYMENT_HEADERS.length);
+  const rows = range.getValues();
+  let changed = false;
+  const out = rows.map(row => {
+    if (!row[0]) return row;
+    let id = (row[idCol - 1] || '').toString().trim();
+    if (!id) { id = generateId(); changed = true; }
+    row[idCol - 1] = id;
+    return row;
+  });
+  if (changed) range.setValues(out);
+}
+
+/* One-time migration: sheets created before payments moved to their own
+   "Payments" sheet still carry Price/Deposit/Deposit Date/Balance/Balance
+   Date columns on the Students sheet (one set per student, on their
+   first row only). Move each student's data into a "Package" row on the
+   Payments sheet, then rewrite the Students sheet down to the new
+   session-only layout so nothing is lost. Runs once; safe to run
+   repeatedly (a sheet already on the new layout just gets checked for
+   the Event ID column and is otherwise a no-op). */
+function ensureStudentsSheetIsSessionsOnly(sheet) {
+  const lastCol = Math.max(sheet.getLastColumn(), 1);
+  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const hasOldPriceCol = headerRow.indexOf('Price (IDR)') !== -1;
+  if (!hasOldPriceCol) {
+    once('studentsMaintenance', function () {
+      ensureEventIdColumn(sheet);
+      ensurePublicBusyColumn(sheet);
+      ensureSessionEndDateColumn(sheet);
+      repairStudentDates(sheet); // self-heal any corrupted date cells (see normalizeSheetDateCell)
+      ensureStudentIdColumns(sheet);
+    });
+    return; // already on the new layout
+  }
+
+  const lastRow = sheet.getLastRow();
+  const oldRows = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, lastCol).getValues() : [];
+
+  // Old layout: 0 name, 1 pkg, 2 total, 3 price, 4 focus, 5 type, 6 date,
+  //             7 note, 8 status, 9 synced, 10 deposit, 11 depositDate,
+  //             12 balance, 13 balanceDate
+  const paymentRows = [];
+  const newRows = [];
+  let lastName = '';
+  oldRows.forEach(row => {
+    let name = (row[0] || '').toString().trim();
+    if (name) lastName = name; else name = lastName;
+    if (!name) return;
+
+    if (row[0]) {
+      // First row for this student — fold their price/deposit/balance into
+      // a single "Package" row on the Payments sheet.
+      if (row[3] || row[10] || row[12]) {
+        paymentRows.push([
+          name, 'Package', parseAmount(row[3]),
+          parseAmount(row[10]), row[11] || '',
+          parseAmount(row[12]), row[13] || '', generateId()
+        ]);
+      }
+      newRows.push([row[0], row[1], row[2], row[4], row[5], normalizeSheetDateCell(row[6]), row[7], row[8], row[9], '', '', '', '', '', '', '', '']);
+    } else {
+      newRows.push(['', '', '', '', row[5], normalizeSheetDateCell(row[6]), row[7], row[8], row[9], '', '', '', '', '', '', '', '']);
+    }
+  });
+
+  if (paymentRows.length) {
+    const paymentsSheet = getPaymentsSheet();
+    const existingLast = paymentsSheet.getLastRow();
+    paymentsSheet.getRange(existingLast + 1, 1, paymentRows.length, PAYMENT_HEADERS.length).setValues(paymentRows);
+  }
+
+  sheet.getRange(1, 1, 1, DATA_HEADERS.length).setValues([DATA_HEADERS]);
+  if (lastCol > DATA_HEADERS.length) {
+    sheet.getRange(1, DATA_HEADERS.length + 1, 1, lastCol - DATA_HEADERS.length).clearContent();
+  }
+  clearBelowHeader(sheet);
+  if (newRows.length) sheet.getRange(2, 1, newRows.length, DATA_HEADERS.length).setValues(newRows);
+  sheet.getRange(2, 6, 2000, 1).setNumberFormat('@');
+}
+
+function migrateLegacyDataSheet(legacy) {
+  // Old layout: 0 name, 1 pkg, 2 total, 3 price, 4 paid, 5 focus,
+  //             6 type, 7 date, 8 note, 9 status, 10 synced
+  // The old single "paid" amount, and the price, become a "Package" row
+  // on the new Payments sheet.
+  const rows = legacy.getDataRange().getValues().slice(1);
+  const outRows = [];
+  const paidMap = {}; // lowercased name -> { name, paid }
+  const priceMap = {}; // lowercased name -> summed price
+  let lastName = '';
+
+  rows.forEach(row => {
+    let name = (row[0] || '').toString().trim();
+    const isFirstRow = !!name;
+    if (!name) name = lastName; else lastName = name;
+    if (!name) return;
+
+    const key = name.toLowerCase();
+    if (!paidMap[key]) paidMap[key] = { name: name, paid: 0 };
+    if (paidMap[key].paid === 0 && row[4]) paidMap[key].paid = parseAmount(row[4]);
+    priceMap[key] = (priceMap[key] || 0) + parseAmount(row[3]);
+
+    // New layout: 0 name, 1 pkg, 2 total, 3 focus, 4 type, 5 date, 6 note, 7 status, 8 synced, 9 eventId, 10 phone, 11 program, 12 price, 13 studentId, 14 sessionId
+    outRows.push([isFirstRow ? row[0] : '', isFirstRow ? row[1] : '', isFirstRow ? row[2] : '', isFirstRow ? row[5] : '', row[6], normalizeSheetDateCell(row[7]), row[8], row[9], row[10], '', '', '', '', '', '', '', '']);
+  });
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.insertSheet('Students');
+  sheet.getRange(1, 1, 1, DATA_HEADERS.length).setValues([DATA_HEADERS]);
+  sheet.setFrozenRows(1);
+  sheet.getRange(2, 6, 2000, 1).setNumberFormat('@');
+  if (outRows.length) sheet.getRange(2, 1, outRows.length, DATA_HEADERS.length).setValues(outRows);
+
+  const paymentRows = Object.keys(paidMap).map(k => [paidMap[k].name, 'Package', priceMap[k] || 0, paidMap[k].paid, '', 0, '', generateId()]);
+  if (paymentRows.length) {
+    const paymentsSheet = getPaymentsSheet();
+    paymentsSheet.getRange(2, 1, paymentRows.length, PAYMENT_HEADERS.length).setValues(paymentRows);
+  }
+
+  legacy.setName('Data (old, migrated)');
+  return sheet;
+}
+
+function getPaymentsSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Payments');
+  if (!sheet) {
+    sheet = ss.insertSheet('Payments');
+    sheet.getRange(1, 1, 1, PAYMENT_HEADERS.length).setValues([PAYMENT_HEADERS]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(2, 5, 2000, 1).setNumberFormat('@'); // keep the Deposit Date column as plain text
+    sheet.getRange(2, 7, 2000, 1).setNumberFormat('@'); // keep the Balance Date column as plain text
+    return sheet;
+  }
+  once('paymentsMaintenance', function () { ensurePaymentIdColumn(sheet); });
+  return sheet;
+}
+
+function getIncomeSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Income');
+  if (!sheet) {
+    sheet = ss.insertSheet('Income');
+    sheet.getRange(1, 1, 1, INCOME_HEADERS.length).setValues([INCOME_HEADERS]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(2, 3, 2000, 1).setNumberFormat('@'); // keep the Deposit Date column as plain text
+    sheet.getRange(2, 5, 2000, 1).setNumberFormat('@'); // keep the Balance Date column as plain text
+    return sheet;
+  }
+
+  // One-time migration: sheets created before the deposit/balance split
+  // only have 3 columns (Student Name, Amount Paid, Paid Date). Move that
+  // single "Amount Paid" total into the new Deposit column and add empty
+  // Balance columns, rather than losing the existing payment history.
+  const lastCol = Math.max(sheet.getLastColumn(), 1);
+  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headerRow.indexOf('Balance Paid (IDR)') === -1) {
+    const lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      const oldRows = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+      const newRows = oldRows.map(r => [r[0], r[1], r[2], 0, '']);
+      sheet.getRange(2, 1, newRows.length, INCOME_HEADERS.length).setValues(newRows);
+    }
+    sheet.getRange(1, 1, 1, INCOME_HEADERS.length).setValues([INCOME_HEADERS]);
+    sheet.getRange(2, 5, 2000, 1).setNumberFormat('@');
+  }
+  return sheet;
+}
+
+function getExpenseSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Expenses');
+  if (!sheet) {
+    sheet = ss.insertSheet('Expenses');
+    sheet.getRange(1, 1, 1, EXPENSE_HEADERS.length).setValues([EXPENSE_HEADERS]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(2, 4, 2000, 1).setNumberFormat('@'); // keep the Date column (now D) as plain text
+    return sheet;
+  }
+  ensureExpenseIdColumn(sheet);
+  return sheet;
+}
+
+/* One-time migration: sheets created before merge-based saves existed
+   have EXPENSE_HEADERS without the leading 'ID' column ('Item', 'Price
+   (IDR)', 'Date (DD-MM-YYYY)' starting in column A). Inserts the ID
+   column at the front and backfills a fresh id for every existing row,
+   so old expense data keeps working with the new by-id merge logic
+   instead of being silently orphaned. Safe to run repeatedly — already-
+   migrated sheets are a no-op. */
+function ensureExpenseIdColumn(sheet) {
+  const lastCol = Math.max(sheet.getLastColumn(), 1);
+  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headerRow[0] === 'ID') return; // already migrated
+
+  sheet.insertColumnBefore(1);
+  sheet.getRange(1, 1, 1, EXPENSE_HEADERS.length).setValues([EXPENSE_HEADERS]);
+  sheet.getRange(2, 4, 2000, 1).setNumberFormat('@'); // Date column is now D
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    const ids = [];
+    for (let i = 2; i <= lastRow; i++) ids.push([generateId()]);
+    sheet.getRange(2, 1, ids.length, 1).setValues(ids);
+  }
+}
+
+function getPersonalSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Personal');
+  if (!sheet) {
+    sheet = ss.insertSheet('Personal');
+    sheet.getRange(1, 1, 1, PERSONAL_HEADERS.length).setValues([PERSONAL_HEADERS]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(2, 5, 2000, 1).setNumberFormat('@'); // keep the Date column (now E) as plain text
+    return sheet;
+  }
+
+  // Migration 1 (older): sheets created before the Category column
+  // existed only have 5 columns (no "Category" between Date and Source).
+  // Insert it in place so existing rows keep their Source tagging intact.
+  let lastCol = Math.max(sheet.getLastColumn(), 1);
+  let headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headerRow.indexOf('Category') === -1 && headerRow[0] !== 'ID') {
+    const sourceCol = headerRow.indexOf('Source') + 1; // 1-based column index
+    if (sourceCol > 0) {
+      sheet.insertColumnBefore(sourceCol);
+      sheet.getRange(1, sourceCol).setValue('Category');
+    } else {
+      sheet.getRange(1, 1, 1, PERSONAL_HEADERS.length).setValues([PERSONAL_HEADERS]);
+    }
+  }
+
+  // Migration 2 (new): sheets created before merge-based saves existed
+  // have no leading 'ID' column. Insert it at the front and backfill a
+  // fresh id for every existing row, so old rows work with the new by-id
+  // merge logic instead of being silently orphaned. Safe to run
+  // repeatedly — already-migrated sheets are a no-op.
+  lastCol = Math.max(sheet.getLastColumn(), 1);
+  headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headerRow[0] !== 'ID') {
+    sheet.insertColumnBefore(1);
+    sheet.getRange(1, 1, 1, PERSONAL_HEADERS.length).setValues([PERSONAL_HEADERS]);
+    sheet.getRange(2, 5, 2000, 1).setNumberFormat('@'); // Date column is now E
+    const lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      const ids = [];
+      for (let i = 2; i <= lastRow; i++) ids.push([generateId()]);
+      sheet.getRange(2, 1, ids.length, 1).setValues(ids);
+    }
+  }
+
+  // Migration 3: sheets from before "Paid Back By" existed just get the
+  // header added in its place — existing rows stay blank there, which
+  // reads as "nobody paid anything back".
+  lastCol = Math.max(sheet.getLastColumn(), 1);
+  headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headerRow.indexOf('Paid Back By (JSON)') === -1) {
+    sheet.getRange(1, PERSONAL_HEADERS.indexOf('Paid Back By (JSON)') + 1).setValue('Paid Back By (JSON)');
+  }
+  return sheet;
+}
+
+function clearBelowHeader(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+}
+
+/* app date "YYYY-MM-DDTHH:MM" -> sheet text "DD-MM-YYYY HH:MM" */
+function formatDateForSheet(appDate) {
+  if (!appDate) return '';
+  const d = new Date(appDate);
+  if (isNaN(d.getTime())) return '';
+  return Utilities.formatDate(d, Session.getScriptTimeZone(), "dd-MM-yyyy HH:mm");
+}
+
+/* sheet cell (Date object or "DD-MM-YYYY HH:MM" text) -> app date "YYYY-MM-DDTHH:MM" */
+function formatDateForApp(val) {
+  if (!val) return null;
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm");
+  }
+  const s = val.toString().trim();
+  if (!s) return null;
+  const m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})[ T](\d{1,2}):(\d{2})/);
+  if (m) {
+    const dd = m[1].padStart(2, '0'), mm = m[2].padStart(2, '0'), yyyy = m[3], hh = m[4].padStart(2, '0'), min = m[5];
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+  }
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm");
+  return null;
+}
+
+/* sheet cell (Date object or text) -> canonical "DD-MM-YYYY HH:MM" string, for matching rows across a rewrite */
+function sheetDateToCanonical(val) {
+  if (!val) return '';
+  if (val instanceof Date) return Utilities.formatDate(val, Session.getScriptTimeZone(), "dd-MM-yyyy HH:mm");
+  return val.toString().trim();
+}
+
+/* Like sheetDateToCanonical, but also RECOVERS from a corrupted cell —
+   either a raw Date object, or a stray JS Date.toString()-style string
+   ("sun jul 12 2026 20:00:00 gmt+0800") that ended up stored as plain
+   text (this could happen if a Date object was ever written straight into
+   a cell already formatted as Plain Text, e.g. during the old sheet-
+   layout migration, which used to copy the date cell's raw value across
+   unformatted). Already-good "DD-MM-YYYY HH:MM" text passes through
+   unchanged. Anything unparseable is left as-is rather than discarded, so
+   no session ever silently disappears. */
+function normalizeSheetDateCell(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, Session.getScriptTimeZone(), "dd-MM-yyyy HH:mm");
+  }
+  const s = val.toString().trim();
+  if (!s) return '';
+  if (/^\d{1,2}-\d{1,2}-\d{4}[ T]\d{1,2}:\d{2}/.test(s)) return s; // already canonical
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return Utilities.formatDate(d, Session.getScriptTimeZone(), "dd-MM-yyyy HH:mm");
+  }
+  return s;
+}
+
+/* Scans the Students sheet's Date column (F) and rewrites any cell that
+   isn't already in canonical "DD-MM-YYYY HH:MM" text — recovering dates
+   that got corrupted into raw Date objects or JS Date.toString() text.
+   Safe to run repeatedly; already-good cells are left untouched. Returns
+   the number of cells it had to fix. */
+function repairStudentDates(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+  const range = sheet.getRange(2, 6, lastRow - 1, 1);
+  const values = range.getValues();
+  let fixed = 0;
+  const out = values.map(r => {
+    const original = r[0];
+    if (!original) return [''];
+    const normalized = normalizeSheetDateCell(original);
+    const originalText = original instanceof Date ? null : original.toString().trim();
+    if (originalText !== normalized) fixed++;
+    return [normalized];
+  });
+  if (fixed > 0) { range.setValues(out); bumpDataVersion(); }
+  return fixed;
+}
+
+/* Menu action wrapping repairStudentDates() with a popup summary. */
+function repairStudentDatesFromMenu() {
+  const fixed = repairStudentDates(getStudentsSheet());
+  SpreadsheetApp.getUi().alert(fixed
+    ? 'Fixed ' + fixed + ' session date cell(s) that were stored in the wrong format.'
+    : 'No broken session dates found — everything already looks correct.');
+}
+
+/* app date "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM" -> sheet text "DD-MM-YYYY" or
+   "DD-MM-YYYY HH:MM" (time included only when the app date carried one). */
+function formatExpenseDateForSheet(appDate) {
+  if (!appDate) return '';
+  const m = appDate.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  if (!m) return '';
+  const yyyy = m[1], mm = m[2], dd = m[3], hh = m[4], min = m[5];
+  return hh ? `${dd}-${mm}-${yyyy} ${hh}:${min}` : `${dd}-${mm}-${yyyy}`;
+}
+
+/* sheet cell (Date object or "DD-MM-YYYY" / "DD-MM-YYYY HH:MM" text) ->
+   app date "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM" when a time is present.
+   Old rows that only ever held a plain date still parse fine since the
+   time portion is optional here. */
+function formatExpenseDateForApp(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    const hasTime = val.getHours() !== 0 || val.getMinutes() !== 0;
+    return hasTime
+      ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm")
+      : Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  }
+  const s = val.toString().trim();
+  if (!s) return '';
+  const m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})(?:[ T](\d{1,2}):(\d{2}))?/);
+  if (m) {
+    const dd = m[1].padStart(2, '0'), mm = m[2].padStart(2, '0'), yyyy = m[3];
+    if (m[4]) {
+      const hh = m[4].padStart(2, '0'), min = m[5];
+      return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+    }
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  return '';
+}
