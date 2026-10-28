@@ -364,8 +364,11 @@
         <option value="25">25 m</option>
         <option value="50">50 m</option>
       </select>
-      <label for="manual-time-input" style="margin-top:12px;">Time (MM:SS)</label>
-      <input type="text" id="manual-time-input" inputmode="numeric" placeholder="e.g. 1:30">
+      <label for="manual-start-input" style="margin-top:12px;">Start (video time, MM:SS)</label>
+      <input type="text" id="manual-start-input" inputmode="numeric" placeholder="e.g. 0:12">
+      <label for="manual-end-input" style="margin-top:12px;">Finish (video time, MM:SS)</label>
+      <input type="text" id="manual-end-input" inputmode="numeric" placeholder="e.g. 1:42">
+      <div class="hint" id="manual-duration-hint" style="margin-top:8px;">Duration: —</div>
       <label for="manual-distance-input" style="margin-top:12px;">Distance (m)</label>
       <input type="text" id="manual-distance-input" inputmode="decimal" placeholder="e.g. 75">
       <label for="manual-date-input" style="margin-top:12px;">Date</label>
@@ -645,37 +648,58 @@
   });
 
   // ---------- manual entry ----------
-  // Logs one dive typed in by hand (pool length, time, distance) as a new
+  // Logs one dive typed in by hand (pool length, video start/finish, distance) as a new
   // session dated today (or the date picked). The sheet stores one session
   // per date + pool length, so if that exact combination already exists
   // the dive is added to it as its next attempt instead of overwriting it.
   const manualOverlay = document.getElementById('manual-modal-overlay');
   const manualPool = document.getElementById('manual-pool-select');
-  const manualTime = document.getElementById('manual-time-input');
+  const manualStart = document.getElementById('manual-start-input');
+  const manualEnd = document.getElementById('manual-end-input');
+  const manualDurHint = document.getElementById('manual-duration-hint');
+  // Video timestamps: "1:42" = 1 min 42 s, "1:02:03" = 1 h 2 min 3 s, or plain seconds.
+  function parseVideoTime(str){
+    const t = String(str || '').trim();
+    if(!t) return null;
+    const parts = t.split(':').map(x=>x.trim());
+    if(parts.length > 3 || parts.some(x=>x === '' || isNaN(Number(x)) || Number(x) < 0)) return null;
+    return parts.reduce((acc, x)=> acc * 60 + Number(x), 0);
+  }
+  function manualDuration(){
+    const s = parseVideoTime(manualStart.value), e = parseVideoTime(manualEnd.value);
+    if(s == null || e == null || e <= s) return null;
+    return e - s;
+  }
+  function updateManualDuration(){
+    const d = manualDuration();
+    manualDurHint.textContent = 'Duration: ' + (d != null ? secToMMSS(d) + ' (' + d + ' s)' : '—');
+  }
   const manualDist = document.getElementById('manual-distance-input');
   const manualDate = document.getElementById('manual-date-input');
   const manualMsg = document.getElementById('manual-status-msg');
   function setManualMsg(msg, kind){ manualMsg.textContent = msg; manualMsg.className = 'status' + (kind ? ' '+kind : ''); }
   function openManualModal(){
     manualDate.value = todayISO();
-    manualTime.value = ''; manualDist.value = '';
+    manualStart.value = ''; manualEnd.value = ''; manualDist.value = '';
+    updateManualDuration();
     setManualMsg('');
     manualOverlay.classList.add('open');
-    manualTime.focus();
+    manualStart.focus();
   }
   function closeManualModal(){ manualOverlay.classList.remove('open'); }
   document.getElementById('manual-open-modal-btn').addEventListener('click', openManualModal);
   document.getElementById('manual-modal-close-btn').addEventListener('click', closeManualModal);
   manualOverlay.addEventListener('click', e=>{ if(e.target === manualOverlay) closeManualModal(); });
-  [manualTime, manualDist].forEach(inp=> inp.addEventListener('keydown', e=>{
+  [manualStart, manualEnd].forEach(inp=> inp.addEventListener('input', updateManualDuration));
+  [manualStart, manualEnd, manualDist].forEach(inp=> inp.addEventListener('keydown', e=>{
     if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('manual-save-btn').click(); }
   }));
   document.getElementById('manual-save-btn').addEventListener('click', async ()=>{
     const poolLength = parseInt(manualPool.value, 10);
-    const seconds = mmssToSec(manualTime.value.trim());
+    const seconds = manualDuration();
     const distance = parseFloat(manualDist.value.trim().replace(',', '.'));
     const date = manualDate.value || todayISO();
-    if(!(seconds > 0)){ setManualMsg('Enter the time, e.g. 1:30.', 'err'); return; }
+    if(!(seconds > 0)){ setManualMsg('Enter the start and finish times (finish must be after start).', 'err'); return; }
     if(!(distance > 0)){ setManualMsg('Enter the distance in metres.', 'err'); return; }
     const attempt = {
       attempt: 1, time_seconds: Math.round(seconds), distance_m: distance,
