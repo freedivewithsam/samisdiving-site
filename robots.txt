@@ -1,4 +1,3 @@
 User-agent: *
-Allow: /$
-Allow: /index.html
-Disallow: /
+Allow: /
+Disallow: /*.txt$
