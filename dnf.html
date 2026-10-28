@@ -1174,32 +1174,43 @@ function jsonResponse_(obj){
   }
 
   function renderStats(){
-    const vis = state.sessions;
-    const all = vis.flatMap(s=>s.attempts);
-    const avgTime = avg(all.map(a=>a.time_seconds));
-    const hrVals = all.map(a=>a.avg_hr).filter(v=>v!=null);
-    const avgHr = hrVals.length ? avg(hrVals) : null;
-    const pace25 = avgPacePer50(25);
-    const pace50 = avgPacePer50(50);
-    const speed25 = avgSpeed(25);
-    const speed50 = avgSpeed(50);
     const grid = document.getElementById('stats-grid');
-    const cards = [
-      { label:'Average time', value: secToMMSS(avgTime) },
-      { label:'Sessions logged', value: String(vis.length) },
-      { label:'Average heart rate', value: avgHr!=null ? Math.round(avgHr)+' bpm' : '—' },
-      { label:'Avg time / 50m (25m pool)', value: pace25!=null ? secToMMSS(pace25) : '—' },
-      { label:'Avg time / 50m (50m pool)', value: pace50!=null ? secToMMSS(pace50) : '—' },
-      { label:'Avg speed (25m pool)', value: speed25!=null ? speed25.toFixed(2)+' m/s' : '—' },
-      { label:'Avg speed (50m pool)', value: speed50!=null ? speed50.toFixed(2)+' m/s' : '—' },
-      { label:'Current cycle phase', value: state.periodDates.length ? (computeCyclePhase(todayISO()) || '—') : '—' }
+    const heading = t => `<div style="grid-column:1/-1; font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-top:6px;">${t}</div>`;
+    // Overall is split by pool: each pool gets its own set of cards,
+    // computed only from sessions logged in that pool.
+    const poolCards = poolLen => {
+      const sess = state.sessions.filter(s=>s.poolLength===poolLen);
+      const all = sess.flatMap(s=>s.attempts);
+      const times = all.map(a=>a.time_seconds).filter(v=>v!=null);
+      const hrVals = all.map(a=>a.avg_hr).filter(v=>v!=null);
+      const pace = avgPacePer50(poolLen);
+      const speed = avgSpeed(poolLen);
+      return [
+        { label:'Average time', value: times.length ? secToMMSS(avg(times)) : '—' },
+        { label:'Sessions logged', value: String(sess.length) },
+        { label:'Average heart rate', value: hrVals.length ? Math.round(avg(hrVals))+' bpm' : '—' },
+        { label:'Avg time / 50m', value: pace!=null ? secToMMSS(pace) : '—' },
+        { label:'Avg speed', value: speed!=null ? speed.toFixed(2)+' m/s' : '—' }
+      ];
+    };
+    const unset = state.sessions.filter(s=>s.poolLength!==25 && s.poolLength!==50).length;
+    const groups = [
+      { title:'25m pool', cards: poolCards(25) },
+      { title:'50m pool', cards: poolCards(50) },
+      { title:'Cycle', cards: [{ label:'Current cycle phase', value: state.periodDates.length ? (computeCyclePhase(todayISO()) || '—') : '—' }] }
     ];
-    grid.innerHTML = cards.map((c, i)=>`
-      <div class="card stat-card" style="background:${SWATCHES[i % SWATCHES.length]}; border-color:transparent;">
+    let i = 0;
+    let html = '';
+    groups.forEach(g=>{
+      html += heading(g.title);
+      html += g.cards.map(c=>`
+      <div class="card stat-card" style="background:${SWATCHES[i++ % SWATCHES.length]}; border-color:transparent;">
         <div class="label">${c.label}</div>
         <div class="value">${c.value}</div>
-      </div>
-    `).join('');
+      </div>`).join('');
+    });
+    if(unset) html += `<div class="hint" style="grid-column:1/-1;">${unset} session(s) have no pool set and aren't counted above.</div>`;
+    grid.innerHTML = html;
   }
   function avg(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
 
