@@ -93,6 +93,10 @@
   .cal-cell.today{background:var(--sw-pink-lt);box-shadow:inset 0 0 0 1.5px var(--accent-dark)}
   .cal-daynum{font-size:12px;font-weight:700}
   .cal-evt{font-size:10.5px;line-height:1.25;padding:2px 4px;border-radius:6px;background:var(--sw-mint);color:var(--ink);cursor:pointer;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;overflow-wrap:anywhere;min-width:0}
+  /* Every bar is the same height (two lines) so a multi-day event sits on
+     the same row in each day cell and neighbouring rows line up. */
+  .cal-evt{min-height:calc(2.5em + 4px)}
+  .cal-evt-spacer{visibility:hidden;pointer-events:none}
   .cal-evt.type-pink{background:var(--sw-pink-lt)}
   .cal-evt.type-green{background:var(--sw-mint-lt)}
   .cal-evt.type-blue{background:var(--sw-blue-lt)}
@@ -105,14 +109,14 @@
   .cal-legend-item.active{background:var(--sw-pink);color:var(--ink);font-weight:600}
   @media (max-width:640px){
     .cal-cell{min-height:56px;padding:4px 2px}
-    .cal-evt{font-size:9.5px;padding:1px 3px}
+    .cal-evt{font-size:9.5px;padding:1px 3px;min-height:calc(2.5em + 2px)}
     .cal-daynum{font-size:11px}
   }
   @media (max-width:400px){
     .cal-card{padding:10px 6px}
     .cal-grid{gap:3px}
     .cal-cell{min-height:50px;padding:3px 2px}
-    .cal-evt{font-size:8.5px;padding:1px 2px;border-radius:5px}
+    .cal-evt{font-size:8.5px;padding:1px 2px;border-radius:5px;min-height:calc(2.5em + 2px)}
     .cal-daynum{font-size:10px}
     .cal-dow{font-size:9px}
     .cal-nav .cal-title{font-size:14px}
@@ -2590,15 +2594,59 @@ function renderCalendarMonth(byDay){
     <div class="cal-grid">
       ${dows.map(d=>`<div class="cal-dow">${d}</div>`).join('')}`;
 
+  /* Lay out each week row so a multi-day event keeps the SAME vertical
+     slot on every day it spans (instead of jumping up and down depending
+     on what else happens that day). Multi-day events claim a slot first;
+     single-day events then fill whatever slots are left, and gaps become
+     invisible spacers so everything stays lined up across the row. */
+  const dayKeyOf = cc => `${cc.y}-${String(cc.m).padStart(2,'0')}-${String(cc.day).padStart(2,'0')}`;
+  const multiId = entry => entry.kind==='session' ? 's'+entry.st.id+'_'+entry.s.id : 'e'+entry.ev.id;
+  const slotsByIdx = [];
+  for(let w = 0; w < cells.length; w += 7){
+    const week = [];
+    for(let col = 0; col < 7; col++){
+      week.push((byDay[dayKeyOf(cells[w+col])]||[]).slice().sort((a,b)=>a.sortKey.localeCompare(b.sortKey)));
+    }
+    const multis = {};
+    week.forEach((list,col)=>list.forEach(entry=>{
+      if(!entry.spanPos) return;
+      const id = multiId(entry);
+      (multis[id] ||= { id, cols:[], sortKey: entry.sortKey }).cols.push(col);
+    }));
+    const order = Object.values(multis).sort((a,b)=> a.cols[0]-b.cols[0] || b.cols.length-a.cols.length || a.sortKey.localeCompare(b.sortKey));
+    const laneOf = {};
+    const used = [];
+    order.forEach(m=>{
+      let lane = 0;
+      while(used[lane] && m.cols.some(col=>used[lane][col])) lane++;
+      if(!used[lane]) used[lane] = [false,false,false,false,false,false,false];
+      m.cols.forEach(col=>{ used[lane][col] = true; });
+      laneOf[m.id] = lane;
+    });
+    for(let col = 0; col < 7; col++){
+      const slots = [];
+      const singles = [];
+      week[col].forEach(entry=>{
+        if(entry.spanPos) slots[laneOf[multiId(entry)]] = entry;
+        else singles.push(entry);
+      });
+      let i = 0;
+      singles.forEach(entry=>{ while(slots[i]) i++; slots[i] = entry; });
+      slotsByIdx[w+col] = Array.from(slots, e=>e||null);
+    }
+  }
+
   cells.forEach((c,idx)=>{
-    const key = `${c.y}-${String(c.m).padStart(2,'0')}-${String(c.day).padStart(2,'0')}`;
-    const dayEvents = (byDay[key]||[]).sort((a,b)=>a.sortKey.localeCompare(b.sortKey));
+    const key = dayKeyOf(c);
+    const daySlots = slotsByIdx[idx];
+    const hiddenCount = daySlots.slice(3).filter(Boolean).length;
     const isToday = key === todayKey;
     const cap = 3;
     const col = idx % 7;
     html += `<div class="cal-cell${c.inMonth?'':' other-month'}${isToday?' today':''}" data-action="new-cal-event-on-day" data-day="${key}">
       <div class="cal-daynum">${c.day}</div>
-      ${dayEvents.slice(0,cap).map(entry=>{
+      ${daySlots.slice(0,cap).map(entry=>{
+        if(!entry) return '<div class="cal-evt cal-evt-spacer" aria-hidden="true"></div>';
         if(entry.kind==='custom'){
           const ev = entry.ev;
           const {bg,fg} = getEventTypeColor(ev.type);
@@ -2634,7 +2682,7 @@ function renderCalendarMonth(byDay){
         if(sConnL||sConnR) sSpan += 'position:relative;z-index:2;';
         return `<div class="cal-evt ${typeClass}"${sSpan ? ` style="${sSpan}"` : ''} data-action="cal-open-sess" data-student="${st.id}" data-sess="${s.id}" title="${esc(label)}">${esc(label)}</div>`;
       }).join('')}
-      ${dayEvents.length>cap ? `<div class="cal-evt-more">+${dayEvents.length-cap} more</div>` : ''}
+      ${hiddenCount>0 ? `<div class="cal-evt-more">+${hiddenCount} more</div>` : ''}
     </div>`;
   });
 
