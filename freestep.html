@@ -1495,7 +1495,7 @@ function renderSales(){
         : 0;
       const balance = totalPaid - actualExpense;
       const balanceHtml = paidMembers.length
-        ? `<div class="sale-date">Actual expense: ${esc(actualExpense.toLocaleString())}</div>
+        ? `${actualExpense > 0 ? `<div class="sale-date">Actual expense: ${esc(actualExpense.toLocaleString())}</div>` : ''}
            <div class="sale-date" style="font-weight:600">Balance: ${esc(balance.toLocaleString())}</div>`
         : '';
       const itemsHtml = members.map(m=>{
