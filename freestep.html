@@ -331,24 +331,13 @@
   <form class="modal-in" id="saleForm" method="dialog">
     <h3 id="saleModalTitle">Log a sale</h3>
     <div class="field">
-      <label for="fSalePaste">Paste customer details (optional)</label>
       <input type="file" id="fOrderShots" accept="image/*" multiple style="display:none">
       <button type="button" class="btn btn-ghost btn-small" id="orderShotsBtn" style="margin-bottom:8px">📷 Upload order screenshots</button>
-      <textarea id="fSalePaste" rows="4" style="width:100%;font-family:inherit;font-size:14px;padding:10px 12px;border:1.5px solid var(--rose-line);border-radius:12px;box-sizing:border-box" placeholder=""></textarea>
       <div id="pasteParseStatus" class="sale-stock-hint" style="margin-bottom:0"></div>
     </div>
     <div class="field"><label for="fSaleCustomer">Customer name</label><input id="fSaleCustomer" list="customerOptions"></div>
     <datalist id="customerOptions"></datalist>
-    <div class="field-row">
-      <div class="field"><label for="fSalePhone">Phone number</label><input id="fSalePhone" autocomplete="off"></div>
-      <div class="field"><label for="fSalePostal">Postal code</label><input id="fSalePostal" autocomplete="off"></div>
-    </div>
-    <div class="field"><label for="fSaleAddress">Full address</label><textarea id="fSaleAddress" rows="2" style="width:100%;font-family:inherit;font-size:14px;padding:10px 12px;border:1.5px solid var(--rose-line);border-radius:12px;box-sizing:border-box" placeholder="Street, building, RT/RW, kelurahan"></textarea></div>
-    <div class="field-row">
-      <div class="field"><label for="fSaleKecamatan">Kecamatan</label><input id="fSaleKecamatan" autocomplete="off"></div>
-      <div class="field"><label for="fSaleKabupaten">Kabupaten/Kota</label><input id="fSaleKabupaten" autocomplete="off"></div>
-    </div>
-    <div class="field"><label for="fSaleProvince">Province</label><input id="fSaleProvince" autocomplete="off"></div>
+    <div class="field"><label for="fSaleAddress">Name, phone &amp; address</label><textarea id="fSaleAddress" rows="5" style="width:100%;font-family:inherit;font-size:14px;padding:10px 12px;border:1.5px solid var(--rose-line);border-radius:12px;box-sizing:border-box" placeholder="Upload the order screenshots, or paste the name, phone and address here. It's kept exactly as written."></textarea></div>
     <datalist id="saleProductOptions"></datalist>
     <div id="saleItemsList"></div>
     <button type="button" class="btn btn-ghost btn-small" id="addSaleItemBtn" data-action="add-sale-item" style="margin-bottom:14px">+ Add another item</button>
@@ -2041,90 +2030,59 @@ function parseCustomerPaste(raw){
 
   return { name, phone, address, kecamatan, kabupaten, kelurahan, postal };
 }
-async function handlePasteParse(){
-  const status = $('pasteParseStatus');
-  const raw = $('fSalePaste').value;
-  const parsed = parseCustomerPaste(raw);
-  if(!parsed){ status.textContent = ''; status.classList.remove('low'); return; }
-
-  $('fSaleCustomer').value = parsed.name;
-  $('fSalePhone').value = parsed.phone;
-  $('fSaleAddress').value = parsed.address;
-  $('fSaleKecamatan').value = parsed.kecamatan;
-  $('fSaleKabupaten').value = parsed.kabupaten;
-  $('fSalePostal').value = parsed.postal;
-  $('fSaleProvince').value = parsed.provinsi || '';
-  status.classList.remove('low');
-  status.textContent = parsed.provinsi ? 'Parsed — customer details filled in.' : 'Parsed — fill in the province if it\u2019s empty.';
+/* ---------- one free-text "Name, phone & address" box ----------
+   The address is kept exactly as written / as shown on the courier
+   screenshot — no splitting into phone, kecamatan, kabupaten, province or
+   postal code. Older sales saved before this change still have those
+   separate fields, so addressBlockFor() folds them back into one block
+   when such a sale is opened or reused. */
+function addressBlockFor(s, customer){
+  if(!s) return '';
+  const hasOld = s.phone || s.kecamatan || s.kabupaten || s.province || s.postalCode;
+  if(!hasOld) return s.address || '';
+  return [
+    [customer || s.customer || '', s.phone || ''].filter(Boolean).join(' '),
+    s.address || '',
+    [s.kecamatan, s.kabupaten].filter(Boolean).join(', '),
+    [s.province, s.postalCode].filter(Boolean).join(' ')
+  ].map(l => l.trim()).filter(Boolean).join('\n');
 }
-$('fSalePaste').addEventListener('paste', () => setTimeout(handlePasteParse, 0));
-$('fSalePaste').addEventListener('blur', () => { if($('fSalePaste').value.trim()) handlePasteParse(); });
-// Clearing the paste box (e.g. selecting all and deleting) resets every
-// field it can populate, so a mistaken paste doesn't leave stale customer/
-// address/shipping data behind in the form.
-$('fSalePaste').addEventListener('input', () => {
-  if($('fSalePaste').value.trim()) return;
-  $('fSaleCustomer').value = '';
-  $('fSalePhone').value = '';
-  $('fSaleAddress').value = '';
-  $('fSaleKecamatan').value = '';
-  $('fSaleKabupaten').value = '';
-  $('fSalePostal').value = '';
-  $('fSaleProvince').value = '';
-  const paidInput = $('fSalePaid');
-  const currentPaid = parseFloat(paidInput.value) || 0;
-  const basePaid = Math.max(0, currentPaid - shipCostApplied);
-  paidInput.value = basePaid ? basePaid : '';
-  shipCostApplied = 0;
-  $('fShipCost').value = '';
-  $('pasteParseStatus').textContent = '';
-  $('pasteParseStatus').classList.remove('low');
-});
+// First line of a pasted block, minus any phone number / "Nama:" label = the name.
+function nameFromAddressBlock(text){
+  const first = (text||'').split('\n').map(l=>l.trim()).find(Boolean) || '';
+  return first.replace(/^nama\s*(?:penerima)?\s*:?\s*/i,'')
+    .replace(/[,(]?\s*\(?(?:\+?62|0)8[\d\s-]{6,}\)?\s*$/,'').replace(/[,\s]+$/,'').trim();
+}
+$('fSaleAddress').addEventListener('paste', () => setTimeout(() => {
+  if(!$('fSaleCustomer').value.trim()){
+    const n = nameFromAddressBlock($('fSaleAddress').value);
+    if(n && n.length <= 60) $('fSaleCustomer').value = n;
+  }
+}, 0));
 
 /* ---------- reuse a customer's address from a previous sale ----------
-   Every sale already stores the full address fields (see SALE_TEXT_FIELDS),
-   so once a customer has been pasted in once, later sales for the same
-   phone number can pull the address back out of sales history instead of
-   requiring another copy-paste. Keyed on phone first (most reliable),
-   falling back to an exact customer-name match. Only fires for a brand
-   new sale, and only fills fields that are still empty, so it never
-   clobbers something already typed or pasted this time. */
-function normalizePhoneDigits(p){ return (p||'').replace(/\D/g,''); }
-function findPriorAddressFor(phone, customerName){
-  const digits = normalizePhoneDigits(phone);
-  const byDate = (a,b) => new Date(b.date||0) - new Date(a.date||0);
-  let candidates = [];
-  if(digits){
-    candidates = db.sales.filter(s => s.phone && normalizePhoneDigits(s.phone) === digits && (s.address||s.kecamatan));
-  }
-  if(!candidates.length && customerName){
-    const nameLc = customerName.trim().toLowerCase();
-    if(nameLc){
-      candidates = db.sales.filter(s => s.customer && s.customer.trim().toLowerCase() === nameLc && (s.address||s.kecamatan));
-    }
-  }
+   Typing or picking a customer name that's been used before fills the
+   address box with their address from their most recent sale. Only fires
+   for a brand new sale, and only when the address box is still empty,
+   so it never clobbers something already typed or pasted this time. */
+function findPriorAddressFor(customerName){
+  const nameLc = (customerName||'').trim().toLowerCase();
+  if(!nameLc) return null;
+  const candidates = db.sales.filter(s => s.customer && s.customer.trim().toLowerCase() === nameLc && (s.address||s.kecamatan));
   if(!candidates.length) return null;
-  candidates.sort(byDate);
+  candidates.sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
   return candidates[0];
 }
 function autofillAddressFromHistory(){
   if(editingSaleIds) return; // never override an existing sale being edited
   if($('fSaleAddress').value.trim()) return; // don't clobber what's already there
-  const phone = $('fSalePhone').value.trim();
   const customer = $('fSaleCustomer').value.trim();
-  const prior = findPriorAddressFor(phone, customer);
+  const prior = findPriorAddressFor(customer);
   if(!prior) return;
-  if(!$('fSaleCustomer').value.trim() && prior.customer) $('fSaleCustomer').value = prior.customer;
-  if(!$('fSalePhone').value.trim() && prior.phone) $('fSalePhone').value = prior.phone;
-  $('fSaleAddress').value = prior.address || '';
-  $('fSaleKecamatan').value = prior.kecamatan || '';
-  $('fSaleKabupaten').value = prior.kabupaten || '';
-  $('fSalePostal').value = prior.postalCode || '';
-  $('fSaleProvince').value = prior.province || '';
+  $('fSaleAddress').value = addressBlockFor(prior, customer);
   $('pasteParseStatus').classList.remove('low');
   $('pasteParseStatus').textContent = 'Filled in from a previous sale for this customer — no need to paste again.';
 }
-$('fSalePhone').addEventListener('blur', autofillAddressFromHistory);
 $('fSaleCustomer').addEventListener('blur', autofillAddressFromHistory);
 // Picking a name straight from the customerOptions dropdown fires 'input'
 // with an exact match — fill in the address right away rather than
@@ -2293,7 +2251,8 @@ function parseOrderScreenshotText(text){
     }
   });
 
-  const out = { name:'', phone:'', address:'', kecamatan:'', kabupaten:'', provinsi:'', postal:'', full:false };
+  const out = { name:'', phone:'', address:'', kecamatan:'', kabupaten:'', provinsi:'', postal:'', full:false, block:'' };
+  const rawPhone = l => { const m = l.match(PHONE); return m ? m[0] : ''; };
   if(best){
     const { i, m, phoneIdx } = best;
     out.phone = getPhone(lines[phoneIdx]);
@@ -2313,6 +2272,9 @@ function parseOrderScreenshotText(text){
       if(STOP.test(lines[k]) || isRealPhone(lines[k])) break;
       street.push(lines[k]);
     }
+    // The receiver block exactly as laid out on the screenshot:
+    // "Name phone", then the region line, then each street line.
+    out.block = [(out.name + ' ' + rawPhone(lines[phoneIdx])).trim(), lines[i]].concat(street).join('\n');
     let addr = street.join(' ').replace(/\s*,\s*/g, ', ').trim();
     const pm = addr.match(/\b(\d{5})\b(?!.*\b\d{5}\b)/);
     if(pm){ out.postal = pm[1]; addr = addr.replace(pm[0], '').replace(/[\s,]+$/,'').trim(); }
@@ -2325,6 +2287,7 @@ function parseOrderScreenshotText(text){
       const l = nameLines[nameLines.length-1];
       out.phone = getPhone(l);
       out.name = cleanName(l.split(PHONE)[0]);
+      out.block = (out.name + ' ' + rawPhone(l)).trim();
     }
   }
   return out;
@@ -2354,23 +2317,12 @@ async function handleOrderScreenshots(files){
       setBarcodeFromOrderNo(orderNo);
     } else notes.push('no order number found — type it in the Order no. box');
 
+    if(p.name) $('fSaleCustomer').value = p.name;
+    if(p.block) $('fSaleAddress').value = p.block;
     if(p.full){
-      // Hand off to the normal parser so province + shipping lookup run.
-      $('fSalePaste').value = [
-        'Nama: ' + p.name,
-        'No. hp: ' + p.phone,
-        'Alamat lengkap: ' + p.address,
-        'Kecamatan: ' + p.kecamatan,
-        'Kabupaten: ' + p.kabupaten,
-        p.provinsi ? 'Provinsi: ' + p.provinsi : '',
-        p.postal ? 'Kode pos: ' + p.postal : ''
-      ].filter(Boolean).join('\n');
-      await handlePasteParse();
+      status.textContent = 'Name and address filled in' + (orderNo ? ' · Barcode made from ' + orderNo : '');
       if(notes.length){ status.textContent += ' · ' + notes.join(' · '); status.classList.add('low'); }
-      else status.textContent += (orderNo ? ' · Barcode made from ' + orderNo : '');
     } else {
-      if(p.name) $('fSaleCustomer').value = p.name;
-      if(p.phone) $('fSalePhone').value = p.phone;
       notes.unshift(p.name ? 'got name + phone, but the full address is cut off — also upload the Order Detail screenshot' : 'couldn’t find the receiver’s address');
       status.textContent = (orderNo ? 'Barcode made from ' + orderNo + ' · ' : '') + notes.join(' · ');
       status.classList.add('low');
@@ -2383,8 +2335,8 @@ async function handleOrderScreenshots(files){
 }
 $('orderShotsBtn').addEventListener('click', () => $('fOrderShots').click());
 $('fOrderShots').addEventListener('change', e => { handleOrderScreenshots(e.target.files); e.target.value = ''; });
-// Pasting screenshot images straight into the paste box works too.
-$('fSalePaste').addEventListener('paste', e => {
+// Pasting screenshot images straight into the address box works too.
+$('fSaleAddress').addEventListener('paste', e => {
   const files = Array.from((e.clipboardData && e.clipboardData.files) || []).filter(f => f.type.startsWith('image/'));
   if(files.length){ e.preventDefault(); e.stopImmediatePropagation(); handleOrderScreenshots(files); }
 }, true);
@@ -2404,12 +2356,7 @@ let currentLabelFile = null;
 
 async function saveShippingLabel(){
   const customer = $('fSaleCustomer').value.trim().toUpperCase();
-  const phone = $('fSalePhone').value.trim().toUpperCase();
   const address = $('fSaleAddress').value.trim().toUpperCase();
-  const kecamatan = $('fSaleKecamatan').value.trim().toUpperCase();
-  const kabupaten = $('fSaleKabupaten').value.trim().toUpperCase();
-  const province = $('fSaleProvince').value.trim().toUpperCase();
-  const postal = $('fSalePostal').value.trim().toUpperCase();
 
   if(!customer && !address){
     askAlert('Fill in the customer name and address first, then show the label.');
@@ -2422,7 +2369,14 @@ async function saveShippingLabel(){
     return name ? `${qty || 1}\u00d7 ${name}`.toUpperCase() : null;
   }).filter(Boolean);
 
-  const addressLines = [address, [kecamatan, kabupaten].filter(Boolean).join(', '), province, postal].filter(Boolean);
+  // The address box is printed line for line, as written. Its first line
+  // (normally "Name phone") is the big bold heading — unless it doesn't
+  // contain the customer's name, then the name goes on top instead.
+  let addressLines = address.split('\n').map(l => l.trim()).filter(Boolean);
+  let heading = customer;
+  if(addressLines.length && (!customer || addressLines[0].indexOf(customer) !== -1)){
+    heading = addressLines.shift();
+  }
 
   // ~300dpi canvas for a true 100mm x 150mm label.
   const DPMM = 11.81;
@@ -2472,18 +2426,13 @@ async function saveShippingLabel(){
 
   ctx.fillStyle = '#1a1a1a';
   const nameFont = `bold ${Math.round(6 * DPMM)}px Arial`;
-  wrapText(customer || '\u2014', nameFont, contentW).forEach(line => {
+  wrapText(heading || '\u2014', nameFont, contentW).forEach(line => {
     ctx.font = nameFont;
     ctx.fillText(line, pad, y);
     y += Math.round(7 * DPMM);
   });
   y += Math.round(1 * DPMM);
 
-  if(phone){
-    ctx.font = `${Math.round(4 * DPMM)}px Arial`;
-    ctx.fillText(phone, pad, y);
-    y += Math.round(5.5 * DPMM);
-  }
   y += Math.round(2 * DPMM);
 
   const addrFont = `${Math.round(3.6 * DPMM)}px Arial`;
@@ -3001,7 +2950,6 @@ function openSaleModal(saleId){
   editingSaleIds = s ? group.map(x=>x.id) : null;
   $('saleModalTitle').textContent = s ? 'Edit sale' : 'Log a sale';
   $('saleSubmitBtn').textContent = s ? 'Save changes' : 'Sold';
-  $('fSalePaste').value = '';
   $('pasteParseStatus').textContent = '';
   $('pasteParseStatus').classList.remove('low');
   $('fShipCost').value = '';
@@ -3033,12 +2981,7 @@ function openSaleModal(saleId){
     // double-counting or wiping out the real Total.
     itemsCostApplied = computeItemsSubtotal();
     $('fSaleDate').value = toDMYInputValue(s.date);
-    $('fSalePhone').value = (withAddr && withAddr.phone) || '';
-    $('fSaleAddress').value = (withAddr && withAddr.address) || '';
-    $('fSaleKecamatan').value = (withAddr && withAddr.kecamatan) || '';
-    $('fSaleKabupaten').value = (withAddr && withAddr.kabupaten) || '';
-    $('fSalePostal').value = (withAddr && withAddr.postalCode) || '';
-    $('fSaleProvince').value = (withAddr && withAddr.province) || '';
+    $('fSaleAddress').value = addressBlockFor(withAddr, withCustomer && withCustomer.customer);
     const withOrder = group.find(gs => gs.orderNo);
     if(withOrder){ $('fShipOrderNo').value = withOrder.orderNo; setBarcodeFromOrderNo(withOrder.orderNo); }
     const withShip = group.find(gs => gs.shipCost!=null || gs.shipCostActual!=null);
@@ -3058,19 +3001,14 @@ function openSaleModal(saleId){
     $('fSaleCustomer').value = '';
     $('fSalePaid').value = '';
     $('fSaleDate').value = '';
-    $('fSalePhone').value = '';
     $('fSaleAddress').value = '';
-    $('fSaleKecamatan').value = '';
-    $('fSaleKabupaten').value = '';
-    $('fSalePostal').value = '';
-    $('fSaleProvince').value = '';
   }
   if(!db.products.length && !s){
     askAlert('Add a product first, then you can log a sale for it.');
     return;
   }
   $('saleModal').showModal();
-  setTimeout(()=>{ $('fSalePaste').focus(); }, 30);
+  setTimeout(()=>{ $('fSaleCustomer').focus(); }, 30);
  } catch(err){
   console.error('openSaleModal failed:', err);
   askAlert('Could not open the edit form: ' + err.message + '\n\nPlease screenshot this and tell Claude.');
@@ -3200,12 +3138,9 @@ $('saleForm').addEventListener('submit', e=>{
     item.p = prod;
   });
   const customer = $('fSaleCustomer').value.trim();
-  const phone = $('fSalePhone').value.trim();
   const address = $('fSaleAddress').value.trim();
-  const kecamatan = $('fSaleKecamatan').value.trim();
-  const kabupaten = $('fSaleKabupaten').value.trim();
-  const postalCode = $('fSalePostal').value.trim();
-  const province = $('fSaleProvince').value.trim();
+  // No longer collected separately — everything lives in the address box.
+  const phone = '', kecamatan = '', kabupaten = '', postalCode = '', province = '';
   const orderNo = $('fShipOrderNo').value.trim().toUpperCase();
   const shipCost = shipCostApplied || null;
   const shipActualRaw = $('fShipCostActual').value.trim();
