@@ -540,7 +540,7 @@
 <section id="availability">
   <div class="wrap">
     <p class="eyebrow">Booking</p>
-    <h2>Availability</h2>
+    <h2>Availability in Bali</h2>
     <a href="https://wa.me/6287777836365" class="btn btn-coral" style="display:inline-flex;margin-bottom:24px">Book Now</a>
     <div class="avail-card">
       <div class="avail-nav">
@@ -1165,6 +1165,8 @@
   // checkbox on each session.
   var CRM_SYNC_URL = 'https://script.google.com/macros/s/AKfycbyULNw9UH0NRW1l88BtUYb2kqhQQyG71ZPCqSJ4CF6KLQ8vkaWBkKHX8FV04isLXDMt/exec';
   var busyDates = [];
+  // Every day from this date onwards shows as booked (moving to Manado).
+  var BLOCKED_FROM = '2026-12-10';
 
   var grid = document.getElementById('availGrid');
   if (!grid) return; // section not on this page
@@ -1222,7 +1224,7 @@
       var isPast = key < todayKey;
       var title = '';
       if (c.inMonth && !isPast) {
-        if (busySet[key]) {
+        if (busySet[key] || key >= BLOCKED_FROM) {
           classes.push('busy');
         } else {
           var dow = new Date(c.y, c.m, c.day).getDay(); // 0 = Sun, 6 = Sat
