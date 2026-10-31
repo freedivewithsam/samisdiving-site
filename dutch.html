@@ -132,7 +132,6 @@
   <h2 class="section">my list <span class="count" id="listCount"></span></h2>
   <div class="toolbar">
     <input type="search" id="search" placeholder="Search Dutch or English">
-    <button class="btn btn-ghost btn-small" id="csvBtn">Download CSV</button>
   </div>
   <div class="saved" id="saved"></div>
 
@@ -558,15 +557,6 @@ function doPost(e) {
       if(r && r.ok){ state.pendingDel = state.pendingDel.filter(x => !ids.includes(x)); saveLocal(); }
     }catch(err){ /* try again on the next sync */ }
   }
-  $('csvBtn').addEventListener('click', () => {
-    const q = s => '"' + String(s||'').replace(/"/g,'""') + '"';
-    const csv = '﻿Dutch,English\r\n' + state.items.map(i => q(i.dutch) + ',' + q(i.english)).join('\r\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    a.download = 'dutch-sentences.csv'; document.body.appendChild(a); a.click();
-    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
-  });
-
   // ---------------- sheet connection ----------------
   function updateSheetUi(){
     const on = !!state.sheetUrl;
