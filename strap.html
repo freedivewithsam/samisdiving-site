@@ -45,7 +45,9 @@
   section.block h2{font-size:clamp(24px,3vw,34px);margin-bottom:8px}
   .lead{color:var(--ink-soft);max-width:62ch;margin:0 0 28px}
 
-  .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:start}
+  .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:stretch}
+  .grid3 > .card{display:flex;flex-direction:column}
+  .grid3 > .card .stats{margin-top:auto}
   .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
   @media (max-width:980px){.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
 
@@ -71,11 +73,12 @@
   .unit-wrap{display:flex;align-items:center;gap:8px;font-family:"Nunito",sans-serif;font-weight:700;font-size:12px;color:var(--ink-soft)}
   .unit-wrap input{width:92px;padding:6px 8px}
 
-  .add-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .add-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;align-items:end}
   .add-form .full{grid-column:1/-1}
+  .add-form .unit-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.04em}
   .add-form .btn{grid-column:1/-1}
 
-  .tbl-wrap{max-height:230px;overflow:auto;border-top:1px solid var(--mist);border-bottom:1px solid var(--mist);margin-bottom:16px}
+  .tbl-wrap{height:230px;overflow:auto;border-top:1px solid var(--mist);border-bottom:1px solid var(--mist);margin-bottom:16px}
   table{width:100%;border-collapse:collapse;font-size:14px}
   th{font-family:"Nunito",sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:8px 6px;position:sticky;top:0;background:var(--surface)}
   td{padding:7px 6px;border-top:1px solid var(--mist);vertical-align:middle}
