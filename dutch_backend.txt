@@ -1,0 +1,121 @@
+/**
+ * Dutch subtitles - Google Sheets backend
+ * ---------------------------------------
+ * Keeps one tab, "Dutch": id, dutch, english, added_at.
+ *  - GET            -> { ok:true, items:[...] }
+ *  - POST action "translate"  { texts:[...] }           -> { ok:true, translations:[...] }  (Dutch -> English, free, via Google)
+ *  - POST action "save"       { items:[{id,dutch,english}] } -> adds new sentences, skips ones already saved
+ *  - POST action "update"     { id, dutch, english }
+ *  - POST action "delete"     { ids:[...] }
+ * Deploy: Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone.
+ * After editing this file: Deploy > Manage deployments > Edit > New version.
+ */
+const SHEET_NAME = 'Dutch';
+const HEADERS = ['id', 'dutch', 'english', 'added_at'];
+
+function getSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(SHEET_NAME);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAME);
+    sh.appendRow(HEADERS);
+    sh.setFrozenRows(1);
+    sh.getRange('A:D').setNumberFormat('@');
+    sh.setColumnWidth(2, 380);
+    sh.setColumnWidth(3, 380);
+  }
+  return sh;
+}
+
+function jsonOut_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function key_(s) {
+  return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function readAll_() {
+  const values = getSheet_().getDataRange().getValues().slice(1);
+  const items = [];
+  values.forEach(function (r) {
+    if (!r[1]) return;
+    items.push({ id: String(r[0]), dutch: String(r[1]), english: String(r[2] || ''), added_at: String(r[3] || '') });
+  });
+  return items;
+}
+
+function doGet(e) {
+  try {
+    return jsonOut_({ ok: true, items: readAll_() });
+  } catch (err) {
+    return jsonOut_({ ok: false, error: String(err && err.message ? err.message : err), items: [] });
+  }
+}
+
+function doPost(e) {
+  try {
+    const body = JSON.parse(e.postData.contents);
+
+    if (body.action === 'translate') {
+      const out = (body.texts || []).map(function (t) {
+        const s = String(t || '').trim();
+        return s ? LanguageApp.translate(s, 'nl', 'en') : '';
+      });
+      return jsonOut_({ ok: true, translations: out });
+    }
+
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      const sh = getSheet_();
+
+      if (body.action === 'save') {
+        const have = {};
+        readAll_().forEach(function (it) { have[key_(it.dutch)] = true; });
+        const rows = [];
+        let skipped = 0;
+        (body.items || []).forEach(function (it) {
+          const k = key_(it.dutch);
+          if (!k || have[k]) { skipped++; return; }
+          have[k] = true;
+          rows.push([String(it.id || Utilities.getUuid()), String(it.dutch), String(it.english || ''), String(it.added_at || new Date().toISOString())]);
+        });
+        if (rows.length) {
+          const start = sh.getLastRow() + 1;
+          sh.getRange(start, 1, rows.length, 4).setNumberFormat('@').setValues(rows);
+        }
+        return jsonOut_({ ok: true, added: rows.length, skipped: skipped });
+      }
+
+      if (body.action === 'update') {
+        const data = sh.getDataRange().getValues();
+        for (let i = 1; i < data.length; i++) {
+          if (String(data[i][0]) === String(body.id)) {
+            sh.getRange(i + 1, 2, 1, 2).setValues([[String(body.dutch || ''), String(body.english || '')]]);
+            return jsonOut_({ ok: true });
+          }
+        }
+        return jsonOut_({ ok: false, error: 'Not found' });
+      }
+
+      if (body.action === 'delete') {
+        const ids = {};
+        (body.ids || []).forEach(function (id) { ids[String(id)] = true; });
+        const data = sh.getDataRange().getValues();
+        let removed = 0;
+        for (let i = data.length - 1; i >= 1; i--) {
+          if (ids[String(data[i][0])]) { sh.deleteRow(i + 1); removed++; }
+        }
+        return jsonOut_({ ok: true, removed: removed });
+      }
+
+      return jsonOut_({ ok: false, error: 'Unknown action' });
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (err) {
+    return jsonOut_({ ok: false, error: String(err && err.message ? err.message : err) });
+  }
+}

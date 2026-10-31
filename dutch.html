@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F2A7C0">
+<title>Dutch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sw-beige:#E8D8CC; --sw-cream:#FDEEDD; --sw-pink-lt:#FBDEE0; --sw-pink:#F8C9D9;
+    --sw-mint-lt:#D5E5DE; --sw-mint:#D9E8E4; --sw-offwhite:#EDEEE6;
+    --sw-blue-lt:#D3E1EA; --sw-blue:#BFD6E8; --sw-blue-dk:#8FB8DA;
+
+    --bg:#FFF7F5; --card:#FFFFFF; --ink:#4A3740; --ink-soft:#9A8189;
+    --accent:var(--sw-pink); --accent-dark:#DD7B9C; --rose:var(--sw-pink-lt); --rose-line:#F2C4D3;
+    --ok:#5E9488; --ok-bg:var(--sw-mint-lt); --warn:#B08A55; --warn-bg:var(--sw-cream); --danger:#C0566B;
+    --radius:14px; --shadow:0 1px 3px rgba(74,55,64,.08), 0 6px 18px rgba(74,55,64,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;overflow-x:hidden}
+  body{background:var(--bg);color:var(--ink);font-family:"Poppins",-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.45;min-height:100vh}
+  .wrap{max-width:880px;margin:0 auto;padding:24px 16px 80px}
+  .lc{text-transform:lowercase}
+
+  header.app{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+  .brand h1{font-weight:600;font-size:26px;margin:0;letter-spacing:.2px;text-transform:lowercase}
+  .brand h1 .dot{color:var(--accent-dark)}
+  .brand p{margin:2px 0 0;color:var(--ink-soft);font-size:13px}
+  .header-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+  .btn{border:none;border-radius:999px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s, transform .1s;text-decoration:none;display:inline-block}
+  .btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .btn:active{transform:scale(.97)}
+  .btn[disabled]{opacity:.5;cursor:default}
+  .btn-primary{background:var(--sw-pink);color:var(--ink);border:1px solid var(--accent-dark)}
+  .btn-primary:hover:not([disabled]){background:var(--accent-dark);color:#fff}
+  .btn-ghost{background:var(--rose);color:var(--ink);border:1.5px solid var(--rose-line)}
+  .btn-ghost:hover:not([disabled]){background:var(--sw-pink)}
+  .btn-small{padding:6px 12px;font-size:12px}
+
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:18px}
+  h2.section{font-size:15px;font-weight:600;text-transform:lowercase;margin:26px 0 10px;color:var(--ink)}
+  h2.section .count{color:var(--ink-soft);font-weight:400}
+
+  .drop{border:2px dashed var(--rose-line);background:var(--rose);border-radius:var(--radius);padding:26px 16px;text-align:center;cursor:pointer;transition:background .15s,border-color .15s;outline:none}
+  .drop:hover,.drop.over,.drop:focus-visible{background:var(--sw-pink);border-color:var(--accent-dark)}
+  .drop b{display:block;font-size:16px;margin-bottom:4px}
+  .drop span{color:var(--ink-soft);font-size:13px}
+  .drop input{display:none}
+  .options{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-top:14px}
+  .options label{font-size:12px;font-weight:600;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px}
+  select,input[type=text],textarea,input[type=search]{font-family:inherit;font-size:14px;color:var(--ink);background:#fff;border:1.5px solid var(--rose-line);border-radius:10px;padding:8px 10px;min-width:0;-webkit-appearance:none;appearance:none}
+  select{padding-right:26px;background-image:linear-gradient(45deg,transparent 50%,var(--ink-soft) 50%),linear-gradient(135deg,var(--ink-soft) 50%,transparent 50%);background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+  select:focus,input:focus,textarea:focus{outline:none;border-color:var(--accent-dark)}
+  input[type=range]{accent-color:var(--accent-dark);width:150px}
+
+  .status{font-size:13px;color:var(--ink-soft);margin-top:12px;min-height:18px}
+  .status.err{color:var(--danger)} .status.ok{color:var(--ok)}
+  .bar{height:6px;border-radius:99px;background:var(--rose);margin-top:8px;overflow:hidden;display:none}
+  .bar.on{display:block}
+  .bar i{display:block;height:100%;width:0;background:var(--accent-dark);transition:width .2s}
+  .preview{display:none;margin-top:14px;max-height:160px;border-radius:10px;border:1px solid var(--rose-line);overflow:hidden;background:#222}
+  .preview.on{display:block}
+  .preview img{display:block;max-width:100%;max-height:160px;margin:0 auto}
+
+  .rows{display:flex;flex-direction:column;gap:10px}
+  .row{background:var(--card);border:1.5px solid var(--rose-line);border-radius:12px;padding:12px;display:grid;grid-template-columns:1fr auto;gap:8px 10px}
+  .row .lbl{font-size:11px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+  .row textarea{width:100%;resize:vertical;min-height:40px;line-height:1.35}
+  .row .cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media (max-width:640px){.row .cols{grid-template-columns:1fr}}
+  .row .side{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+  .x{border:none;background:transparent;color:var(--ink-soft);font-size:20px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:8px}
+  .x:hover{color:var(--danger);background:var(--rose)}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
+
+  .saved{display:flex;flex-direction:column;gap:8px}
+  .item{background:var(--card);border-radius:12px;box-shadow:var(--shadow);padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:start}
+  .item .nl{font-weight:600}
+  .item .en{color:var(--ink-soft);grid-column:1}
+  .item .x{grid-row:1/3;grid-column:2}
+  .empty{color:var(--ink-soft);font-size:14px;padding:10px 2px}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .toolbar input[type=search]{flex:1;min-width:160px}
+  .sync-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--ink-soft);margin-right:6px;vertical-align:1px}
+  .sync-dot.on{background:var(--ok)}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(74,55,64,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+  .modal-overlay.open{display:flex}
+  .modal-box{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;width:100%;max-width:560px;max-height:90vh;overflow:auto;position:relative}
+  .modal-box h3{margin:0 0 12px;font-size:16px;text-transform:lowercase}
+  .modal-box label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin:10px 0 4px}
+  .modal-box input[type=text]{width:100%}
+  .modal-close{position:absolute;top:10px;right:12px;border:none;background:transparent;font-size:24px;color:var(--ink-soft);cursor:pointer}
+  .hint{font-size:12.5px;color:var(--ink-soft);margin-top:8px}
+  .hint ol{margin:6px 0 0;padding-left:20px}
+  details{margin-top:12px;font-size:13px} summary{cursor:pointer;color:var(--ink-soft);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="app">
+    <div class="brand">
+      <h1>dutch<span class="dot">.</span></h1>
+      <p>paste a dutch subtitle screenshot &rarr; read it &rarr; translate it &rarr; keep it in your sheet</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost btn-small" id="sheetBtn"><span class="sync-dot" id="syncDot"></span><span id="sheetBtnText">Connect sheet</span></button>
+      <button class="btn btn-ghost btn-small" id="syncBtn" style="display:none">Sync</button>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Add a screenshot">
+      <b>Paste a screenshot here</b>
+      <span>press Ctrl/Cmd + V anywhere on this page, drop an image, or tap to choose one</span>
+      <input type="file" id="file" accept="image/*" multiple>
+    </div>
+    <div class="preview" id="preview"><img id="previewImg" alt="Screenshot preview"></div>
+    <div class="options">
+      <label>Subtitle text colour
+        <select id="optColor">
+          <option value="white" selected>White</option>
+          <option value="yellow">Yellow</option>
+          <option value="none">No filter (read everything)</option>
+        </select>
+      </label>
+      <label>Read this part
+        <select id="optArea">
+          <option value="all" selected>Whole screenshot</option>
+          <option value="half">Bottom half</option>
+          <option value="third">Bottom third</option>
+        </select>
+      </label>
+      <label>Text brightness cutoff
+        <input type="range" id="optCut" min="120" max="240" value="190">
+      </label>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="bar" id="bar"><i id="barFill"></i></div>
+  </div>
+
+  <div id="stagedWrap" style="display:none">
+    <h2 class="section">found in this screenshot <span class="count" id="stagedCount"></span></h2>
+    <div class="rows" id="staged"></div>
+    <div class="actions">
+      <button class="btn btn-primary" id="saveAll">Add all to my list</button>
+      <button class="btn btn-ghost" id="retranslate">Translate again</button>
+      <button class="btn btn-ghost" id="discard">Discard</button>
+      <span class="status" id="stagedStatus" style="margin:0"></span>
+    </div>
+    <div class="hint">Fix any word the scan got wrong in the Dutch box, then tap "Translate again" to redo the English.</div>
+  </div>
+
+  <h2 class="section">my list <span class="count" id="listCount"></span></h2>
+  <div class="toolbar">
+    <input type="search" id="search" placeholder="Search Dutch or English">
+    <button class="btn btn-ghost btn-small" id="csvBtn">Download CSV</button>
+  </div>
+  <div class="saved" id="saved"></div>
+
+</div>
+
+<div class="modal-overlay" id="sheetModal">
+  <div class="modal-box">
+    <button class="modal-close" id="sheetClose" title="Close">&times;</button>
+    <h3>Connect Google Sheet</h3>
+    <label for="sheetUrl">Apps Script web app URL</label>
+    <input type="text" id="sheetUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+    <div class="actions">
+      <button class="btn btn-primary" id="sheetSave">Save &amp; connect</button>
+      <button class="btn btn-ghost" id="sheetDisconnect">Disconnect</button>
+      <span class="status" id="sheetStatus" style="margin:0"></span>
+    </div>
+    <div class="hint">
+      First time? Set up the sheet backend (about 3 minutes):
+      <ol>
+        <li>Create a new blank Google Sheet. Open <b>Extensions &rarr; Apps Script</b>.</li>
+        <li>Delete what's in the editor, tap <b>Copy backend code</b> below, and paste it in.</li>
+        <li><b>Deploy &rarr; New deployment &rarr; Web app</b>. Execute as <b>Me</b>, access <b>Anyone</b>. Deploy and allow access.</li>
+        <li>Copy the Web app URL into the box above and tap <b>Save &amp; connect</b>.</li>
+      </ol>
+      After you edit the code later, use <b>Deploy &rarr; Manage deployments &rarr; Edit &rarr; New version</b> so the live URL updates.
+    </div>
+    <div class="actions"><button class="btn btn-ghost" id="copyCode">Copy backend code</button><span class="status" id="copyStatus" style="margin:0"></span></div>
+    <details><summary>Show backend code</summary><textarea id="codeBox" readonly style="width:100%;height:220px;margin-top:8px;font-family:ui-monospace,Menlo,monospace;font-size:12px"></textarea></details>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+(function(){
+  // Paste your deployed Apps Script web app URL here once and every device
+  // connects to your sheet automatically on load. Leave '' to use the
+  // "Connect sheet" button instead.
+  const CONFIG = { SHEET_URL: '' };
+
+  // ---------------- Apps Script backend (shown in the Connect modal) ----------------
+  const BACKEND_CODE = `/**
+ * Dutch subtitles - Google Sheets backend
+ * ---------------------------------------
+ * Keeps one tab, "Dutch": id, dutch, english, added_at.
+ *  - GET            -> { ok:true, items:[...] }
+ *  - POST action "translate"  { texts:[...] }           -> { ok:true, translations:[...] }  (Dutch -> English, free, via Google)
+ *  - POST action "save"       { items:[{id,dutch,english}] } -> adds new sentences, skips ones already saved
+ *  - POST action "update"     { id, dutch, english }
+ *  - POST action "delete"     { ids:[...] }
+ * Deploy: Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone.
+ * After editing this file: Deploy > Manage deployments > Edit > New version.
+ */
+const SHEET_NAME = 'Dutch';
+const HEADERS = ['id', 'dutch', 'english', 'added_at'];
+
+function getSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(SHEET_NAME);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAME);
+    sh.appendRow(HEADERS);
+    sh.setFrozenRows(1);
+    sh.getRange('A:D').setNumberFormat('@');
+    sh.setColumnWidth(2, 380);
+    sh.setColumnWidth(3, 380);
+  }
+  return sh;
+}
+
+function jsonOut_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function key_(s) {
+  return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim();
+}
+
+function readAll_() {
+  const values = getSheet_().getDataRange().getValues().slice(1);
+  const items = [];
+  values.forEach(function (r) {
+    if (!r[1]) return;
+    items.push({ id: String(r[0]), dutch: String(r[1]), english: String(r[2] || ''), added_at: String(r[3] || '') });
+  });
+  return items;
+}
+
+function doGet(e) {
+  try {
+    return jsonOut_({ ok: true, items: readAll_() });
+  } catch (err) {
+    return jsonOut_({ ok: false, error: String(err && err.message ? err.message : err), items: [] });
+  }
+}
+
+function doPost(e) {
+  try {
+    const body = JSON.parse(e.postData.contents);
+
+    if (body.action === 'translate') {
+      const out = (body.texts || []).map(function (t) {
+        const s = String(t || '').trim();
+        return s ? LanguageApp.translate(s, 'nl', 'en') : '';
+      });
+      return jsonOut_({ ok: true, translations: out });
+    }
+
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      const sh = getSheet_();
+
+      if (body.action === 'save') {
+        const have = {};
+        readAll_().forEach(function (it) { have[key_(it.dutch)] = true; });
+        const rows = [];
+        let skipped = 0;
+        (body.items || []).forEach(function (it) {
+          const k = key_(it.dutch);
+          if (!k || have[k]) { skipped++; return; }
+          have[k] = true;
+          rows.push([String(it.id || Utilities.getUuid()), String(it.dutch), String(it.english || ''), String(it.added_at || new Date().toISOString())]);
+        });
+        if (rows.length) {
+          const start = sh.getLastRow() + 1;
+          sh.getRange(start, 1, rows.length, 4).setNumberFormat('@').setValues(rows);
+        }
+        return jsonOut_({ ok: true, added: rows.length, skipped: skipped });
+      }
+
+      if (body.action === 'update') {
+        const data = sh.getDataRange().getValues();
+        for (let i = 1; i < data.length; i++) {
+          if (String(data[i][0]) === String(body.id)) {
+            sh.getRange(i + 1, 2, 1, 2).setValues([[String(body.dutch || ''), String(body.english || '')]]);
+            return jsonOut_({ ok: true });
+          }
+        }
+        return jsonOut_({ ok: false, error: 'Not found' });
+      }
+
+      if (body.action === 'delete') {
+        const ids = {};
+        (body.ids || []).forEach(function (id) { ids[String(id)] = true; });
+        const data = sh.getDataRange().getValues();
+        let removed = 0;
+        for (let i = data.length - 1; i >= 1; i--) {
+          if (ids[String(data[i][0])]) { sh.deleteRow(i + 1); removed++; }
+        }
+        return jsonOut_({ ok: true, removed: removed });
+      }
+
+      return jsonOut_({ ok: false, error: 'Unknown action' });
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (err) {
+    return jsonOut_({ ok: false, error: String(err && err.message ? err.message : err) });
+  }
+}
+`;
+
+  // ---------------- helpers ----------------
+  const $ = id => document.getElementById(id);
+  function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function keyOf(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
+  function safeLS(){ try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); return localStorage; }catch(e){ return null; } }
+  const LS = safeLS();
+  const ITEMS_KEY = 'dutch.items.v1', URL_KEY = 'dutch.sheetUrl.v1';
+
+  const state = { items: [], staged: [], sheetUrl: '', busy: false };
+  try{ state.items = JSON.parse((LS && LS.getItem(ITEMS_KEY)) || '[]') || []; }catch(e){ state.items = []; }
+  function saveLocal(){ try{ if(LS) LS.setItem(ITEMS_KEY, JSON.stringify(state.items)); }catch(e){} }
+
+  function setStatus(msg, kind){ const el = $('status'); el.textContent = msg || ''; el.className = 'status' + (kind ? ' '+kind : ''); }
+  function setProgress(p){ const bar = $('bar'); if(p == null){ bar.classList.remove('on'); $('barFill').style.width = '0'; return; } bar.classList.add('on'); $('barFill').style.width = Math.round(p*100) + '%'; }
+
+  // ---------------- sentences from OCR text ----------------
+  function cleanLine(l){
+    l = String(l||'').replace(/[|_~`^<>{}\[\]\\]/g,' ').replace(/\s+/g,' ').trim();
+    if(!/[A-Za-zÀ-ÿ]{2,}/.test(l)) return '';
+    return l;
+  }
+  function toSentences(text){
+    const lines = String(text||'').split(/\r?\n/).map(cleanLine).filter(Boolean);
+    const blocks = []; let cur = '';
+    const flush = () => { if(cur.trim()) blocks.push(cur.trim()); cur = ''; };
+    lines.forEach(l => {
+      if(/^[-–—]\s*/.test(l)){ flush(); l = l.replace(/^[-–—]\s*/,''); }
+      else if(cur && /[.!?…]["”')\]]*$/.test(cur) && /^[A-ZÀ-Ý"“‘'(]/.test(l)) flush();
+      cur = cur ? cur + ' ' + l : l;
+    });
+    flush();
+    const out = [];
+    blocks.forEach(b => {
+      const parts = b.match(/[^.!?…]+[.!?…]+["”')\]]*|[^.!?…]+$/g) || [b];
+      parts.forEach(p => { p = p.trim(); if(/[A-Za-zÀ-ÿ]{2,}/.test(p)) out.push(p); });
+    });
+    return out;
+  }
+
+  // ---------------- image -> canvas -> OCR ----------------
+  function loadImage(file){
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => resolve({ img, url });
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not open that image.')); };
+      img.src = url;
+    });
+  }
+  // Isolates bright subtitle text: bright pixels become black, everything else white.
+  function prepCanvas(img, area, colorMode, cutoff){
+    const sh = area === 'third' ? img.naturalHeight/3 : area === 'half' ? img.naturalHeight/2 : img.naturalHeight;
+    const sy = img.naturalHeight - sh;
+    const scale = Math.max(1, Math.min(3, 1800 / img.naturalWidth));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(sh * scale);
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, sy, img.naturalWidth, sh, 0, 0, c.width, c.height);
+    if(colorMode !== 'none'){
+      const d = ctx.getImageData(0, 0, c.width, c.height), px = d.data;
+      for(let i = 0; i < px.length; i += 4){
+        const m = colorMode === 'yellow' ? Math.min(px[i], px[i+1]) : Math.min(px[i], px[i+1], px[i+2]);
+        const v = m >= cutoff ? 0 : 255;
+        px[i] = px[i+1] = px[i+2] = v; px[i+3] = 255;
+      }
+      ctx.putImageData(d, 0, 0);
+    }
+    return c;
+  }
+  let workerPromise = null;
+  function getWorker(){
+    if(!workerPromise){
+      workerPromise = Tesseract.createWorker('nld', 1, {
+        logger: m => { if(m && m.status === 'recognizing text') setProgress(m.progress); }
+      }).then(async w => { await w.setParameters({ tessedit_pageseg_mode: '6' }); return w; });
+      workerPromise.catch(() => { workerPromise = null; });
+    }
+    return workerPromise;
+  }
+  async function ocr(canvas){
+    const w = await getWorker();
+    const r = await w.recognize(canvas);
+    return (r && r.data && r.data.text) || '';
+  }
+
+  // ---------------- translation ----------------
+  async function postJSON(obj){
+    const res = await fetch(state.sheetUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(obj) });
+    return res.json();
+  }
+  async function translateTexts(texts){
+    if(!texts.length) return [];
+    if(state.sheetUrl){
+      try{
+        const r = await postJSON({ action: 'translate', texts });
+        if(r && r.ok && Array.isArray(r.translations)) return r.translations;
+      }catch(e){ console.warn('Sheet translate failed, using fallback', e); }
+    }
+    // Fallback when no sheet is connected: free MyMemory translation API.
+    const out = [];
+    for(const t of texts){
+      try{
+        const res = await fetch('https://api.mymemory.translated.net/get?langpair=nl%7Cen&q=' + encodeURIComponent(t));
+        const j = await res.json();
+        out.push((j && j.responseData && j.responseData.translatedText) || '');
+      }catch(e){ out.push(''); }
+    }
+    return out;
+  }
+
+  // ---------------- processing a screenshot ----------------
+  async function processFile(file){
+    if(!file || !/^image\//.test(file.type)) return;
+    if(state.busy){ setStatus('Still working on the last screenshot — one moment.', 'err'); return; }
+    state.busy = true;
+    $('drop').style.pointerEvents = 'none';
+    try{
+      const { img, url } = await loadImage(file);
+      $('previewImg').src = url; $('preview').classList.add('on');
+      const colorMode = $('optColor').value, area = $('optArea').value, cutoff = Number($('optCut').value);
+      setStatus('Reading the subtitle… (the first time it downloads the Dutch reader, so it can take a bit)');
+      setProgress(0);
+      let text = await ocr(prepCanvas(img, area, colorMode, cutoff));
+      let sentences = toSentences(text);
+      if(!sentences.length && colorMode !== 'none'){
+        setStatus('Nothing found with the colour filter — trying the plain image…');
+        text = await ocr(prepCanvas(img, area, 'none', cutoff));
+        sentences = toSentences(text);
+      }
+      setProgress(null);
+      if(!sentences.length){ setStatus('No Dutch text found. Try another colour setting, crop to the bottom part, or adjust the brightness cutoff.', 'err'); return; }
+      setStatus('Translating…');
+      const tr = await translateTexts(sentences);
+      sentences.forEach((s, i) => state.staged.push({ id: uid(), dutch: s, english: tr[i] || '' }));
+      renderStaged();
+      setStatus('Found ' + sentences.length + ' sentence' + (sentences.length === 1 ? '' : 's') + '. Check them below, then add them to your list.', 'ok');
+    }catch(err){
+      console.error(err);
+      setProgress(null);
+      setStatus('Something went wrong: ' + (err && err.message ? err.message : err), 'err');
+    }finally{
+      state.busy = false;
+      $('drop').style.pointerEvents = '';
+    }
+  }
+  async function processFiles(files){ for(const f of files){ await processFile(f); } }
+
+  // ---------------- staged rows ----------------
+  function renderStaged(){
+    $('stagedWrap').style.display = state.staged.length ? '' : 'none';
+    $('stagedCount').textContent = state.staged.length ? '(' + state.staged.length + ')' : '';
+    $('staged').innerHTML = state.staged.map(s => `
+      <div class="row" data-id="${s.id}">
+        <div class="cols">
+          <div><div class="lbl">Dutch</div><textarea data-f="dutch" rows="2">${esc(s.dutch)}</textarea></div>
+          <div><div class="lbl">English</div><textarea data-f="english" rows="2">${esc(s.english)}</textarea></div>
+        </div>
+        <div class="side"><button class="x" data-act="rm" title="Remove">&times;</button></div>
+      </div>`).join('');
+  }
+  $('staged').addEventListener('input', e => {
+    const row = e.target.closest('.row'); if(!row) return;
+    const s = state.staged.find(x => x.id === row.dataset.id); if(!s) return;
+    const f = e.target.dataset.f; if(f) s[f] = e.target.value;
+  });
+  $('staged').addEventListener('click', e => {
+    const b = e.target.closest('[data-act="rm"]'); if(!b) return;
+    const id = b.closest('.row').dataset.id;
+    state.staged = state.staged.filter(x => x.id !== id); renderStaged();
+  });
+  $('discard').addEventListener('click', () => { state.staged = []; renderStaged(); $('preview').classList.remove('on'); setStatus(''); });
+  $('retranslate').addEventListener('click', async () => {
+    if(!state.staged.length) return;
+    $('retranslate').disabled = true; $('stagedStatus').textContent = 'Translating…';
+    const tr = await translateTexts(state.staged.map(s => s.dutch));
+    state.staged.forEach((s, i) => { if(tr[i]) s.english = tr[i]; });
+    renderStaged(); $('retranslate').disabled = false; $('stagedStatus').textContent = 'Translated again.';
+  });
+  $('saveAll').addEventListener('click', async () => {
+    const have = new Set(state.items.map(i => keyOf(i.dutch)));
+    const fresh = [];
+    let dupes = 0;
+    state.staged.forEach(s => {
+      const k = keyOf(s.dutch);
+      if(!k) return;
+      if(have.has(k)){ dupes++; return; }
+      have.add(k);
+      fresh.push({ id: s.id, dutch: s.dutch.trim(), english: (s.english || '').trim(), added_at: new Date().toISOString() });
+    });
+    state.items = fresh.concat(state.items);
+    saveLocal();
+    state.staged = []; renderStaged(); renderList();
+    let msg = fresh.length + ' added' + (dupes ? ', ' + dupes + ' already in your list' : '') + '.';
+    if(fresh.length && state.sheetUrl){
+      try{
+        const r = await postJSON({ action: 'save', items: fresh });
+        msg += r && r.ok ? ' Saved to your sheet.' : ' (Sheet said: ' + ((r && r.error) || 'error') + ')';
+      }catch(err){ msg += ' Could not reach the sheet — tap Sync later.'; }
+    } else if(fresh.length){
+      msg += ' (Not connected to a sheet yet — saved on this device only.)';
+    }
+    setStatus(msg, 'ok');
+  });
+
+  // ---------------- saved list ----------------
+  function renderList(){
+    const q = keyOf($('search').value);
+    const list = state.items.filter(i => !q || keyOf(i.dutch).includes(q) || keyOf(i.english).includes(q));
+    $('listCount').textContent = '(' + state.items.length + ')';
+    $('saved').innerHTML = list.length ? list.map(i => `
+      <div class="item" data-id="${esc(i.id)}">
+        <div class="nl">${esc(i.dutch)}</div>
+        <button class="x" data-act="del" title="Delete">&times;</button>
+        <div class="en">${esc(i.english)}</div>
+      </div>`).join('') : '<div class="empty">' + (state.items.length ? 'No matches.' : 'Nothing saved yet — paste a screenshot above.') + '</div>';
+  }
+  $('search').addEventListener('input', renderList);
+  $('saved').addEventListener('click', async e => {
+    const b = e.target.closest('[data-act="del"]'); if(!b) return;
+    const id = b.closest('.item').dataset.id;
+    if(!confirm('Delete this sentence?')) return;
+    state.items = state.items.filter(i => i.id !== id); saveLocal(); renderList();
+    if(state.sheetUrl){ try{ await postJSON({ action: 'delete', ids: [id] }); }catch(err){ setStatus('Deleted here, but the sheet could not be reached.', 'err'); } }
+  });
+  $('csvBtn').addEventListener('click', () => {
+    const q = s => '"' + String(s||'').replace(/"/g,'""') + '"';
+    const csv = '﻿Dutch,English\r\n' + state.items.map(i => q(i.dutch) + ',' + q(i.english)).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'dutch-sentences.csv'; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  });
+
+  // ---------------- sheet connection ----------------
+  function updateSheetUi(){
+    const on = !!state.sheetUrl;
+    $('syncDot').classList.toggle('on', on);
+    $('sheetBtnText').textContent = on ? 'Sheet connected' : 'Connect sheet';
+    $('syncBtn').style.display = on ? '' : 'none';
+  }
+  async function syncWithSheet(){
+    if(!state.sheetUrl) return;
+    $('syncBtn').textContent = 'Syncing…';
+    try{
+      const res = await fetch(state.sheetUrl);
+      const r = await res.json();
+      if(!r || !r.ok) throw new Error((r && r.error) || 'Sheet error');
+      const remote = (r.items || []).map(i => ({ id: i.id, dutch: i.dutch, english: i.english, added_at: i.added_at }));
+      const remoteKeys = new Set(remote.map(i => keyOf(i.dutch)));
+      const localOnly = state.items.filter(i => !remoteKeys.has(keyOf(i.dutch)));
+      state.items = localOnly.concat(remote).sort((a,b) => String(b.added_at).localeCompare(String(a.added_at)));
+      saveLocal(); renderList();
+      if(localOnly.length){ await postJSON({ action: 'save', items: localOnly }); }
+      $('syncBtn').textContent = 'Synced ' + new Date().toTimeString().slice(0,5);
+    }catch(err){
+      console.error(err); $('syncBtn').textContent = 'Sync failed';
+      setTimeout(() => { $('syncBtn').textContent = 'Sync'; }, 2500);
+    }
+  }
+  $('syncBtn').addEventListener('click', syncWithSheet);
+  $('sheetBtn').addEventListener('click', () => { $('sheetUrl').value = state.sheetUrl; $('sheetStatus').textContent = ''; $('sheetModal').classList.add('open'); });
+  $('sheetClose').addEventListener('click', () => $('sheetModal').classList.remove('open'));
+  $('sheetModal').addEventListener('click', e => { if(e.target === $('sheetModal')) $('sheetModal').classList.remove('open'); });
+  $('sheetSave').addEventListener('click', async () => {
+    const url = $('sheetUrl').value.trim();
+    if(!/^https:\/\/script\.google\.com\//.test(url)){ $('sheetStatus').textContent = 'Paste the Web app URL (starts with https://script.google.com/…).'; return; }
+    $('sheetStatus').textContent = 'Connecting…';
+    try{
+      const r = await (await fetch(url)).json();
+      if(!r || !r.ok) throw new Error('bad');
+      state.sheetUrl = url; try{ if(LS) LS.setItem(URL_KEY, url); }catch(e){}
+      updateSheetUi(); $('sheetModal').classList.remove('open'); await syncWithSheet();
+    }catch(err){ $('sheetStatus').textContent = 'Could not reach that URL — check the deployment (Execute as Me, access Anyone).'; }
+  });
+  $('sheetDisconnect').addEventListener('click', () => {
+    state.sheetUrl = ''; try{ if(LS) LS.removeItem(URL_KEY); }catch(e){}
+    updateSheetUi(); $('sheetStatus').textContent = 'Disconnected. Your list stays on this device.';
+  });
+  $('codeBox').value = BACKEND_CODE;
+  $('copyCode').addEventListener('click', async () => {
+    try{ await navigator.clipboard.writeText(BACKEND_CODE); $('copyStatus').textContent = 'Copied!'; }
+    catch(e){ $('codeBox').closest('details').open = true; $('codeBox').select(); $('copyStatus').textContent = 'Select all and copy.'; }
+    setTimeout(() => { $('copyStatus').textContent = ''; }, 2000);
+  });
+
+  // ---------------- input wiring ----------------
+  const drop = $('drop'), fileIn = $('file');
+  drop.addEventListener('click', () => fileIn.click());
+  drop.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fileIn.click(); } });
+  fileIn.addEventListener('change', () => { processFiles(Array.from(fileIn.files)); fileIn.value = ''; });
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => { processFiles(Array.from((e.dataTransfer && e.dataTransfer.files) || [])); });
+  document.addEventListener('paste', e => {
+    const files = [];
+    Array.from((e.clipboardData && e.clipboardData.items) || []).forEach(it => { if(it.kind === 'file' && /^image\//.test(it.type)) files.push(it.getAsFile()); });
+    if(files.length){ e.preventDefault(); processFiles(files); }
+  });
+
+  // ---------------- start ----------------
+  try{ state.sheetUrl = (LS && LS.getItem(URL_KEY)) || CONFIG.SHEET_URL || ''; }catch(e){ state.sheetUrl = CONFIG.SHEET_URL || ''; }
+  updateSheetUi(); renderList();
+  if(state.sheetUrl) syncWithSheet();
+
+  // exposed for testing only
+  window.__dutch = { toSentences, prepCanvas };
+})();
+</script>
+</body>
+</html>
