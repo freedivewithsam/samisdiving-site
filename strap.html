@@ -121,7 +121,6 @@
 
   .tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   .note-small{font-size:13px;color:var(--ink-soft);margin:12px 0 0}
-  footer{padding:36px 0 70px;background:var(--sea)}
   .sr{position:absolute;left:-9999px}
   .calc-hint{font-family:"Nunito",sans-serif;font-weight:700;font-size:12px;letter-spacing:0;text-transform:none;color:var(--good);position:absolute;right:0;top:0;line-height:1.2}
   .calc-hint.pending{color:var(--ink-soft)}
@@ -164,19 +163,6 @@
     <div class="grid2" id="prodGrid"></div>
   </div>
 </section>
-
-<footer>
-  <div class="wrap">
-    <h3 style="font-size:20px;margin-bottom:10px">Backup</h3>
-    <div class="tools">
-      <button class="btn btn-solid" id="btnExport" type="button">Download backup</button>
-      <button class="btn btn-ghost" id="btnImport" type="button">Load backup</button>
-      <button class="btn btn-ghost" id="btnReset" type="button">Clear everything</button>
-      <input type="file" id="fileImport" accept="application/json" class="sr" aria-label="Load backup file">
-    </div>
-    <p class="note-small">Your numbers are saved in this browser only. Download a backup now and then, especially before clearing browser data or switching device.</p>
-  </div>
-</footer>
 
 <script>
 (function(){
@@ -614,32 +600,6 @@
   var roundSel = document.getElementById('roundStep');
   roundSel.value = String(state.roundStep || 5000);
   roundSel.addEventListener('change', function(){ state.roundStep = num(roundSel.value); save(); renderProducts(true); });
-
-  document.getElementById('btnExport').addEventListener('click', function(){
-    var blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
-    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = 'strap-costing-backup-'+today()+'.json'; document.body.appendChild(a); a.click();
-    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
-  });
-  var fileIn = document.getElementById('fileImport');
-  document.getElementById('btnImport').addEventListener('click', function(){ fileIn.click(); });
-  fileIn.addEventListener('change', function(){
-    var f = fileIn.files[0]; if(!f) return;
-    var r = new FileReader();
-    r.onload = function(){
-      try{
-        var s = JSON.parse(r.result);
-        if(!s || !s.materials || !s.products) throw new Error('bad');
-        fixup(s); state = s; save(); init();
-      }catch(err){ alert('That file is not a valid backup.'); }
-    };
-    r.readAsText(f); fileIn.value='';
-  });
-  document.getElementById('btnReset').addEventListener('click', function(){
-    if(confirm('Clear all purchases and settings? This cannot be undone. (Download a backup first if unsure.)')){
-      state = defaults(); save(); init();
-    }
-  });
 
   function init(){
     roundSel.value = String(state.roundStep || 5000);
