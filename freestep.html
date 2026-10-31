@@ -3567,5 +3567,6 @@ window.addEventListener('focus', autoSyncIfIdle);
   sync();
 })();
 </script>
+<script>if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){if(/\/dutch$/.test(r.scope))r.unregister()})}).catch(function(){});window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').then(function(){return navigator.serviceWorker.ready}).then(function(r){if(r.active&&navigator.onLine)r.active.postMessage('warm')}).catch(function(){})});}</script>
 </body>
 </html>
