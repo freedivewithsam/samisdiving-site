@@ -32,6 +32,9 @@
 
   .nav-btn{display:inline-flex;align-items:center;gap:4px;text-decoration:none;background:var(--surface);border:1px solid var(--sand);color:var(--ink-soft);border-radius:999px;padding:6px 14px;font-size:14px;font-weight:600;margin-bottom:18px}
   .nav-btn:hover{color:var(--ink);border-color:var(--ink)}
+  .sync{font-size:13px;color:var(--ink-soft);margin-left:8px}
+  .sync.ok{color:var(--good)}
+  .sync.err{color:var(--bad)}
   header.top{padding:48px 0 36px}
   header.top h1{font-size:clamp(32px,5vw,52px);margin-bottom:14px}
   header.top h1 em{font-style:italic}
@@ -128,7 +131,7 @@
 
 <header class="top">
   <div class="wrap">
-    <a class="nav-btn" href="/nav" aria-label="Back to the nav page">&larr; Nav</a>
+    <a class="nav-btn" href="/nav" aria-label="Back to the nav page">&larr; Nav</a> <span id="syncState" class="sync"></span>
     <p class="eyebrow">Handmade stuff &middot; behind the scenes</p>
     <h1>Strap costing &amp; <em>pricing</em></h1>
     <p>Log what you pay for straps, stoppers and end locks, and how long each item takes you to make. Each material gets an average cost per unit, and the mask strap and fins strap costs and prices are worked out from that. Everything is in IDR and saves in this browser. Every number box works like a calculator: type something like <b>50*3000</b> or <b>120000+30000</b> and the answer shows underneath.</p>
@@ -218,7 +221,62 @@
       if(typeof p.hourly!=='number') p.hourly = 0;
     });
   }
-  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+  /* ---------- Google Sheet sync ---------- */
+  var SHEET_URL = 'https://script.google.com/macros/s/AKfycbylIoJxAjMVdn-CsqxwY1Qy5pe6h7zVUe0j2HQSxjTTsCcNPFVF2CCTyQFvTHe1IuR9/exec';
+  var AT_KEY = 'strapCosting.updatedAt', DIRTY_KEY = 'strapCosting.dirty';
+  function lsGet(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } }
+  function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+  var syncTimer = null, syncing = false;
+  function setSync(txt, cls){ var el = document.getElementById('syncState'); if(el){ el.textContent = txt; el.className = 'sync ' + (cls||''); } }
+  function save(){
+    try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
+    lsSet(AT_KEY, new Date().toISOString()); lsSet(DIRTY_KEY, '1');
+    setSync(navigator.onLine === false ? 'Saved on this phone — will sync when online' : 'Saving…', '');
+    clearTimeout(syncTimer); syncTimer = setTimeout(pushToSheet, 1200);
+  }
+  function pushToSheet(){
+    if(!SHEET_URL || navigator.onLine === false || syncing) return Promise.resolve();
+    syncing = true;
+    var at = lsGet(AT_KEY) || new Date().toISOString();
+    return fetch(SHEET_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'save', state: state, updated_at: at }) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(!j || !j.ok) throw new Error((j && j.error) || 'Sheet error');
+        if(lsGet(AT_KEY) === at){ lsSet(DIRTY_KEY, ''); setSync('Saved to your sheet ✓', 'ok'); }
+        else { clearTimeout(syncTimer); syncTimer = setTimeout(pushToSheet, 300); }
+      })
+      .catch(function(){ setSync('Saved on this phone — sheet not reached, will retry', 'err'); })
+      .then(function(){ syncing = false; });
+  }
+  function hasData(s){ var n = 0; try{ Object.keys(s.materials).forEach(function(k){ n += s.materials[k].purchases.length; }); }catch(e){} return n > 0; }
+  function pullFromSheet(){
+    if(!SHEET_URL || navigator.onLine === false) { setSync(SHEET_URL ? 'Offline — using what is saved on this phone' : '', ''); return Promise.resolve(); }
+    setSync('Checking your sheet…', '');
+    return fetch(SHEET_URL).then(function(r){ return r.json(); }).then(function(j){
+      if(!j || !j.ok) throw new Error('Sheet error');
+      var dirty = lsGet(DIRTY_KEY) === '1', localAt = lsGet(AT_KEY);
+      var remote = j.state && j.state.materials && j.state.products ? j.state : null;
+      if(remote && !localAt && hasData(state) && !hasData(remote)){
+        // this device already has your entries but the sheet is empty: send them up instead of wiping them
+        lsSet(AT_KEY, new Date().toISOString()); return pushToSheet();
+      }
+      if(remote && !dirty && (!localAt || (j.updated_at || '') > localAt)){
+        fixup(remote); state = remote;
+        try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
+        lsSet(AT_KEY, j.updated_at || ''); lsSet(DIRTY_KEY, '');
+        init(); setSync('Loaded from your sheet ✓', 'ok');
+      } else if(dirty || (!remote && localAt)){
+        return pushToSheet();
+      } else if(!remote){
+        // brand-new sheet: seed it only if this device actually has entries
+        if(hasData(state)){ lsSet(AT_KEY, new Date().toISOString()); return pushToSheet(); }
+        setSync('Connected to your sheet ✓', 'ok');
+      } else { setSync('Up to date with your sheet ✓', 'ok'); }
+    }).catch(function(){ setSync('Could not reach the sheet — using what is saved on this phone', 'err'); });
+  }
+  window.addEventListener('online', function(){ if(lsGet(DIRTY_KEY) === '1') pushToSheet(); else pullFromSheet(); });
+  window.addEventListener('offline', function(){ setSync('Offline — using what is saved on this phone', ''); });
   state = load();
 
   /* ---------- formatting ---------- */
@@ -590,6 +648,7 @@
     renderProducts(false);
   }
   init();
+  pullFromSheet();
 })();
 </script>
 <script>if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){if(/\/dutch$/.test(r.scope))r.unregister()})}).catch(function(){});window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').then(function(){return navigator.serviceWorker.ready}).then(function(r){if(r.active&&navigator.onLine)r.active.postMessage('warm')}).catch(function(){})});}</script>

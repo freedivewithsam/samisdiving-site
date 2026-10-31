@@ -1,0 +1,94 @@
+/**
+ * Strap costing - Google Sheets backend
+ * -------------------------------------
+ * Tab "Data":      A1 = JSON of the whole page (state), B1 = last saved time (ISO).
+ * Tab "Purchases": readable copy of every purchase (rewritten on each save, view only).
+ * Tab "Products":  readable copy of the mask / fins settings (view only).
+ *  - GET           -> { ok:true, state:{...} | null, updated_at:"..." }
+ *  - POST action "save"  { state:{...}, updated_at:"ISO" } -> saves (ignored if the sheet already has a newer version)
+ * Deploy: Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone.
+ * After editing this file: Deploy > Manage deployments > Edit > New version.
+ */
+const DATA_SHEET = 'Data';
+
+function sheet_(name) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  return ss.getSheetByName(name) || ss.insertSheet(name);
+}
+
+function jsonOut_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function readState_() {
+  const sh = sheet_(DATA_SHEET);
+  const raw = String(sh.getRange('A1').getValue() || '');
+  const at = String(sh.getRange('B1').getValue() || '');
+  let state = null;
+  if (raw) { try { state = JSON.parse(raw); } catch (e) { state = null; } }
+  return { state: state, updated_at: at };
+}
+
+function doGet(e) {
+  try {
+    const r = readState_();
+    return jsonOut_({ ok: true, state: r.state, updated_at: r.updated_at });
+  } catch (err) {
+    return jsonOut_({ ok: false, error: String(err && err.message ? err.message : err), state: null });
+  }
+}
+
+function doPost(e) {
+  try {
+    const body = JSON.parse(e.postData.contents);
+    if (body.action !== 'save' || !body.state) return jsonOut_({ ok: false, error: 'Unknown action' });
+
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      const cur = readState_();
+      const incoming = String(body.updated_at || new Date().toISOString());
+      if (cur.updated_at && incoming < cur.updated_at) {
+        return jsonOut_({ ok: true, ignored: true, state: cur.state, updated_at: cur.updated_at });
+      }
+      const sh = sheet_(DATA_SHEET);
+      sh.getRange('A1:B1').setNumberFormat('@').setValues([[JSON.stringify(body.state), incoming]]);
+      writeReadable_(body.state);
+      return jsonOut_({ ok: true, updated_at: incoming });
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (err) {
+    return jsonOut_({ ok: false, error: String(err && err.message ? err.message : err) });
+  }
+}
+
+function writeReadable_(st) {
+  // Purchases
+  const names = { strap: 'Straps', stopper: 'Stoppers', endlock: 'End locks' };
+  const rows = [['Material', 'Date', 'Qty', 'Total (Rp)', 'Per unit (Rp)', 'Note']];
+  Object.keys(st.materials || {}).forEach(function (k) {
+    ((st.materials[k] || {}).purchases || []).forEach(function (p) {
+      const q = Number(p.qty) || 0, t = Number(p.total) || 0;
+      rows.push([names[k] || k, String(p.date || ''), p.qty, p.total, q > 0 ? Math.round(t / q) : '', String(p.note || p.label || '')]);
+    });
+  });
+  const ps = sheet_('Purchases');
+  ps.clear();
+  ps.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  ps.setFrozenRows(1);
+  ps.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
+
+  // Products
+  const pr = [['Product', 'Strap qty', 'Stopper qty', 'End lock qty', 'Minutes', 'Batch', 'Hourly (Rp)', 'Fee %', 'Margin %', 'Price (Rp)']];
+  Object.keys(st.products || {}).forEach(function (k) {
+    const p = st.products[k] || {}, u = p.uses || {};
+    pr.push([p.name || k, u.strap, u.stopper, u.endlock, p.minutes, p.batch, p.hourly, p.feePct, p.marginPct, p.price]);
+  });
+  const pp = sheet_('Products');
+  pp.clear();
+  pp.getRange(1, 1, pr.length, pr[0].length).setValues(pr);
+  pp.setFrozenRows(1);
+  pp.getRange(1, 1, 1, pr[0].length).setFontWeight('bold');
+}
