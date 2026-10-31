@@ -30,7 +30,9 @@
   .wrap{max-width:1100px;margin:0 auto;padding:0 28px}
   @media (max-width:640px){.wrap{padding:0 16px}}
 
-  header.top{padding:64px 0 36px}
+  .nav-btn{display:inline-flex;align-items:center;gap:4px;text-decoration:none;background:var(--surface);border:1px solid var(--sand);color:var(--ink-soft);border-radius:999px;padding:6px 14px;font-size:14px;font-weight:600;margin-bottom:18px}
+  .nav-btn:hover{color:var(--ink);border-color:var(--ink)}
+  header.top{padding:48px 0 36px}
   header.top h1{font-size:clamp(32px,5vw,52px);margin-bottom:14px}
   header.top h1 em{font-style:italic}
   header.top p{max-width:60ch;color:var(--ink-soft);margin:0;font-size:17px}
@@ -126,6 +128,7 @@
 
 <header class="top">
   <div class="wrap">
+    <a class="nav-btn" href="/nav" aria-label="Back to the nav page">&larr; Nav</a>
     <p class="eyebrow">Handmade stuff &middot; behind the scenes</p>
     <h1>Strap costing &amp; <em>pricing</em></h1>
     <p>Log what you pay for straps, stoppers and end locks, and how long each item takes you to make. Each material gets an average cost per unit, and the mask strap and fins strap costs and prices are worked out from that. Everything is in IDR and saves in this browser. Every number box works like a calculator: type something like <b>50*3000</b> or <b>120000+30000</b> and the answer shows underneath.</p>
