@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strap costing &mdash; freedive with Sam</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,700;1,800&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sea:#B8CEC2;
+    --surface:#F8E6CE;
+    --sand:#EBC8B4;
+    --coral:#FDB3A4;
+    --mist:#D1DBCD;
+    --ink:#16302E;
+    --ink-soft:#4C6560;
+    --ink-on-dark:#EFE6D8;
+    --good:#2F6B4F;
+    --bad:#A8341F;
+    --radius:2px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--sea);color:var(--ink);font-family:"Lora",Georgia,"Times New Roman",serif;font-size:16px;line-height:1.55}
+  h1,h2,h3{font-family:"Nunito",system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-weight:800;margin:0;letter-spacing:-.01em}
+  .eyebrow{font-family:"Nunito",sans-serif;font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);display:flex;align-items:center;gap:10px;margin:0 0 18px}
+  .eyebrow::before{content:"";width:22px;height:1px;background:currentColor;display:block}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 28px}
+  @media (max-width:640px){.wrap{padding:0 16px}}
+
+  header.top{padding:64px 0 36px}
+  header.top h1{font-size:clamp(32px,5vw,52px);margin-bottom:14px}
+  header.top h1 em{font-style:italic}
+  header.top p{max-width:60ch;color:var(--ink-soft);margin:0;font-size:17px}
+
+  section.block{padding:44px 0}
+  section.block.alt{background:var(--sand)}
+  section.block h2{font-size:clamp(24px,3vw,34px);margin-bottom:8px}
+  .lead{color:var(--ink-soft);max-width:62ch;margin:0 0 28px}
+
+  .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:start}
+  .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+  @media (max-width:980px){.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
+
+  .card{background:var(--surface);border-radius:var(--radius);padding:24px}
+  .card h3{font-size:22px}
+  .card-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+
+  label.fld{position:relative;display:flex;flex-direction:column;gap:4px;font-family:"Nunito",sans-serif;font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  input,select{font-family:"Lora",serif;font-size:15px;color:var(--ink);background:#fff;border:1px solid var(--mist);border-radius:var(--radius);padding:9px 10px;width:100%;min-width:0}
+  input:focus,select:focus{outline:2px solid var(--ink);outline-offset:1px}
+  label.fld input,label.fld select{text-transform:none;letter-spacing:0;font-weight:400}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;font-family:"Nunito",sans-serif;font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:11px 18px;border-radius:var(--radius);border:none;cursor:pointer;transition:transform .15s,background .15s;white-space:nowrap}
+  .btn:hover{transform:translateY(-1px)}
+  .btn-solid{background:var(--ink);color:var(--surface)}
+  .btn-solid:hover{background:#0e2321}
+  .btn-coral{background:var(--coral);color:var(--ink)}
+  .btn-coral:hover{background:#fca492}
+  .btn-ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+  .btn-x{appearance:none;border:0;background:transparent;color:var(--ink-soft);font-size:20px;line-height:1;cursor:pointer;padding:2px 6px}
+  .btn-x:hover{color:var(--bad)}
+
+  .unit-wrap{display:flex;align-items:center;gap:8px;font-family:"Nunito",sans-serif;font-weight:700;font-size:12px;color:var(--ink-soft)}
+  .unit-wrap input{width:92px;padding:6px 8px}
+
+  .add-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .add-form .full{grid-column:1/-1}
+  .add-form .btn{grid-column:1/-1}
+
+  .tbl-wrap{max-height:230px;overflow:auto;border-top:1px solid var(--mist);border-bottom:1px solid var(--mist);margin-bottom:16px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{font-family:"Nunito",sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:8px 6px;position:sticky;top:0;background:var(--surface)}
+  td{padding:7px 6px;border-top:1px solid var(--mist);vertical-align:middle}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  td.dt{white-space:nowrap}
+  td.dt .pn{white-space:normal;color:var(--ink-soft);font-size:12px;line-height:1.3;max-width:88px}
+  th{white-space:nowrap}
+  td.num{white-space:nowrap}
+  td.note{color:var(--ink-soft);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .empty{color:var(--ink-soft);font-size:14px;padding:14px 6px;font-style:italic}
+
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
+  .stat span{display:block;font-family:"Nunito",sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  .stat b{font-family:"Nunito",sans-serif;font-weight:800;font-size:16px;font-variant-numeric:tabular-nums}
+  .avg{grid-column:1/-1;background:var(--sea);padding:14px 16px;border-radius:var(--radius)}
+  .avg b{font-size:26px;display:block;margin-top:2px}
+  .avg small{color:var(--ink-soft);font-size:13px}
+
+  .uses{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:6px}
+  @media (max-width:520px){.uses{grid-template-columns:1fr}}
+  .line-cost{font-size:13px;color:var(--ink-soft);margin:0 0 14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  @media (max-width:520px){.line-cost{grid-template-columns:1fr}}
+
+  h4{font-family:"Nunito",sans-serif;font-weight:800;font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin:22px 0 10px}
+  .extra-row{display:grid;grid-template-columns:1fr 130px 28px;gap:8px;margin-bottom:8px;align-items:center}
+  .extras-add{margin-top:4px}
+
+  .breakdown{border-top:1px solid var(--ink);margin-top:18px;padding-top:12px}
+  .brow{display:flex;justify-content:space-between;gap:12px;padding:3px 0;font-variant-numeric:tabular-nums}
+  .brow.total{font-family:"Nunito",sans-serif;font-weight:800;font-size:19px;border-top:1px solid var(--mist);margin-top:6px;padding-top:9px}
+  .warn{background:#FBE3D8;color:var(--bad);padding:8px 12px;font-size:14px;margin-top:10px;border-radius:var(--radius)}
+
+  .pricebox{background:var(--sea);padding:18px;border-radius:var(--radius);margin-top:18px}
+  .pricebox .sugg{font-family:"Nunito",sans-serif;font-weight:800;font-size:34px;line-height:1.1;margin:2px 0 4px}
+  .pricebox .sub{color:var(--ink-soft);font-size:14px}
+  .pricebox .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  .result{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .good{color:var(--good)} .bad{color:var(--bad)}
+
+  .ladder{margin-top:6px;font-size:14px}
+  .ladder th{background:var(--surface)}
+  .ladder tr.hit td{background:rgba(253,179,164,.35);font-weight:600}
+
+  .tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .note-small{font-size:13px;color:var(--ink-soft);margin:12px 0 0}
+  footer{padding:36px 0 70px;background:var(--sea)}
+  .sr{position:absolute;left:-9999px}
+  .calc-hint{font-family:"Nunito",sans-serif;font-weight:700;font-size:12px;letter-spacing:0;text-transform:none;color:var(--good);position:absolute;right:0;top:0;line-height:1.2}
+  .calc-hint.pending{color:var(--ink-soft)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">Handmade stuff &middot; behind the scenes</p>
+    <h1>Strap costing &amp; <em>pricing</em></h1>
+    <p>Log what you pay for straps, stoppers and end locks, and how long each item takes you to make. Each material gets an average cost per unit, and the mask strap and fins strap costs and prices are worked out from that. Everything is in IDR and saves in this browser. Every number box works like a calculator: type something like <b>50*3000</b> or <b>120000+30000</b> and the answer shows underneath.</p>
+  </div>
+</header>
+
+<section class="block" id="materials">
+  <div class="wrap">
+    <p class="eyebrow">Step 1</p>
+    <h2>Materials bought</h2>
+    <p class="lead">Add every purchase: how many you got and the total you paid. The average cost per unit is the total spent divided by the total quantity, so bigger orders count for more.</p>
+    <div class="grid3" id="matGrid"></div>
+  </div>
+</section>
+
+<section class="block alt" id="products">
+  <div class="wrap">
+    <p class="eyebrow">Step 2</p>
+    <h2>Cost &amp; price per item</h2>
+    <p class="lead">Say how much of each material goes into one item, add any extra costs (your time, packaging), then pick the profit margin you want.</p>
+    <div class="grid2" style="margin-bottom:20px">
+      <label class="fld" style="max-width:260px">Round suggested prices up to the nearest
+        <select id="roundStep">
+          <option value="1000">Rp 1.000</option>
+          <option value="5000">Rp 5.000</option>
+          <option value="10000">Rp 10.000</option>
+        </select>
+      </label>
+    </div>
+    <div class="grid2" id="prodGrid"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <h3 style="font-size:20px;margin-bottom:10px">Backup</h3>
+    <div class="tools">
+      <button class="btn btn-solid" id="btnExport" type="button">Download backup</button>
+      <button class="btn btn-ghost" id="btnImport" type="button">Load backup</button>
+      <button class="btn btn-ghost" id="btnReset" type="button">Clear everything</button>
+      <input type="file" id="fileImport" accept="application/json" class="sr" aria-label="Load backup file">
+    </div>
+    <p class="note-small">Your numbers are saved in this browser only. Download a backup now and then, especially before clearing browser data or switching device.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var KEY = 'strapCosting.v1';
+  var MATS = [
+    {k:'strap',   name:'Straps',    unit:'meter'},
+    {k:'stopper', name:'Stoppers',  unit:'pcs'},
+    {k:'endlock', name:'End locks', unit:'pcs'}
+  ];
+
+  function uid(){ return Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
+  function today(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
+  function defaults(){
+    return {
+      roundStep: 5000,
+      materials: {
+        strap:   {unit:'meter', purchases:[]},
+        stopper: {unit:'pcs',   purchases:[]},
+        endlock: {unit:'pcs',   purchases:[]}
+      },
+      products: {
+        mask: {name:'Mask strap', uses:{strap:1, stopper:1, endlock:1}, minutes:0, batch:1, hourly:0, extras:[{id:uid(),label:'Packaging',amount:0}], feePct:0, marginPct:50, price:100000},
+        fins: {name:'Fins strap', uses:{strap:1, stopper:3, endlock:1}, minutes:0, batch:1, hourly:0, extras:[{id:uid(),label:'Packaging',amount:0}], feePct:0, marginPct:50, price:200000}
+      }
+    };
+  }
+
+  var state;
+  function load(){
+    try{
+      var raw = localStorage.getItem(KEY);
+      if(raw){ var s = JSON.parse(raw); if(s && s.materials && s.products){ fixup(s); return s; } }
+    }catch(e){}
+    return defaults();
+  }
+  function fixup(st){
+    ['mask','fins'].forEach(function(k){
+      var p = st.products[k]; if(!p) return;
+      if(typeof p.minutes!=='number') p.minutes = 0;
+      if(!(p.batch>0)) p.batch = 1;
+      if(typeof p.hourly!=='number') p.hourly = 0;
+    });
+  }
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+  state = load();
+
+  /* ---------- formatting ---------- */
+  var nf0 = new Intl.NumberFormat('id-ID',{maximumFractionDigits:0});
+  var nf2 = new Intl.NumberFormat('id-ID',{maximumFractionDigits:2});
+  function rp(n){ return 'Rp ' + nf0.format(Math.round(n||0)); }
+  function qty(n){ return nf2.format(n||0); }
+  // Calculator-style input: accepts things like 50*3000, 150000+20000, (120000+30000)/2, 3x1500.
+  // Dots like 150.000 are read as thousands separators; a comma is a decimal point (1,5 = 1.5).
+  function parseExpr(v){
+    if(typeof v === 'number') return isFinite(v) ? v : null;
+    var t = String(v==null?'':v).toLowerCase().replace(/[x\u00d7]/g,'*').replace(/\u00f7/g,'/').replace(/\s+/g,'').replace(/^rp\.?/,'');
+    if(t==='') return 0;
+    t = t.replace(/\d{1,3}(\.\d{3})+(?!\d)/g, function(m){ return m.replace(/\./g,''); }).replace(/,/g,'.');
+    if(!/^[0-9+\-*\/().]+$/.test(t)) return null;
+    if(!/^[0-9(.+\-]/.test(t)) return null;
+    try{
+      var r = Function('"use strict";return ('+t+')')();
+      return (typeof r === 'number' && isFinite(r)) ? Math.round(r*1e6)/1e6 : null;
+    }catch(e){ return null; }
+  }
+  function hasOp(v){ return /[+\-*\/()x\u00d7\u00f7]/i.test(String(v).replace(/^\s*-/,'')); }
+  function num(v){ var n = parseExpr(v); return n==null ? 0 : n; }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function niceDate(iso){
+    if(!iso) return '';
+    var p = iso.split('-'); if(p.length!==3) return iso;
+    return p[2]+'-'+p[1]+'-'+p[0].slice(2);
+  }
+
+  /* ---------- maths ---------- */
+  function matStats(k){
+    var m = state.materials[k], q=0, t=0, last=null;
+    var sorted = m.purchases.slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    sorted.forEach(function(p){ q += num(p.qty); t += num(p.total); });
+    if(sorted.length){ var lp = sorted[sorted.length-1]; last = num(lp.qty)>0 ? num(lp.total)/num(lp.qty) : null; }
+    return {qty:q, total:t, avg: q>0 ? t/q : null, last:last, n:m.purchases.length};
+  }
+  function prodCalc(pk){
+    var p = state.products[pk], lines = [], mats = 0, missing = [];
+    MATS.forEach(function(m){
+      var st = matStats(m.k), used = num(p.uses[m.k]);
+      var cost = (st.avg||0) * used;
+      if(used>0 && st.avg==null) missing.push(m.name.toLowerCase());
+      lines.push({k:m.k, name:m.name, used:used, avg:st.avg, cost:cost});
+      mats += cost;
+    });
+    var extras = 0; p.extras.forEach(function(e){ extras += num(e.amount); });
+    var batch = num(p.batch) > 0 ? num(p.batch) : 1;
+    var minEach = num(p.minutes) / batch;
+    var labour = minEach / 60 * num(p.hourly);
+    var cost = mats + extras + labour;
+    var fee = Math.min(Math.max(num(p.feePct),0),100)/100;
+    var margin = Math.min(Math.max(num(p.marginPct),0),100)/100;
+    var denom = 1 - fee - margin;
+    var raw = denom > 0.0001 ? cost/denom : null;
+    var step = num(state.roundStep) || 1;
+    var sugg = raw==null ? null : Math.ceil(raw/step - 1e-9)*step;
+    return {lines:lines, mats:mats, extras:extras, labour:labour, minEach:minEach, cost:cost, fee:fee, margin:margin, raw:raw, sugg:sugg, missing:missing, step:step};
+  }
+  function atPrice(c, price){
+    var feeAmt = price * c.fee, profit = price - feeAmt - c.cost;
+    return {feeAmt:feeAmt, profit:profit, margin: price>0 ? profit/price : 0};
+  }
+
+  /* ---------- materials UI ---------- */
+  var matGrid = document.getElementById('matGrid');
+  function renderMaterials(){
+    matGrid.innerHTML = MATS.map(function(m){
+      var d = state.materials[m.k];
+      return '<article class="card" data-mat="'+m.k+'">'+
+        '<div class="card-head"><h3>'+m.name+'</h3>'+
+          '<label class="unit-wrap">Counted in <input class="unit-in" value="'+esc(d.unit)+'" aria-label="Unit for '+m.name+'" maxlength="12"></label></div>'+
+        '<form class="add-form" autocomplete="off">'+
+          '<label class="fld">Date<input type="date" name="date" value="'+today()+'" required></label>'+
+          '<label class="fld"><span class="unit-label">Quantity ('+esc(d.unit)+')</span><input type="text" inputmode="decimal" data-calc name="qty" placeholder="e.g. 50 or 20+30" required autocomplete="off"></label>'+
+          '<label class="fld full">Total paid (Rp)<input type="text" inputmode="decimal" data-calc name="total" placeholder="e.g. 150000 or 50*3000" required autocomplete="off"></label>'+
+          '<label class="fld full">Note (optional)<input type="text" name="note" placeholder="supplier, colour&hellip;" maxlength="60"></label>'+
+          '<button class="btn btn-coral" type="submit">Add purchase</button>'+
+        '</form>'+
+        '<div class="tbl-wrap" data-tbl></div>'+
+        '<div class="stats" data-stats></div>'+
+      '</article>';
+    }).join('');
+    MATS.forEach(function(m){ renderPurchases(m.k); });
+  }
+  function renderPurchases(k){
+    var card = matGrid.querySelector('[data-mat="'+k+'"]');
+    var d = state.materials[k];
+    var rows = d.purchases.slice().sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
+    var html;
+    if(!rows.length){
+      html = '<div class="empty">No purchases yet.</div>';
+    }else{
+      html = '<table><thead><tr><th>Date</th><th class="num">Qty</th><th class="num">Paid</th><th class="num">Per '+esc(d.unit)+'</th><th></th></tr></thead><tbody>'+
+        rows.map(function(p){
+          var per = num(p.qty)>0 ? num(p.total)/num(p.qty) : 0;
+          return '<tr><td class="dt">'+niceDate(p.date)+(p.note?'<div class="pn">'+esc(p.note)+'</div>':'')+'</td><td class="num">'+qty(num(p.qty))+'</td><td class="num">'+nf0.format(num(p.total))+'</td><td class="num">'+nf0.format(Math.round(per))+'</td>'+
+            '<td><button type="button" class="btn-x" data-del="'+p.id+'" aria-label="Delete purchase">&times;</button></td></tr>';
+        }).join('')+'</tbody></table>';
+    }
+    card.querySelector('[data-tbl]').innerHTML = html;
+    updateMatStats(k);
+  }
+  function updateMatStats(k){
+    var card = matGrid.querySelector('[data-mat="'+k+'"]');
+    var s = matStats(k), u = state.materials[k].unit;
+    card.querySelector('[data-stats]').innerHTML =
+      '<div class="stat"><span>Total bought</span><b>'+qty(s.qty)+' '+esc(u)+'</b></div>'+
+      '<div class="stat"><span>Total spent</span><b>'+rp(s.total)+'</b></div>'+
+      '<div class="avg"><span class="eyebrow" style="margin:0;font-size:10.5px">Average cost per '+esc(u)+'</span>'+
+        '<b>'+(s.avg==null?'&mdash;':rp(s.avg))+'</b>'+
+        '<small>'+(s.last==null?'Add a purchase to see this.':'Last price paid: '+rp(s.last)+' per '+esc(u))+'</small></div>';
+  }
+
+  matGrid.addEventListener('submit', function(e){
+    var form = e.target.closest('.add-form'); if(!form) return;
+    e.preventDefault();
+    var k = form.closest('[data-mat]').getAttribute('data-mat');
+    var fd = new FormData(form);
+    var q = parseExpr(fd.get('qty')), t = parseExpr(fd.get('total'));
+    if(q==null || !(q>0)){ form.querySelector('[name=qty]').focus(); return; }
+    if(t==null || String(fd.get('total')).trim()===''){ form.querySelector('[name=total]').focus(); return; }
+    state.materials[k].purchases.push({id:uid(), date:fd.get('date')||today(), qty:q, total:t, note:String(fd.get('note')||'').trim()});
+    save();
+    ['qty','total','note'].forEach(function(n){ form.querySelector('[name='+n+']').value=''; });
+    form.querySelectorAll('.calc-hint').forEach(function(h){ h.remove(); });
+    renderPurchases(k); renderProducts(true);
+    form.querySelector('[name=qty]').focus();
+  });
+  matGrid.addEventListener('click', function(e){
+    var b = e.target.closest('[data-del]'); if(!b) return;
+    var k = b.closest('[data-mat]').getAttribute('data-mat');
+    var id = b.getAttribute('data-del');
+    state.materials[k].purchases = state.materials[k].purchases.filter(function(p){ return p.id!==id; });
+    save(); renderPurchases(k); renderProducts(true);
+  });
+  matGrid.addEventListener('input', function(e){
+    if(!e.target.classList.contains('unit-in')) return;
+    var card = e.target.closest('[data-mat]'), k = card.getAttribute('data-mat');
+    var v = e.target.value.trim() || 'unit';
+    state.materials[k].unit = v; save();
+    card.querySelector('.unit-label').textContent = 'Quantity ('+v+')';
+    renderPurchases(k); renderProducts(true);
+  });
+
+  /* ---------- products UI ---------- */
+  var prodGrid = document.getElementById('prodGrid');
+  function renderProducts(keepFocus){
+    // full rebuild only when structure changes; otherwise just recalc
+    if(!prodGrid.children.length || !keepFocus){ buildProducts(); }
+    else { ['mask','fins'].forEach(function(pk){ updateProduct(pk); }); }
+  }
+  function buildProducts(){
+    prodGrid.innerHTML = ['mask','fins'].map(function(pk){
+      var p = state.products[pk];
+      return '<article class="card" data-prod="'+pk+'">'+
+        '<div class="card-head"><h3>'+esc(p.name)+'</h3></div>'+
+        '<h4 style="margin-top:0">Materials in one item</h4>'+
+        '<div class="uses">'+MATS.map(function(m){
+          return '<label class="fld"><span data-ulabel="'+m.k+'"></span><input type="text" inputmode="decimal" data-calc data-use="'+m.k+'" value="'+num(p.uses[m.k])+'"></label>';
+        }).join('')+'</div>'+
+        '<div class="line-cost" data-linecost></div>'+
+        '<h4>Your time</h4>'+
+        '<div class="uses">'+
+          '<label class="fld">Total time spent (minutes)<input type="text" inputmode="decimal" data-calc data-minutes placeholder="e.g. 90 or 1*60+30" value="'+(num(p.minutes)||'')+'"></label>'+
+          '<label class="fld">Items made in that time<input type="text" inputmode="decimal" data-calc data-batch value="'+num(p.batch)+'"></label>'+
+          '<label class="fld">Your pay per hour (Rp)<input type="text" inputmode="decimal" data-calc data-hourly placeholder="e.g. 30000" value="'+(num(p.hourly)||'')+'"></label>'+
+        '</div>'+
+        '<div class="line-cost" data-timecost style="grid-template-columns:1fr"></div>'+
+        '<h4>Extra costs per item</h4>'+
+        '<div data-extras></div>'+
+        '<button type="button" class="btn btn-ghost extras-add" data-addextra>+ Add cost</button>'+
+        '<h4>Fees</h4>'+
+        '<label class="fld" style="max-width:240px">Platform / payment fees (% of price)<input type="text" inputmode="decimal" data-calc data-fee placeholder="0" value="'+(num(p.feePct)||'')+'"></label>'+
+        '<div class="breakdown" data-breakdown></div>'+
+        '<div class="pricebox">'+
+          '<div class="eyebrow" style="margin-bottom:8px">Suggested selling price</div>'+
+          '<div class="sugg" data-sugg></div><div class="sub" data-subsugg></div>'+
+          '<div class="row2">'+
+            '<label class="fld">Profit margin you want (%)<input type="text" inputmode="decimal" data-calc data-margin value="'+num(p.marginPct)+'"></label>'+
+            '<label class="fld">Your selling price (Rp)<input type="text" inputmode="decimal" data-calc data-price value="'+num(p.price)+'"></label>'+
+          '</div>'+
+          '<div class="result" data-result></div>'+
+        '</div>'+
+        '<h4>Price at different margins</h4>'+
+        '<div data-ladder></div>'+
+      '</article>';
+    }).join('');
+    ['mask','fins'].forEach(function(pk){ renderExtras(pk); updateProduct(pk); });
+  }
+  function renderExtras(pk){
+    var p = state.products[pk];
+    var host = prodGrid.querySelector('[data-prod="'+pk+'"] [data-extras]');
+    host.innerHTML = p.extras.map(function(e){
+      return '<div class="extra-row" data-eid="'+e.id+'">'+
+        '<input type="text" data-elabel value="'+esc(e.label)+'" placeholder="e.g. Labour" aria-label="Cost name">'+
+        '<input type="text" inputmode="decimal" data-calc data-eamount placeholder="0" value="'+(num(e.amount)||'')+'" aria-label="Amount in Rp">'+
+        '<button type="button" class="btn-x" data-edel aria-label="Remove cost">&times;</button></div>';
+    }).join('') || '<div class="empty" style="padding-left:0">No extra costs.</div>';
+  }
+  function updateProduct(pk){
+    var card = prodGrid.querySelector('[data-prod="'+pk+'"]');
+    var p = state.products[pk], c = prodCalc(pk);
+    MATS.forEach(function(m){
+      card.querySelector('[data-ulabel="'+m.k+'"]').textContent = m.name + ' (' + state.materials[m.k].unit + ')';
+    });
+    card.querySelector('[data-timecost]').innerHTML = '<div>'+(num(p.minutes)>0
+      ? qty(c.minEach)+' min per item'+(num(p.hourly)>0 ? ' \u00d7 '+rp(num(p.hourly))+' per hour = <b>'+rp(c.labour)+'</b> per item' : ' \u2014 add your pay per hour to put a price on it')
+      : 'Add how long it takes you to make them.')+'</div>';
+    card.querySelector('[data-linecost]').innerHTML = c.lines.map(function(l){
+      return '<div>'+(l.avg==null?'No price yet':rp(l.cost))+'</div>';
+    }).join('');
+    var rows = c.lines.map(function(l){
+      return '<div class="brow"><span>'+l.name+' ('+qty(l.used)+' &times; '+(l.avg==null?'&mdash;':rp(l.avg))+')</span><span>'+rp(l.cost)+'</span></div>';
+    }).join('');
+    rows += '<div class="brow"><span>Your time ('+qty(c.minEach)+' min)</span><span>'+rp(c.labour)+'</span></div>';
+    rows += '<div class="brow"><span>Extra costs</span><span>'+rp(c.extras)+'</span></div>';
+    rows += '<div class="brow total"><span>Cost to make one</span><span>'+rp(c.cost)+'</span></div>';
+    if(c.missing.length) rows += '<div class="warn">No purchases logged for '+c.missing.join(', ')+' yet, so they count as Rp 0.</div>';
+    card.querySelector('[data-breakdown]').innerHTML = rows;
+
+    var sugg = card.querySelector('[data-sugg]'), sub = card.querySelector('[data-subsugg]');
+    if(c.sugg==null){
+      sugg.textContent = '—';
+      sub.textContent = 'Margin plus fees must be below 100%.';
+    }else{
+      sugg.textContent = rp(c.sugg);
+      var a = atPrice(c, c.sugg);
+      sub.textContent = 'Profit '+rp(a.profit)+' per item ('+Math.round(a.margin*100)+'% margin after rounding)';
+    }
+    var price = num(p.price), a2 = atPrice(c, price);
+    card.querySelector('[data-result]').innerHTML =
+      '<div class="stat"><span>Profit at your price</span><b class="'+(a2.profit>=0?'good':'bad')+'">'+rp(a2.profit)+'</b></div>'+
+      '<div class="stat"><span>Margin at your price</span><b class="'+(a2.profit>=0?'good':'bad')+'">'+(price>0?(a2.margin*100).toFixed(1)+'%':'—')+'</b></div>'+
+      (c.fee>0?'<div class="stat"><span>Fees at your price</span><b>'+rp(a2.feeAmt)+'</b></div>':'')+
+      '<div class="stat"><span>Break-even price</span><b>'+(1-c.fee>0?rp(c.cost/(1-c.fee)):'—')+'</b></div>';
+
+    var margins = [20,30,40,50,60,70], hit = Math.round(num(p.marginPct));
+    var lrows = margins.map(function(mg){
+      var d = 1 - c.fee - mg/100;
+      if(d<=0.0001) return '';
+      var raw = c.cost/d, pr = Math.ceil(raw/c.step - 1e-9)*c.step, a = atPrice(c, pr);
+      return '<tr class="'+(mg===hit?'hit':'')+'"><td>'+mg+'%</td><td class="num">'+rp(pr)+'</td><td class="num">'+rp(a.profit)+'</td></tr>';
+    }).join('');
+    card.querySelector('[data-ladder]').innerHTML = '<table class="ladder"><thead><tr><th>Margin</th><th class="num">Price</th><th class="num">Profit</th></tr></thead><tbody>'+lrows+'</tbody></table>';
+  }
+
+  prodGrid.addEventListener('input', function(e){
+    var card = e.target.closest('[data-prod]'); if(!card) return;
+    var pk = card.getAttribute('data-prod'), p = state.products[pk], t = e.target;
+    var v = t.hasAttribute('data-calc') ? parseExpr(t.value) : 0;
+    if(v==null) return; // half-typed formula: wait until it is valid
+    if(t.hasAttribute('data-use')) p.uses[t.getAttribute('data-use')] = v;
+    else if(t.hasAttribute('data-minutes')) p.minutes = v;
+    else if(t.hasAttribute('data-batch')) p.batch = v;
+    else if(t.hasAttribute('data-hourly')) p.hourly = v;
+    else if(t.hasAttribute('data-fee')) p.feePct = v;
+    else if(t.hasAttribute('data-margin')) p.marginPct = v;
+    else if(t.hasAttribute('data-price')) p.price = v;
+    else if(t.hasAttribute('data-elabel') || t.hasAttribute('data-eamount')){
+      var id = t.closest('[data-eid]').getAttribute('data-eid');
+      p.extras.forEach(function(x){
+        if(x.id!==id) return;
+        if(t.hasAttribute('data-elabel')) x.label = t.value; else x.amount = v;
+      });
+    } else return;
+    save(); updateProduct(pk);
+  });
+  prodGrid.addEventListener('click', function(e){
+    var card = e.target.closest('[data-prod]'); if(!card) return;
+    var pk = card.getAttribute('data-prod'), p = state.products[pk];
+    if(e.target.closest('[data-addextra]')){
+      p.extras.push({id:uid(), label:'', amount:0}); save(); renderExtras(pk); updateProduct(pk);
+      var inputs = card.querySelectorAll('[data-elabel]'); inputs[inputs.length-1].focus();
+    }else if(e.target.closest('[data-edel]')){
+      var id = e.target.closest('[data-eid]').getAttribute('data-eid');
+      p.extras = p.extras.filter(function(x){ return x.id!==id; }); save(); renderExtras(pk); updateProduct(pk);
+    }
+  });
+
+  /* ---------- calculator hints ---------- */
+  function hintFor(input){
+    var h = input.nextElementSibling;
+    if(!h || !h.classList.contains('calc-hint')){ h = document.createElement('span'); h.className='calc-hint'; input.insertAdjacentElement('afterend', h); }
+    return h;
+  }
+  document.addEventListener('input', function(e){
+    var t = e.target; if(!t.matches || !t.matches('[data-calc]')) return;
+    var raw = t.value, h = hintFor(t);
+    if(!hasOp(raw)){ h.remove(); return; }
+    var v = parseExpr(raw);
+    if(v==null){ h.textContent = '\u2026'; h.className = 'calc-hint pending'; }
+    else { h.textContent = '= ' + nf2.format(v); h.className = 'calc-hint'; }
+  });
+  // Click or tab into a number box and the whole value is selected, so typing replaces it (no need to delete the 0 first).
+  var justFocused = null;
+  document.addEventListener('focusin', function(e){
+    var t = e.target; if(!t.matches || !t.matches('[data-calc]')) return;
+    justFocused = t;
+    var before = t.value;
+    try{ t.select(); }catch(err){}
+    setTimeout(function(){ if(t.value===before){ try{ t.select(); }catch(err){} } }, 0);
+  });
+  document.addEventListener('mouseup', function(e){
+    if(justFocused && e.target===justFocused){ e.preventDefault(); }
+    justFocused = null;
+  });
+  document.addEventListener('focusout', function(e){
+    var t = e.target; if(!t.matches || !t.matches('[data-calc]')) return;
+    var h = t.nextElementSibling; if(h && h.classList.contains('calc-hint')) h.remove();
+    if(!hasOp(t.value)) return;
+    var v = parseExpr(t.value);
+    if(v==null){
+      // unfinished formula in a saved field: put back the last value that counted
+      var card = t.closest('[data-prod]');
+      if(card){
+        var p = state.products[card.getAttribute('data-prod')], last = null;
+        if(t.hasAttribute('data-use')) last = p.uses[t.getAttribute('data-use')];
+        else if(t.hasAttribute('data-minutes')) last = p.minutes;
+        else if(t.hasAttribute('data-batch')) last = p.batch;
+        else if(t.hasAttribute('data-hourly')) last = p.hourly;
+        else if(t.hasAttribute('data-fee')) last = p.feePct;
+        else if(t.hasAttribute('data-margin')) last = p.marginPct;
+        else if(t.hasAttribute('data-price')) last = p.price;
+        else if(t.hasAttribute('data-eamount')){ var id = t.closest('[data-eid]').getAttribute('data-eid'); p.extras.forEach(function(x){ if(x.id===id) last = x.amount; }); }
+        if(last!=null) t.value = String(last);
+      }
+      return;
+    }
+    if(v!=null){ t.value = String(v); t.dispatchEvent(new Event('input',{bubbles:true})); }
+  });
+
+  /* ---------- global ---------- */
+  var roundSel = document.getElementById('roundStep');
+  roundSel.value = String(state.roundStep || 5000);
+  roundSel.addEventListener('change', function(){ state.roundStep = num(roundSel.value); save(); renderProducts(true); });
+
+  document.getElementById('btnExport').addEventListener('click', function(){
+    var blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'strap-costing-backup-'+today()+'.json'; document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  });
+  var fileIn = document.getElementById('fileImport');
+  document.getElementById('btnImport').addEventListener('click', function(){ fileIn.click(); });
+  fileIn.addEventListener('change', function(){
+    var f = fileIn.files[0]; if(!f) return;
+    var r = new FileReader();
+    r.onload = function(){
+      try{
+        var s = JSON.parse(r.result);
+        if(!s || !s.materials || !s.products) throw new Error('bad');
+        fixup(s); state = s; save(); init();
+      }catch(err){ alert('That file is not a valid backup.'); }
+    };
+    r.readAsText(f); fileIn.value='';
+  });
+  document.getElementById('btnReset').addEventListener('click', function(){
+    if(confirm('Clear all purchases and settings? This cannot be undone. (Download a backup first if unsure.)')){
+      state = defaults(); save(); init();
+    }
+  });
+
+  function init(){
+    roundSel.value = String(state.roundStep || 5000);
+    renderMaterials();
+    prodGrid.innerHTML = '';
+    renderProducts(false);
+  }
+  init();
+})();
+</script>
+</body>
+</html>
