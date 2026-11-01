@@ -1,17 +1,17 @@
 /**
  * Dutch subtitles - Google Sheets backend
  * ---------------------------------------
- * Keeps one tab, "Dutch": id, dutch, english, added_at.
+ * Keeps one tab, "Dutch": id, dutch, english, added_at, learned.
  *  - GET            -> { ok:true, items:[...] }
  *  - POST action "translate"  { texts:[...] }           -> { ok:true, translations:[...] }  (Dutch -> English, free, via Google)
  *  - POST action "save"       { items:[{id,dutch,english}] } -> adds new sentences, skips ones already saved
- *  - POST action "update"     { id, dutch, english }
+ *  - POST action "update"     { id, dutch, english, learned }
  *  - POST action "delete"     { ids:[...] }
  * Deploy: Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone.
  * After editing this file: Deploy > Manage deployments > Edit > New version.
  */
 const SHEET_NAME = 'Dutch';
-const HEADERS = ['id', 'dutch', 'english', 'added_at'];
+const HEADERS = ['id', 'dutch', 'english', 'added_at', 'learned'];
 
 function getSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -20,10 +20,11 @@ function getSheet_() {
     sh = ss.insertSheet(SHEET_NAME);
     sh.appendRow(HEADERS);
     sh.setFrozenRows(1);
-    sh.getRange('A:D').setNumberFormat('@');
+    sh.getRange('A:E').setNumberFormat('@');
     sh.setColumnWidth(2, 380);
     sh.setColumnWidth(3, 380);
   }
+  if (!sh.getRange(1, 5).getValue()) sh.getRange(1, 5).setValue('learned');
   return sh;
 }
 
@@ -41,7 +42,7 @@ function readAll_() {
   const items = [];
   values.forEach(function (r) {
     if (!r[1]) return;
-    items.push({ id: String(r[0]), dutch: String(r[1]), english: String(r[2] || ''), added_at: String(r[3] || '') });
+    items.push({ id: String(r[0]), dutch: String(r[1]), english: String(r[2] || ''), added_at: String(r[3] || ''), learned: String(r[4] || '') === 'yes' });
   });
   return items;
 }
@@ -80,11 +81,11 @@ function doPost(e) {
           const k = key_(it.dutch);
           if (!k || have[k]) { skipped++; return; }
           have[k] = true;
-          rows.push([String(it.id || Utilities.getUuid()), String(it.dutch), String(it.english || ''), String(it.added_at || new Date().toISOString())]);
+          rows.push([String(it.id || Utilities.getUuid()), String(it.dutch), String(it.english || ''), String(it.added_at || new Date().toISOString()), it.learned ? 'yes' : '']);
         });
         if (rows.length) {
           const start = sh.getLastRow() + 1;
-          sh.getRange(start, 1, rows.length, 4).setNumberFormat('@').setValues(rows);
+          sh.getRange(start, 1, rows.length, 5).setNumberFormat('@').setValues(rows);
         }
         return jsonOut_({ ok: true, added: rows.length, skipped: skipped });
       }
@@ -94,6 +95,7 @@ function doPost(e) {
         for (let i = 1; i < data.length; i++) {
           if (String(data[i][0]) === String(body.id)) {
             sh.getRange(i + 1, 2, 1, 2).setValues([[String(body.dutch || ''), String(body.english || '')]]);
+            if (body.learned !== undefined) sh.getRange(i + 1, 5).setNumberFormat('@').setValue(body.learned ? 'yes' : '');
             return jsonOut_({ ok: true });
           }
         }

@@ -81,6 +81,9 @@
   .x{border:none;background:transparent;color:var(--ink-soft);font-size:18px;line-height:1;cursor:pointer;padding:4px 7px;border-radius:8px}
   .x:hover{color:var(--danger);background:var(--rose)}
   .x.edit:hover{color:var(--ink)}
+  .x.learn{font-weight:700}
+  .x.learn:hover,.x.learn.on{color:#1f9d55;background:#e3f6e9}
+  .item.learned{border-left:4px solid #1f9d55;background:#f3fbf5}
   .item.editing{grid-template-columns:1fr;gap:8px;border:1.5px solid var(--rose-line)}
   .item.editing .lbl{font-size:11px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
   .item.editing textarea{width:100%;resize:vertical;min-height:40px;line-height:1.35}
@@ -176,17 +179,17 @@
   const BACKEND_CODE = `/**
  * Dutch subtitles - Google Sheets backend
  * ---------------------------------------
- * Keeps one tab, "Dutch": id, dutch, english, added_at.
+ * Keeps one tab, "Dutch": id, dutch, english, added_at, learned.
  *  - GET            -> { ok:true, items:[...] }
  *  - POST action "translate"  { texts:[...] }           -> { ok:true, translations:[...] }  (Dutch -> English, free, via Google)
  *  - POST action "save"       { items:[{id,dutch,english}] } -> adds new sentences, skips ones already saved
- *  - POST action "update"     { id, dutch, english }
+ *  - POST action "update"     { id, dutch, english, learned }
  *  - POST action "delete"     { ids:[...] }
  * Deploy: Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone.
  * After editing this file: Deploy > Manage deployments > Edit > New version.
  */
 const SHEET_NAME = 'Dutch';
-const HEADERS = ['id', 'dutch', 'english', 'added_at'];
+const HEADERS = ['id', 'dutch', 'english', 'added_at', 'learned'];
 
 function getSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -195,10 +198,11 @@ function getSheet_() {
     sh = ss.insertSheet(SHEET_NAME);
     sh.appendRow(HEADERS);
     sh.setFrozenRows(1);
-    sh.getRange('A:D').setNumberFormat('@');
+    sh.getRange('A:E').setNumberFormat('@');
     sh.setColumnWidth(2, 380);
     sh.setColumnWidth(3, 380);
   }
+  if (!sh.getRange(1, 5).getValue()) sh.getRange(1, 5).setValue('learned');
   return sh;
 }
 
@@ -216,7 +220,7 @@ function readAll_() {
   const items = [];
   values.forEach(function (r) {
     if (!r[1]) return;
-    items.push({ id: String(r[0]), dutch: String(r[1]), english: String(r[2] || ''), added_at: String(r[3] || '') });
+    items.push({ id: String(r[0]), dutch: String(r[1]), english: String(r[2] || ''), added_at: String(r[3] || ''), learned: String(r[4] || '') === 'yes' });
   });
   return items;
 }
@@ -255,11 +259,11 @@ function doPost(e) {
           const k = key_(it.dutch);
           if (!k || have[k]) { skipped++; return; }
           have[k] = true;
-          rows.push([String(it.id || Utilities.getUuid()), String(it.dutch), String(it.english || ''), String(it.added_at || new Date().toISOString())]);
+          rows.push([String(it.id || Utilities.getUuid()), String(it.dutch), String(it.english || ''), String(it.added_at || new Date().toISOString()), it.learned ? 'yes' : '']);
         });
         if (rows.length) {
           const start = sh.getLastRow() + 1;
-          sh.getRange(start, 1, rows.length, 4).setNumberFormat('@').setValues(rows);
+          sh.getRange(start, 1, rows.length, 5).setNumberFormat('@').setValues(rows);
         }
         return jsonOut_({ ok: true, added: rows.length, skipped: skipped });
       }
@@ -269,6 +273,7 @@ function doPost(e) {
         for (let i = 1; i < data.length; i++) {
           if (String(data[i][0]) === String(body.id)) {
             sh.getRange(i + 1, 2, 1, 2).setValues([[String(body.dutch || ''), String(body.english || '')]]);
+            if (body.learned !== undefined) sh.getRange(i + 1, 5).setNumberFormat('@').setValue(body.learned ? 'yes' : '');
             return jsonOut_({ ok: true });
           }
         }
@@ -487,7 +492,7 @@ function doPost(e) {
       const tr = await translateTexts(todo.map(i => i.dutch));
       let changed = false;
       todo.forEach((it, k) => {
-        if(tr[k]){ it.english = tr[k]; changed = true; if(state.sheetUrl && online()) postJSON({ action: 'update', id: it.id, dutch: it.dutch, english: it.english }).catch(() => {}); }
+        if(tr[k]){ it.english = tr[k]; changed = true; if(state.sheetUrl && online()) postJSON({ action: 'update', id: it.id, dutch: it.dutch, english: it.english, learned: !!it.learned }).catch(() => {}); }
       });
       if(changed){ saveLocal(); renderList(); }
     }finally{ translatingPending = false; }
@@ -510,9 +515,9 @@ function doPost(e) {
             <span class="status" data-role="editMsg" style="margin:0"></span>
           </div></div>`;
       }
-      return `<div class="item" data-id="${esc(i.id)}">
+      return `<div class="item${i.learned ? ' learned' : ''}" data-id="${esc(i.id)}">
         <div class="nl">${esc(i.dutch)}</div>
-        <div class="btns"><button class="x edit" data-act="edit" title="Edit">&#9998;</button><button class="x" data-act="del" title="Delete">&times;</button></div>
+        <div class="btns"><button class="x learn${i.learned ? ' on' : ''}" data-act="learn" title="${i.learned ? 'Learned (tap to undo)' : 'Mark as learned'}">&#10003;</button><button class="x edit" data-act="edit" title="Edit">&#9998;</button><button class="x" data-act="del" title="Delete">&times;</button></div>
         <div class="en${i.english ? '' : ' pending'}">${i.english ? esc(i.english) : 'waiting to be translated…'}</div>
       </div>`;
     }).join('') : '<div class="empty">' + (state.items.length ? 'No matches.' : 'Nothing here yet — paste a screenshot above.') + '</div>';
@@ -523,6 +528,11 @@ function doPost(e) {
     const el = b.closest('.item'); const id = el.dataset.id;
     const item = state.items.find(i => i.id === id); if(!item) return;
     const act = b.dataset.act;
+    if(act === 'learn'){
+      item.learned = !item.learned; saveLocal(); renderList();
+      if(state.sheetUrl && online()){ try{ await postJSON({ action: 'update', id, dutch: item.dutch, english: item.english, learned: !!item.learned }); }catch(err){} }
+      return;
+    }
     if(act === 'edit'){ state.editingId = id; renderList(); return; }
     if(act === 'cancel-edit'){ state.editingId = null; renderList(); return; }
     if(act === 'retr'){
@@ -539,7 +549,7 @@ function doPost(e) {
       if(!dutch) return;
       item.dutch = dutch; item.english = english; state.editingId = null;
       saveLocal(); renderList();
-      if(state.sheetUrl && online()){ try{ await postJSON({ action: 'update', id, dutch, english }); }catch(err){} }
+      if(state.sheetUrl && online()){ try{ await postJSON({ action: 'update', id, dutch, english, learned: !!item.learned }); }catch(err){} }
       return;
     }
     if(act === 'del'){
@@ -574,13 +584,13 @@ function doPost(e) {
       const r = await res.json();
       if(!r || !r.ok) throw new Error((r && r.error) || 'Sheet error');
       const gone = new Set(state.pendingDel);
-      const remote = (r.items || []).filter(i => !gone.has(i.id)).map(i => ({ id: i.id, dutch: i.dutch, english: i.english, added_at: i.added_at }));
+      const remote = (r.items || []).filter(i => !gone.has(i.id)).map(i => ({ id: i.id, dutch: i.dutch, english: i.english, added_at: i.added_at, learned: i.learned }));
       const remoteById = new Map(remote.map(i => [i.id, i]));
       const remoteKeys = new Set(remote.map(i => keyOf(i.dutch)));
       const toSave = [], toUpdate = [], keep = [];
       state.items.forEach(i => {
         const rm = remoteById.get(i.id);
-        if(rm){ keep.push(i); if(rm.dutch !== i.dutch || rm.english !== i.english) toUpdate.push(i); }
+        if(rm){ keep.push(i); if(rm.dutch !== i.dutch || rm.english !== i.english || (rm.learned !== undefined && !!rm.learned !== !!i.learned)) toUpdate.push(i); }
         else if(!remoteKeys.has(keyOf(i.dutch))){ keep.push(i); toSave.push(i); }
         // else: same sentence already in the sheet under another id — use the sheet's copy
       });
@@ -589,7 +599,7 @@ function doPost(e) {
       state.items = keep.sort((a, b) => String(b.added_at).localeCompare(String(a.added_at)));
       saveLocal(); renderList();
       if(toSave.length) await postJSON({ action: 'save', items: toSave });
-      for(const it of toUpdate){ await postJSON({ action: 'update', id: it.id, dutch: it.dutch, english: it.english }); }
+      for(const it of toUpdate){ await postJSON({ action: 'update', id: it.id, dutch: it.dutch, english: it.english, learned: !!it.learned }); }
       $('syncBtn').textContent = 'Synced ' + new Date().toTimeString().slice(0,5);
     }catch(err){
       console.error(err); $('syncBtn').textContent = 'Sync failed';
