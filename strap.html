@@ -118,9 +118,6 @@
   .result{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .good{color:var(--good)} .bad{color:var(--bad)}
 
-  .ladder{margin-top:6px;font-size:14px}
-  .ladder th{background:var(--surface)}
-  .ladder tr.hit td{background:rgba(253,179,164,.35);font-weight:600}
 
   .tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   .note-small{font-size:13px;color:var(--ink-soft);margin:12px 0 0}
@@ -448,8 +445,6 @@
           '</div>'+
           '<div class="result" data-result></div>'+
         '</div>'+
-        '<h4>Price at different margins</h4>'+
-        '<div data-ladder></div>'+
       '</article>';
     }).join('');
     ['mask','fins'].forEach(function(pk){ renderExtras(pk); updateProduct(pk); });
@@ -501,14 +496,6 @@
       (c.fee>0?'<div class="stat"><span>Fees at your price</span><b>'+rp(a2.feeAmt)+'</b></div>':'')+
       '<div class="stat"><span>Break-even price</span><b>'+(1-c.fee>0?rp(c.cost/(1-c.fee)):'—')+'</b></div>';
 
-    var margins = [20,30,40,50,60,70], hit = Math.round(num(p.marginPct));
-    var lrows = margins.map(function(mg){
-      var d = 1 - c.fee - mg/100;
-      if(d<=0.0001) return '';
-      var raw = c.cost/d, pr = Math.ceil(raw/c.step - 1e-9)*c.step, a = atPrice(c, pr);
-      return '<tr class="'+(mg===hit?'hit':'')+'"><td>'+mg+'%</td><td class="num">'+rp(pr)+'</td><td class="num">'+rp(a.profit)+'</td></tr>';
-    }).join('');
-    card.querySelector('[data-ladder]').innerHTML = '<table class="ladder"><thead><tr><th>Margin</th><th class="num">Price</th><th class="num">Profit</th></tr></thead><tbody>'+lrows+'</tbody></table>';
   }
 
   prodGrid.addEventListener('input', function(e){
