@@ -81,9 +81,6 @@
   .x{border:none;background:transparent;color:var(--ink-soft);font-size:18px;line-height:1;cursor:pointer;padding:4px 7px;border-radius:8px}
   .x:hover{color:var(--danger);background:var(--rose)}
   .x.edit:hover{color:var(--ink)}
-  .x.learn{font-weight:700}
-  .x.learn:hover,.x.learn.on{color:#1f9d55;background:#e3f6e9}
-  .item.learned{border-left:4px solid #1f9d55;background:#f3fbf5}
   .item.editing{grid-template-columns:1fr;gap:8px;border:1.5px solid var(--rose-line)}
   .item.editing .lbl{font-size:11px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
   .item.editing textarea{width:100%;resize:vertical;min-height:40px;line-height:1.35}
@@ -514,9 +511,9 @@ function doPost(e) {
             <span class="status" data-role="editMsg" style="margin:0"></span>
           </div></div>`;
       }
-      return `<div class="item${i.learned ? ' learned' : ''}" data-id="${esc(i.id)}">
+      return `<div class="item" data-id="${esc(i.id)}">
         <div class="nl">${esc(i.dutch)}</div>
-        <div class="btns"><button class="x learn${i.learned ? ' on' : ''}" data-act="learn" title="${i.learned ? 'Learned (tap to undo)' : 'Mark as learned'}">&#10003;</button><button class="x edit" data-act="edit" title="Edit">&#9998;</button><button class="x" data-act="del" title="Delete">&times;</button></div>
+        <div class="btns"><button class="x edit" data-act="edit" title="Edit">&#9998;</button><button class="x" data-act="del" title="Delete">&times;</button></div>
         <div class="en${i.english ? '' : ' pending'}">${i.english ? esc(i.english) : 'waiting to be translated…'}</div>
       </div>`;
     }).join('') : '<div class="empty">' + (state.items.length ? 'No matches.' : 'Nothing here yet — paste a screenshot above.') + '</div>';
@@ -527,11 +524,6 @@ function doPost(e) {
     const el = b.closest('.item'); const id = el.dataset.id;
     const item = state.items.find(i => i.id === id); if(!item) return;
     const act = b.dataset.act;
-    if(act === 'learn'){
-      item.learned = !item.learned; saveLocal(); renderList();
-      if(state.sheetUrl && online()){ try{ await postJSON({ action: 'update', id, dutch: item.dutch, english: item.english, learned: !!item.learned }); }catch(err){} }
-      return;
-    }
     if(act === 'edit'){ state.editingId = id; renderList(); return; }
     if(act === 'cancel-edit'){ state.editingId = null; renderList(); return; }
     if(act === 'retr'){
