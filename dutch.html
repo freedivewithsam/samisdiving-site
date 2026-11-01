@@ -543,7 +543,6 @@ function doPost(e) {
       return;
     }
     if(act === 'del'){
-      if(!confirm('Delete this sentence?')) return;
       state.items = state.items.filter(i => i.id !== id);
       state.pendingDel.push(id); saveLocal(); renderList();
       if(state.sheetUrl && online()) flushDeletes();
