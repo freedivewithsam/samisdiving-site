@@ -148,15 +148,6 @@
   <div class="wrap">
     <p class="eyebrow">Step 2</p>
     <h2>Cost &amp; price per item</h2>
-    <div class="grid2" style="margin-bottom:20px">
-      <label class="fld" style="max-width:260px">Round suggested prices up to the nearest
-        <select id="roundStep">
-          <option value="1000">Rp 1.000</option>
-          <option value="5000">Rp 5.000</option>
-          <option value="10000">Rp 10.000</option>
-        </select>
-      </label>
-    </div>
     <div class="grid2" id="prodGrid"></div>
   </div>
 </section>
@@ -316,7 +307,7 @@
     var margin = Math.min(Math.max(num(p.marginPct),0),100)/100;
     var denom = 1 - fee - margin;
     var raw = denom > 0.0001 ? cost/denom : null;
-    var step = num(state.roundStep) || 1;
+    var step = 5000;
     var sugg = raw==null ? null : Math.ceil(raw/step - 1e-9)*step;
     return {lines:lines, mats:mats, extras:extras, labour:labour, minEach:minEach, cost:cost, fee:fee, margin:margin, raw:raw, sugg:sugg, missing:missing, step:step};
   }
@@ -584,12 +575,8 @@
   });
 
   /* ---------- global ---------- */
-  var roundSel = document.getElementById('roundStep');
-  roundSel.value = String(state.roundStep || 5000);
-  roundSel.addEventListener('change', function(){ state.roundStep = num(roundSel.value); save(); renderProducts(true); });
 
   function init(){
-    roundSel.value = String(state.roundStep || 5000);
     renderMaterials();
     prodGrid.innerHTML = '';
     renderProducts(false);
