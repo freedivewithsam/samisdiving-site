@@ -323,22 +323,11 @@ function doPost(e) {
     if(!/[A-Za-zÀ-ÿ]{2,}/.test(l)) return '';
     return l;
   }
+  // One screenshot = one subtitle: all lines are joined into a single entry.
   function toSentences(text){
     const lines = String(text||'').split(/\r?\n/).map(cleanLine).filter(Boolean);
-    const blocks = []; let cur = '';
-    const flush = () => { if(cur.trim()) blocks.push(cur.trim()); cur = ''; };
-    lines.forEach(l => {
-      if(/^[-–—]\s*/.test(l)){ flush(); l = l.replace(/^[-–—]\s*/,''); }
-      else if(cur && /[.!?…]["”')\]]*$/.test(cur) && /^[A-ZÀ-Ý"“‘'(]/.test(l)) flush();
-      cur = cur ? cur + ' ' + l : l;
-    });
-    flush();
-    const out = [];
-    blocks.forEach(b => {
-      const parts = b.match(/[^.!?…]+[.!?…]+["”')\]]*|[^.!?…]+$/g) || [b];
-      parts.forEach(p => { p = p.trim(); if(/[A-Za-zÀ-ÿ]{2,}/.test(p)) out.push(p); });
-    });
-    return out;
+    const one = lines.join(' ').replace(/^[-–—]\s*/,'').replace(/\s+/g,' ').trim();
+    return /[A-Za-zÀ-ÿ]{2,}/.test(one) ? [one] : [];
   }
 
   // ---------------- image -> canvas -> OCR ----------------
