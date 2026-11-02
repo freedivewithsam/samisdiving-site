@@ -346,7 +346,7 @@ function doPost(e) {
     });
   }
   // Screenshots are white text on black: bright pixels -> black text, rest white.
-  function prepCanvas(img, plain){
+  function prepCanvas(img, plain, cutoff){
     const scale = Math.max(1, Math.min(3, 1800 / img.naturalWidth));
     const c = document.createElement('canvas');
     c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(img.naturalHeight * scale);
@@ -356,7 +356,7 @@ function doPost(e) {
     if(!plain){
       const d = ctx.getImageData(0, 0, c.width, c.height), px = d.data;
       for(let i = 0; i < px.length; i += 4){
-        const v = Math.min(px[i], px[i+1], px[i+2]) >= 190 ? 0 : 255;
+        const v = Math.min(px[i], px[i+1], px[i+2]) >= (cutoff || 215) ? 0 : 255;
         px[i] = px[i+1] = px[i+2] = v; px[i+3] = 255;
       }
       ctx.putImageData(d, 0, 0);
@@ -439,7 +439,10 @@ function doPost(e) {
       setStatus('Reading the Dutch…' + (online() ? ' (the first time it downloads the Dutch reader, so it can take a bit)' : ''));
       setProgress(0);
       progressHook = m => { if(m.status === 'recognizing text') setProgress(m.progress); };
-      let sentences = toSentences(await ocr(prepCanvas(img, false)));
+      // Strict cutoff first (only the brightest white counts as text, so bright scenery
+      // like lights stays out), then a looser one, then the plain image.
+      let sentences = toSentences(await ocr(prepCanvas(img, false, 215)));
+      if(!sentences.length) sentences = toSentences(await ocr(prepCanvas(img, false, 190)));
       if(!sentences.length) sentences = toSentences(await ocr(prepCanvas(img, true)));
       progressHook = null;
       setProgress(null);
