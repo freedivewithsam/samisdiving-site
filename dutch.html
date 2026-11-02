@@ -377,7 +377,19 @@ function doPost(e) {
   async function ocr(canvas){
     const w = await getWorker();
     const r = await w.recognize(canvas);
-    return (r && r.data && r.data.text) || '';
+    const d = (r && r.data) || {};
+    let lines = d.lines;
+    if(!lines && d.blocks) lines = d.blocks.flatMap(b => (b.paragraphs || []).flatMap(p => p.lines || []));
+    if(lines && lines.length){
+      // The subtitle is the tallest, most confident text. Small or shaky lines are
+      // bits of the picture behind it (scenery, logos), so leave them out.
+      const info = lines.map(l => ({ text: l.text || '', conf: l.confidence || 0, h: l.bbox ? l.bbox.y1 - l.bbox.y0 : 0 })).filter(l => cleanLine(l.text));
+      const sure = info.filter(l => l.conf >= 50);
+      const maxH = Math.max(0, ...(sure.length ? sure : info).map(l => l.h));
+      const keep = info.filter(l => l.conf >= 35 && l.h >= maxH * 0.5);
+      if(keep.length) return keep.map(l => l.text).join('\n');
+    }
+    return d.text || '';
   }
 
   // ---------------- translation ----------------
