@@ -7,7 +7,7 @@
 <title>Strap costing &mdash; freedive with Sam</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,700;1,800&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --sea:#B8CEC2;
@@ -23,9 +23,9 @@
     --radius:2px;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--sea);color:var(--ink);font-family:"Lora",Georgia,"Times New Roman",serif;font-size:16px;line-height:1.55}
-  h1,h2,h3{font-family:"Nunito",system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-weight:800;margin:0;letter-spacing:-.01em}
-  .eyebrow{font-family:"Nunito",sans-serif;font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);display:flex;align-items:center;gap:10px;margin:0 0 18px}
+  body{margin:0;background:var(--sea);color:var(--ink);font-family:"Poppins",-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.55}
+  h1,h2,h3{font-family:"Poppins",-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-weight:800;margin:0;letter-spacing:-.01em}
+  .eyebrow{font-family:"Poppins",sans-serif;font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);display:flex;align-items:center;gap:10px;margin:0 0 18px}
   .eyebrow::before{content:"";width:22px;height:1px;background:currentColor;display:block}
   .wrap{max-width:1100px;margin:0 auto;padding:0 28px}
   @media (max-width:640px){.wrap{padding:0 16px}}
@@ -56,12 +56,12 @@
   .card h3{font-size:22px}
   .card-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
 
-  label.fld{position:relative;display:flex;flex-direction:column;gap:4px;font-family:"Nunito",sans-serif;font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
-  input,select{font-family:"Lora",serif;font-size:15px;color:var(--ink);background:#fff;border:1px solid var(--mist);border-radius:var(--radius);padding:9px 10px;width:100%;min-width:0}
+  label.fld{position:relative;display:flex;flex-direction:column;gap:4px;font-family:"Poppins",sans-serif;font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  input,select{font-family:"Poppins",sans-serif;font-size:15px;color:var(--ink);background:#fff;border:1px solid var(--mist);border-radius:var(--radius);padding:9px 10px;width:100%;min-width:0}
   input:focus,select:focus{outline:2px solid var(--ink);outline-offset:1px}
   label.fld input,label.fld select{text-transform:none;letter-spacing:0;font-weight:400}
 
-  .btn{display:inline-flex;align-items:center;justify-content:center;font-family:"Nunito",sans-serif;font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:11px 18px;border-radius:var(--radius);border:none;cursor:pointer;transition:transform .15s,background .15s;white-space:nowrap}
+  .btn{display:inline-flex;align-items:center;justify-content:center;font-family:"Poppins",sans-serif;font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:11px 18px;border-radius:var(--radius);border:none;cursor:pointer;transition:transform .15s,background .15s;white-space:nowrap}
   .btn:hover{transform:translateY(-1px)}
   .btn-solid{background:var(--ink);color:var(--surface)}
   .btn-solid:hover{background:#0e2321}
@@ -71,7 +71,7 @@
   .btn-x{appearance:none;border:0;background:transparent;color:var(--ink-soft);font-size:20px;line-height:1;cursor:pointer;padding:2px 6px}
   .btn-x:hover{color:var(--bad)}
 
-  .unit-wrap{display:flex;align-items:center;gap:8px;font-family:"Nunito",sans-serif;font-weight:700;font-size:12px;color:var(--ink-soft)}
+  .unit-wrap{display:flex;align-items:center;gap:8px;font-family:"Poppins",sans-serif;font-weight:700;font-size:12px;color:var(--ink-soft)}
   .unit-wrap input{width:92px;padding:6px 8px}
 
   .add-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;align-items:end}
@@ -81,7 +81,7 @@
 
   .tbl-wrap{height:230px;overflow:auto;border-top:1px solid var(--mist);border-bottom:1px solid var(--mist);margin-bottom:16px}
   table{width:100%;border-collapse:collapse;font-size:14px}
-  th{font-family:"Nunito",sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:8px 6px;position:sticky;top:0;background:var(--surface)}
+  th{font-family:"Poppins",sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:8px 6px;position:sticky;top:0;background:var(--surface)}
   td{padding:7px 6px;border-top:1px solid var(--mist);vertical-align:middle}
   td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   td.dt{white-space:nowrap}
@@ -92,8 +92,8 @@
   .empty{color:var(--ink-soft);font-size:14px;padding:14px 6px;font-style:italic}
 
   .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
-  .stat span{display:block;font-family:"Nunito",sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
-  .stat b{font-family:"Nunito",sans-serif;font-weight:800;font-size:16px;font-variant-numeric:tabular-nums}
+  .stat span{display:block;font-family:"Poppins",sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  .stat b{font-family:"Poppins",sans-serif;font-weight:800;font-size:16px;font-variant-numeric:tabular-nums}
   .avg{grid-column:1/-1;background:var(--sea);padding:14px 16px;border-radius:var(--radius)}
   .avg b{font-size:26px;display:block;margin-top:2px}
   .avg small{color:var(--ink-soft);font-size:13px}
@@ -103,17 +103,17 @@
   .line-cost{font-size:13px;color:var(--ink-soft);margin:0 0 14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
   @media (max-width:520px){.line-cost{grid-template-columns:1fr}}
 
-  h4{font-family:"Nunito",sans-serif;font-weight:800;font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin:22px 0 10px}
+  h4{font-family:"Poppins",sans-serif;font-weight:800;font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin:22px 0 10px}
   .extra-row{display:grid;grid-template-columns:1fr 130px 28px;gap:8px;margin-bottom:8px;align-items:center}
   .extras-add{margin-top:4px}
 
   .breakdown{border-top:1px solid var(--ink);margin-top:18px;padding-top:12px}
   .brow{display:flex;justify-content:space-between;gap:12px;padding:3px 0;font-variant-numeric:tabular-nums}
-  .brow.total{font-family:"Nunito",sans-serif;font-weight:800;font-size:19px;border-top:1px solid var(--mist);margin-top:6px;padding-top:9px}
+  .brow.total{font-family:"Poppins",sans-serif;font-weight:800;font-size:19px;border-top:1px solid var(--mist);margin-top:6px;padding-top:9px}
   .warn{background:#FBE3D8;color:var(--bad);padding:8px 12px;font-size:14px;margin-top:10px;border-radius:var(--radius)}
 
   .pricebox{background:var(--sea);padding:18px;border-radius:var(--radius);margin-top:18px}
-  .pricebox .sugg{font-family:"Nunito",sans-serif;font-weight:800;font-size:34px;line-height:1.1;margin:2px 0 4px}
+  .pricebox .sugg{font-family:"Poppins",sans-serif;font-weight:800;font-size:34px;line-height:1.1;margin:2px 0 4px}
   .pricebox .sub{color:var(--ink-soft);font-size:14px}
   .pricebox .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
   .result{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -123,7 +123,7 @@
   .tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   .note-small{font-size:13px;color:var(--ink-soft);margin:12px 0 0}
   .sr{position:absolute;left:-9999px}
-  .calc-hint{font-family:"Nunito",sans-serif;font-weight:700;font-size:12px;letter-spacing:0;text-transform:none;color:var(--good);position:absolute;right:0;top:0;line-height:1.2}
+  .calc-hint{font-family:"Poppins",sans-serif;font-weight:700;font-size:12px;letter-spacing:0;text-transform:none;color:var(--good);position:absolute;right:0;top:0;line-height:1.2}
   .calc-hint.pending{color:var(--ink-soft)}
 </style>
 </head>

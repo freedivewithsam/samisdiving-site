@@ -14,7 +14,7 @@
 <title>Freedive with Sam</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,700;1,800&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --sw-beige:#EBC8B4; --sw-cream:#F5E0BF; --sw-pink-lt:#F1D6C2; --sw-pink:#FDB3A4;
@@ -32,7 +32,7 @@
   html,body{margin:0;padding:0;overflow-x:hidden}
   body{
     background:var(--bg); color:var(--ink);
-    font-family:'Lora',Georgia,'Times New Roman',serif;
+    font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
     font-size:15px; line-height:1.45; min-height:100vh;
     text-transform:lowercase;
   }
@@ -41,7 +41,7 @@
 
   header.app{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;flex-wrap:wrap}
   .header-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  .brand h1{font-family:'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:26px;margin:0;letter-spacing:.2px;text-wrap:balance}
+  .brand h1{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:26px;margin:0;letter-spacing:.2px;text-wrap:balance}
   .brand p{margin:2px 0 0;color:var(--ink-soft);font-size:13px}
   .brand h1 .wave{color:var(--accent)}
 
@@ -206,7 +206,7 @@
   .stats-mini .stat{padding:10px 14px}
   .stats-mini .stat .num{font-size:18px}
 
-  h2.section{font-family:'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:18px;margin:26px 0 12px;display:flex;align-items:baseline;gap:8px}
+  h2.section{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:18px;margin:26px 0 12px;display:flex;align-items:baseline;gap:8px}
   h2.section .count{font-family:inherit;color:var(--ink-soft);font-size:14px;font-style:italic}
 
   .finance-cols{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
@@ -283,12 +283,12 @@
     background:var(--card);border:1.5px dashed var(--rose-line);border-radius:var(--radius);
     padding:40px 20px;text-align:center;color:var(--ink-soft);
   }
-  .empty .big{font-family:'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:18px;color:var(--ink);margin-bottom:6px}
+  .empty .big{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:18px;color:var(--ink);margin-bottom:6px}
 
   .back{background:none;border:none;color:var(--accent-dark);font-weight:600;font-size:14px;cursor:pointer;padding:6px 0;font-family:inherit}
   .back:hover{text-decoration:underline}
   .detail-head{background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-top:8px}
-  .detail-head h2{font-family:'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:24px;margin:0 0 2px}
+  .detail-head h2{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:24px;margin:0 0 2px}
   .detail-head .pkg{color:var(--ink-soft)}
   .focus-box{margin-top:14px;background:var(--rose);border-radius:10px;padding:12px 14px;font-size:14px}
   .focus-box .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent-dark);font-weight:700;margin-bottom:3px}
@@ -352,7 +352,7 @@
   /* While a pop-up is open the page behind it must not scroll (see the script at the end). */
   html:has(dialog[open]),body:has(dialog[open]){overflow:hidden}
   .modal-in{padding:22px}
-  .modal-in h3{font-family:'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;margin:0 0 16px;font-size:19px}
+  .modal-in h3{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;margin:0 0 16px;font-size:19px}
   .modal-in p{margin:0}
   .field{margin-bottom:13px}
   .field label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:5px}
@@ -437,10 +437,10 @@
   /* iPhone zooms in when you tap a text box whose text is under 16px — keep them at 16px on phones. */
   @media (max-width:820px){ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:16px !important} }
 
-  /* ---- index look: Nunito for headings/UI, Lora for body copy ---- */
+  /* ---- index palette; Poppins font ---- */
   body{font-variant-numeric:tabular-nums}
-  h1,h2,h3,h4,button,select,summary,th,.btn,.tab,.tab-btn,.chip,.eyebrow,.brand h1,.stat .num,.stat .lbl,.nav-btn{font-family:'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
-  .money,.mono{font-family:'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+  h1,h2,h3,h4,button,select,summary,th,.btn,.tab,.tab-btn,.chip,.eyebrow,.brand h1,.stat .num,.stat .lbl,.nav-btn{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
+  .money,.mono{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>

@@ -10,7 +10,7 @@
 <title>Trip Bill Splitter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link id="app-fonts" href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,700;1,800&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+<link id="app-fonts" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style id="app-css">
   :root {
     --yellow:#F3E3B3; --peach:#F8D9BE; --pink:#FDC8BC; --orchid:#F0CFC8; --lav:#DCD3C4;
@@ -38,19 +38,19 @@
     --blue:#2F5048; --sky:#2F5A55; --cyan:#2C5F5A; --aqua:#2F5F50; --green:#3C5F43;
   }
   * { box-sizing: border-box; }
-  body { background: var(--bg); color: var(--ink); font-family: 'Lora',Georgia,'Times New Roman',serif; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; line-height: 1.5; -webkit-font-smoothing: antialiased; }
   .wrap { max-width: 860px; margin: 0 auto; padding-block: clamp(20px, 4vw, 48px) 72px; padding-inline: clamp(16px, 4vw, 32px); display: flex; flex-direction: column; gap: 20px; }
-  .mono, .money { font-family: 'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-variant-numeric: tabular-nums; }
+  .mono, .money { font-family: 'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-variant-numeric: tabular-nums; }
 
   header.top { display: flex; justify-content: space-between; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
   .eyebrow { text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.72rem; color: var(--accent-text); font-weight: 600; margin: 0 0 4px; }
   .title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  .trip-title { font-family: 'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-weight: 600; font-size: clamp(1.9rem, 4.2vw, 2.7rem); letter-spacing: -0.01em; line-height: 1.15; margin: 0; overflow-wrap: anywhere; text-wrap: balance; }
+  .trip-title { font-family: 'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-weight: 600; font-size: clamp(1.9rem, 4.2vw, 2.7rem); letter-spacing: -0.01em; line-height: 1.15; margin: 0; overflow-wrap: anywhere; text-wrap: balance; }
   .rename-btn { background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-soft); border-radius: 999px; font-size: 0.76rem; font-weight: 600; padding: 4px 10px; white-space: nowrap; }
   .rename-btn:hover { color: var(--ink); border-color: var(--accent); }
   .rename-form { display: flex; flex-direction: column; gap: 8px; }
   .rename-actions { display: flex; gap: 8px; }
-  input.trip-name[type="text"] { font-family: 'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-weight: 600; font-size: clamp(1.5rem, 4vw, 2.2rem); background: var(--surface); border: 1px solid var(--accent); border-radius: 12px; color: var(--ink); padding: 6px 12px; width: 100%; max-width: 22ch; }
+  input.trip-name[type="text"] { font-family: 'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-weight: 600; font-size: clamp(1.5rem, 4vw, 2.2rem); background: var(--surface); border: 1px solid var(--accent); border-radius: 12px; color: var(--ink); padding: 6px 12px; width: 100%; max-width: 22ch; }
   .top-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .status { font-size: 0.78rem; color: var(--ink-faint); padding: 5px 11px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); white-space: nowrap; }
   .status.saving { color: var(--warn); background: var(--warn-bg); border-color: transparent; }
@@ -58,12 +58,12 @@
 
   .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: clamp(16px, 2.6vw, 24px); box-shadow: 0 1px 2px var(--shadow); display: flex; flex-direction: column; gap: 14px; }
   .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-  h2 { font-family: 'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-weight: 600; font-size: 1.2rem; margin: 0; text-wrap: balance; }
+  h2 { font-family: 'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-weight: 600; font-size: 1.2rem; margin: 0; text-wrap: balance; }
   .hint { font-size: 0.84rem; color: var(--ink-soft); margin: 0; }
   .label { display: block; font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); font-weight: 600; margin-bottom: 5px; }
 
   input[type="text"], input[type="date"], select { width: 100%; font-family: inherit; font-size: 0.95rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--ink); }
-  input.formula { font-family: 'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-variant-numeric: tabular-nums; }
+  input.formula { font-family: 'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-variant-numeric: tabular-nums; }
   input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   input::placeholder { color: var(--ink-faint); }
   input.err { border-color: var(--warn); background: var(--warn-bg); }
@@ -89,7 +89,7 @@
 
   /* settle */
   .you-card { border-radius: 14px; padding: 14px 16px; background: var(--surface-2); display: flex; flex-direction: column; gap: 6px; }
-  .you-card .big { font-family: 'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-weight: 600; font-size: 1.25rem; }
+  .you-card .big { font-family: 'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-weight: 600; font-size: 1.25rem; }
   .you-card.owe { background: var(--warn-bg); } .you-card.owe .big { color: var(--warn); }
   .you-card.get { background: var(--good-bg); } .you-card.get .big { color: var(--good); }
   .transfers { display: flex; flex-direction: column; gap: 8px; }
@@ -97,7 +97,7 @@
   .transfer.mine { border-color: var(--accent); background: var(--surface-2); }
   .transfer .who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 500; min-width: 0; }
   .arrow { color: var(--ink-faint); font-size: 0.8rem; }
-  .transfer .amt { font-family: 'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
+  .transfer .amt { font-family: 'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
   .done-note { text-align: center; color: var(--good); background: var(--good-bg); border-radius: 12px; padding: 14px; font-weight: 500; }
   @media (max-width: 520px) {
     .transfer { grid-template-columns: 1fr auto; }
@@ -111,8 +111,8 @@
   @media (max-width: 520px) { td { font-size: 0.78rem; padding: 9px 5px; } th { padding: 0 5px 8px; } }
   th { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); font-weight: 600; text-align: right; padding: 0 8px 8px; border-bottom: 1px solid var(--line); }
   th:first-child, td:first-child { text-align: left; }
-  td { padding: 9px 8px; text-align: right; font-family: 'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-variant-numeric: tabular-nums; font-size: 0.9rem; border-bottom: 1px solid var(--line); }
-  td:first-child { font-family: 'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-weight: 600; }
+  td { padding: 9px 8px; text-align: right; font-family: 'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-variant-numeric: tabular-nums; font-size: 0.9rem; border-bottom: 1px solid var(--line); }
+  td:first-child { font-family: 'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-weight: 600; }
   tr:last-child td { border-bottom: none; }
   td.pos { color: var(--good); } td.neg { color: var(--warn); }
   tfoot td { font-weight: 600; border-top: 1px solid var(--line); }
@@ -145,7 +145,7 @@
   .exp .bar { align-self: stretch; border-radius: 4px; background: var(--c); }
   .exp .desc { font-weight: 600; font-size: 0.95rem; overflow-wrap: anywhere; }
   .exp .meta { font-size: 0.78rem; color: var(--ink-faint); overflow-wrap: anywhere; }
-  .exp .amt { font-family: 'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .exp .amt { font-family: 'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .exp.payment .desc { color: var(--good); font-weight: 500; }
   .exp .acts { display: flex; gap: 2px; }
   .exp.editing { background: var(--surface-2); border-radius: 10px; }
@@ -155,12 +155,12 @@
   .empty { text-align: center; color: var(--ink-faint); font-size: 0.88rem; padding: 22px 10px; border: 1px dashed var(--line); border-radius: 14px; }
   .ro-note { font-size: 0.8rem; color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
   footer.foot { color: var(--ink-faint); font-size: 0.78rem; border-top: 1px solid var(--line); padding-top: 14px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-  .sheet-panel summary { cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 10px; font-family: 'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-weight: 600; font-size: 1.05rem; list-style: none; }
+  .sheet-panel summary { cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 10px; font-family: 'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-weight: 600; font-size: 1.05rem; list-style: none; }
   .sheet-panel summary::-webkit-details-marker { display: none; }
   .sheet-panel summary::before { content: "▸"; color: var(--accent-text); margin-right: 8px; font-size: 0.9rem; }
   .sheet-panel[open] summary::before { content: "▾"; }
   .sheet-panel summary > span:first-child { flex: 1; }
-  .sheet-panel code { font-family: 'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 0.85em; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+  .sheet-panel code { font-family: 'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size: 0.85em; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
   .sheet-panel[open] { gap: 12px; }
   .topbar { display: flex; margin-bottom: -8px; }
   .nav-btn { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft); border-radius: 999px; padding: 6px 14px; font-size: 0.84rem; font-weight: 600; }
@@ -254,10 +254,10 @@
   .busy { pointer-events: none; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
-  /* ---- index look: Nunito for headings/UI, Lora for body copy ---- */
+  /* ---- index palette; Poppins font ---- */
   body{font-variant-numeric:tabular-nums}
-  h1,h2,h3,h4,button,select,summary,th,.btn,.tab,.tab-btn,.chip,.eyebrow,.brand h1,.stat .num,.stat .lbl,.nav-btn{font-family:'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
-  .money,.mono{font-family:'Nunito',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+  h1,h2,h3,h4,button,select,summary,th,.btn,.tab,.tab-btn,.chip,.eyebrow,.brand h1,.stat .num,.stat .lbl,.nav-btn{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
+  .money,.mono{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
 </style>
 
 <div id="app"></div>
