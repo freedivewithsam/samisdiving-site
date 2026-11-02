@@ -80,6 +80,10 @@
   .search-input{width:100%;max-width:380px;padding:10px 16px;border:1.5px solid var(--rose-line);border-radius:999px;font-family:inherit;font-size:15px;color:var(--ink);background:#fff;-webkit-appearance:none;appearance:none}
   .month-select{padding:9px 14px;border:1.5px solid var(--rose-line);border-radius:999px;font-family:inherit;font-size:14px;color:var(--ink);background:#fff}
   .month-select:focus{outline:none;border-color:var(--accent)}
+  .month-nav{display:inline-flex;align-items:center;gap:6px}
+  .month-step{width:36px;height:36px;flex:none;border:1.5px solid var(--rose-line);border-radius:999px;background:#fff;color:var(--ink);font-family:inherit;font-size:20px;line-height:1;cursor:pointer;padding:0}
+  .month-step:hover:not(:disabled){border-color:var(--accent)}
+  .month-step:disabled{opacity:.35;cursor:default}
   .search-input:focus{outline:none;border-color:var(--accent)}
   .search-input::placeholder{color:var(--ink-soft)}
 
@@ -1393,6 +1397,7 @@ function renderSales(){
   if(salesMonth && !months.includes(salesMonth)) salesMonth = '';
 
   const sales = salesMonth ? allSales.filter(s=>monthKey(s.date)===salesMonth) : allSales;
+  const salesMonthIdx = salesMonth ? months.indexOf(salesMonth) + 1 : 0; // 0 = All time; used by the ‹ › arrows
   const totalSold = sales.reduce((a,s)=>a+(s.qty||0),0);
   const totalIncome = sales.reduce((a,s)=>a+(s.paid||0),0);
   // shipCost/shipCostActual only ever get set on the first line item of a
@@ -1417,10 +1422,14 @@ function renderSales(){
   let html = `
   <div class="section-row" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
     <div class="section" style="margin:0">${salesMonth ? monthLabel(salesMonth) : 'All-time'} summary</div>
-    <select id="salesMonthSelect" class="month-select">
-      <option value="">All time</option>
-      ${months.map(m=>`<option value="${m}" ${m===salesMonth?'selected':''}>${monthLabel(m)}</option>`).join('')}
-    </select>
+    <div class="month-nav">
+      <button type="button" class="month-step" data-month-step="prev" aria-label="Previous month" ${salesMonthIdx>=months.length?'disabled':''}>&lsaquo;</button>
+      <select id="salesMonthSelect" class="month-select">
+        <option value="">All time</option>
+        ${months.map(m=>`<option value="${m}" ${m===salesMonth?'selected':''}>${monthLabel(m)}</option>`).join('')}
+      </select>
+      <button type="button" class="month-step" data-month-step="next" aria-label="Next month" ${salesMonthIdx<=0?'disabled':''}>&rsaquo;</button>
+    </div>
   </div>
   <div class="stats" style="grid-template-columns:repeat(3,1fr)">
     <div class="stat"><div class="num" style="color:var(--accent-dark)">${groups.length}</div><div class="lbl">Sales logged</div></div>
@@ -3280,6 +3289,19 @@ $('saleForm').addEventListener('submit', e=>{
 
 /* ---------- events ---------- */
 $('searchInput').addEventListener('input', ()=>{ searchQuery = $('searchInput').value; render(); });
+
+/* Previous / next month arrows beside a month dropdown: steps the dropdown
+   through its own options (list is newest first, "All" on top) and fires its
+   normal change handler. */
+document.addEventListener('click', e=>{
+  const b = e.target.closest('[data-month-step]');
+  if(!b || b.disabled) return;
+  const nav = b.closest('.month-nav'); const sel = nav && nav.querySelector('select'); if(!sel) return;
+  const i = sel.selectedIndex + (b.dataset.monthStep === 'prev' ? 1 : -1);
+  if(i < 0 || i >= sel.options.length) return;
+  sel.selectedIndex = i;
+  sel.dispatchEvent(new Event('change', { bubbles:true }));
+});
 
 document.addEventListener('change', e=>{
   if(e.target.id === 'salesMonthSelect'){ salesMonth = e.target.value; render(); }

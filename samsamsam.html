@@ -152,6 +152,10 @@
     background-repeat:no-repeat;background-position:right 12px center;background-size:16px;
   }
   .month-select:hover{background-color:var(--sw-pink)}
+  .month-nav{display:inline-flex;align-items:center;gap:6px}
+  .month-step{width:34px;height:34px;flex:none;border:1.5px solid var(--rose-line);border-radius:999px;background:var(--rose);color:var(--accent-dark);font-family:inherit;font-size:20px;line-height:1;cursor:pointer;padding:0}
+  .month-step:hover:not(:disabled){background:var(--sw-pink)}
+  .month-step:disabled{opacity:.35;cursor:default}
   .month-select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
   .subtab-btn{border:1px solid var(--border,#DCC3AE);background:var(--card);color:var(--ink-soft);font-family:inherit;font-size:12px;font-weight:600;padding:5px 12px;border-radius:99px;cursor:pointer;white-space:nowrap}
   .subtab-btn:hover{background:var(--surface2,#F0D6BF)}
@@ -2714,12 +2718,14 @@ function buildMonthsList(dates){
   return { labels, months: Object.keys(labels).sort().reverse() };
 }
 function buildMonthTabsHtml(months, labels, activeMonth, action){
-  let html = `<select class="month-select" data-action-select="${action}">
+  const vals = ['all'].concat(months);
+  const idx = Math.max(0, vals.indexOf(activeMonth));
+  let html = `<div class="month-nav"><button type="button" class="month-step" data-month-step="prev" aria-label="Previous month" ${idx>=vals.length-1?'disabled':''}>&lsaquo;</button><select class="month-select" data-action-select="${action}">
     <option value="all" ${activeMonth==='all'?'selected':''}>All months</option>`;
   months.forEach(key=>{
     html += `<option value="${key}" ${activeMonth===key?'selected':''}>${esc(labels[key])}</option>`;
   });
-  html += `</select>`;
+  html += `</select><button type="button" class="month-step" data-month-step="next" aria-label="Next month" ${idx<=0?'disabled':''}>&rsaquo;</button></div>`;
   return html;
 }
 
@@ -3706,6 +3712,19 @@ function uncompleteSess(studentId, sessId){
 }
 
 /* ---------- event wiring (delegated — no inline handlers) ---------- */
+/* Previous / next month arrows beside a month dropdown: steps the dropdown
+   through its own options (list is newest first, "All" on top) and fires its
+   normal change handler. */
+document.addEventListener('click', e=>{
+  const b = e.target.closest('[data-month-step]');
+  if(!b || b.disabled) return;
+  const nav = b.closest('.month-nav'); const sel = nav && nav.querySelector('select'); if(!sel) return;
+  const i = sel.selectedIndex + (b.dataset.monthStep === 'prev' ? 1 : -1);
+  if(i < 0 || i >= sel.options.length) return;
+  sel.selectedIndex = i;
+  sel.dispatchEvent(new Event('change', { bubbles:true }));
+});
+
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-action-select]');
   if(!el) return;
