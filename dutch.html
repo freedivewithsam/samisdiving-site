@@ -324,7 +324,9 @@ function doPost(e) {
 
   // ---------------- sentences from OCR text ----------------
   function cleanLine(l){
-    l = String(l||'').replace(/[|_~`^<>{}\[\]\\]/g,' ').replace(/\s+/g,' ').trim();
+    l = String(l||'').replace(/[|_~`^<>{}\[\]\\]/g,' ')
+      .replace(/([A-Za-zÀ-ÿ]{3,})['’‘´]([A-Za-zÀ-ÿ]{2,})/g,'$1 $2') // a stray tick between two real words (m'n, zo'n are shorter, so they stay)
+      .replace(/\s+/g,' ').trim();
     if(!/[A-Za-zÀ-ÿ]{2,}/.test(l)) return '';
     return l;
   }
@@ -374,27 +376,45 @@ function doPost(e) {
     }
     return workerPromise;
   }
+  // Reads one prepared canvas and returns the subtitle lines it found:
+  // [{ text, conf, y0, y1 }]. The subtitle is the tallest, most confident text;
+  // small or shaky lines are bits of the picture behind it, so they're left out.
   async function ocr(canvas){
     const w = await getWorker();
     const r = await w.recognize(canvas);
     const d = (r && r.data) || {};
     let lines = d.lines;
     if(!lines && d.blocks) lines = d.blocks.flatMap(b => (b.paragraphs || []).flatMap(p => p.lines || []));
-    if(lines && lines.length){
-      // The subtitle is the tallest, most confident text. Small or shaky lines are
-      // bits of the picture behind it (scenery, logos), so leave them out.
-      const info = lines.map(l => ({ text: l.text || '', conf: l.confidence || 0, h: l.bbox ? l.bbox.y1 - l.bbox.y0 : 0 })).filter(l => cleanLine(l.text));
-      const sure = info.filter(l => l.conf >= 50);
-      const maxH = Math.max(0, ...(sure.length ? sure : info).map(l => l.h));
-      const keep = info.filter(l => l.conf >= 35 && l.h >= maxH * 0.5);
-      if(keep.length){
-        // score = how sure the reader was about the text it kept (weighted by length)
-        let n = 0, t = 0;
-        keep.forEach(l => { const c = cleanLine(l.text).length; n += c; t += c * l.conf; });
-        return { text: keep.map(l => l.text).join('\n'), score: n ? t / n : 0 };
-      }
+    if(!lines || !lines.length){
+      const t = d.text || '';
+      return t.trim() ? [{ text: t, conf: 0, y0: 0, y1: 1, plain: true }] : [];
     }
-    return { text: d.text || '', score: 0 };
+    const info = lines.map(l => ({ text: l.text || '', conf: l.confidence || 0, y0: l.bbox ? l.bbox.y0 : 0, y1: l.bbox ? l.bbox.y1 : 0 }))
+      .filter(l => cleanLine(l.text));
+    const sure = info.filter(l => l.conf >= 50);
+    const maxH = Math.max(0, ...(sure.length ? sure : info).map(l => l.y1 - l.y0));
+    return info.filter(l => l.conf >= 35 && (l.y1 - l.y0) >= maxH * 0.5);
+  }
+  // The same subtitle line read several ways (different "white" cutoffs) lands at the
+  // same height each time. For every line keep the reading the reader was surest about,
+  // so a line over a light picture and a line over black can each use the best cutoff.
+  function mergeLines(cands){
+    const clusters = [];
+    cands.slice().sort((a, b) => a.y0 - b.y0).forEach(l => {
+      const c = clusters.find(c => {
+        const ov = Math.min(c.y1, l.y1) - Math.max(c.y0, l.y0);
+        return ov > 0.5 * Math.min(c.y1 - c.y0, l.y1 - l.y0);
+      });
+      if(c){
+        if(l.conf > c.best.conf) c.best = l;
+        c.y0 = Math.min(c.y0, l.y0); c.y1 = Math.max(c.y1, l.y1);
+      } else clusters.push({ y0: l.y0, y1: l.y1, best: l });
+    });
+    let keep = clusters;
+    if(keep.some(c => c.best.conf >= 60)) keep = keep.filter(c => c.best.conf >= 50);
+    const real = keep.filter(c => /[A-Za-zÀ-ÿ]{3,}/.test(cleanLine(c.best.text)));
+    if(real.length) keep = real; // a leftover scrap like "ea" isn't a subtitle line
+    return keep.sort((a, b) => a.y0 - b.y0).map(c => c.best.text).join('\n');
   }
 
   // ---------------- translation ----------------
@@ -444,16 +464,13 @@ function doPost(e) {
       setStatus('Reading the Dutch…' + (online() ? ' (the first time it downloads the Dutch reader, so it can take a bit)' : ''));
       setProgress(0);
       progressHook = m => { if(m.status === 'recognizing text') setProgress(m.progress); };
-      // Read it with a strict and a looser "what counts as white" cutoff (strict keeps
-      // bright scenery out, loose keeps text that sits over a light picture) and use
-      // whichever read came out more certain. Plain image as a last resort.
-      let sentences = [], best = -1;
-      for(const cut of [215, 180]){
-        const r = await ocr(prepCanvas(img, false, cut));
-        const s = toSentences(r.text);
-        if(s.length && r.score > best){ best = r.score; sentences = s; }
-      }
-      if(!sentences.length) sentences = toSentences((await ocr(prepCanvas(img, true))).text);
+      // Read it with a few "what counts as white" cutoffs (strict keeps bright scenery
+      // out, loose keeps text that sits over a light picture) and keep, line by line,
+      // whichever reading was the most certain. Plain image as a last resort.
+      const cands = [];
+      for(const cut of [215, 190, 165]){ (await ocr(prepCanvas(img, false, cut))).forEach(l => cands.push(l)); }
+      let sentences = toSentences(mergeLines(cands));
+      if(!sentences.length) sentences = toSentences(mergeLines(await ocr(prepCanvas(img, true))));
       progressHook = null;
       setProgress(null);
       if(!sentences.length){ setStatus('No Dutch text found in that screenshot.', 'err'); return; }
