@@ -470,7 +470,7 @@ function doPost(e) {
   // On-device translator: a small translation model (Helsinki-NLP opus-mt nl->en, via
   // Transformers.js) that runs inside the page. Downloaded once on request, kept by the
   // browser, and used whenever the online translators aren't reachable.
-  const OFF_KEY = 'dutch.offlineModel.v1';
+  const OFF_KEY = 'dutch.offlineModel.v1', OFF_FAIL_KEY = 'dutch.offlineFail.v1';
   const TF_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2/+esm';
   const MODEL_ID = 'Xenova/opus-mt-nl-en';
   const dlFiles = {}; let progressSink = null;
@@ -523,14 +523,16 @@ function doPost(e) {
     $('offRemove').style.display = on ? '' : 'none';
     $('offHint').innerHTML = on
       ? 'Offline translation is on: when there\'s no internet, new sentences are translated on this device.'
-      : 'Download the Dutch&rarr;English translator once (about 100 MB, best on wifi) and sentences get translated even with no internet.';
+      : 'It downloads by itself the first time you open this page on wifi (about 100 MB, one time), so sentences can be translated even with no internet. You can also start it here.';
     if(msg !== undefined){ $('offStatus').textContent = msg; $('offStatus').className = 'status' + (kind ? ' ' + kind : ''); $('offStatus').style.margin = '0'; }
   }
-  $('offBtn').addEventListener('click', async () => {
-    if(offlineReady()) return;
-    if(!online()){ updateOfflineUi('Connect to the internet to download it.', 'err'); return; }
+  let offBusy = false;
+  async function startOfflineDownload(auto){
+    if(offlineReady() || offBusy) return;
+    if(!online()){ if(!auto) updateOfflineUi('Connect to the internet to download it.', 'err'); return; }
+    offBusy = true;
     $('offBtn').disabled = true;
-    updateOfflineUi('Downloading… keep this page open.');
+    updateOfflineUi(auto ? 'Getting the offline translator ready in the background… (one time)' : 'Downloading… keep this page open.');
     $('offBar').classList.add('on');
     progressSink = f => {
       let l = 0, t = 0; Object.keys(f).forEach(k => { l += f[k].loaded; t += f[k].total; });
@@ -546,12 +548,24 @@ function doPost(e) {
       translatePending();
     }catch(err){
       console.error(err);
+      lsSet(OFF_FAIL_KEY, String(Date.now()));
       updateOfflineUi('Could not download: ' + (err && err.message ? err.message : err), 'err');
       $('offBtn').disabled = false;
     }finally{
+      offBusy = false;
       progressSink = null; $('offBar').classList.remove('on'); $('offFill').style.width = '0';
     }
-  });
+  }
+  $('offBtn').addEventListener('click', () => startOfflineDownload(false));
+  // Fetch it automatically the first time the page is open on wifi (not on mobile data or
+  // data saver), and don't hammer a failing download: wait an hour between automatic tries.
+  function maybeAutoDownload(){
+    if(offlineReady() || offBusy || !online()) return;
+    const c = navigator.connection || {};
+    if(c.saveData || c.type === 'cellular') return;
+    if(Date.now() - Number(lsGet(OFF_FAIL_KEY, '0')) < 3600000) return;
+    startOfflineDownload(true);
+  }
   $('offRemove').addEventListener('click', async () => {
     try{ lsSet(OFF_KEY, ''); translatorPromise = null; if(window.caches){ await caches.delete('transformers-cache'); } }catch(e){}
     updateOfflineUi('Removed.');
@@ -779,12 +793,13 @@ function doPost(e) {
     if(files.length){ e.preventDefault(); processFiles(files); }
   });
   function updateNet(){ $('net').classList.toggle('off', !online()); }
-  window.addEventListener('online', () => { updateNet(); syncWithSheet().then(translatePending); });
+  window.addEventListener('online', () => { updateNet(); syncWithSheet().then(translatePending); setTimeout(maybeAutoDownload, 4000); });
   window.addEventListener('offline', updateNet);
 
   // ---------------- start ----------------
   state.sheetUrl = lsGet(URL_KEY, '') || CONFIG.SHEET_URL || '';
   updateSheetUi(); updateNet(); renderList(); updateOfflineUi();
+  setTimeout(maybeAutoDownload, 4000);
   if(state.sheetUrl) syncWithSheet().then(translatePending); else translatePending();
 })();
 </script>
