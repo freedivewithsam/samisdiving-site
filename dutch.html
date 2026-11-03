@@ -139,6 +139,17 @@
   </div>
   <div class="saved" id="saved"></div>
 
+  <div class="card" id="offlineCard" style="margin-top:18px">
+    <b>Offline translation</b>
+    <div class="hint" id="offHint">Download the Dutch&rarr;English translator once (about 100 MB, best on wifi) and sentences get translated even with no internet.</div>
+    <div class="actions">
+      <button class="btn btn-primary btn-small" id="offBtn">Download translator</button>
+      <button class="btn btn-ghost btn-small" id="offRemove" style="display:none">Remove</button>
+      <span class="status" id="offStatus" style="margin:0"></span>
+    </div>
+    <div class="bar" id="offBar"><i id="offFill"></i></div>
+  </div>
+
 </div>
 
 <div class="modal-overlay" id="sheetModal">
@@ -456,8 +467,41 @@ function doPost(e) {
     return out;
   }
 
-  // On-device translator: Chrome's built-in one if it's there, otherwise a small
-  // translation model (Helsinki-NLP opus-mt nl->en) run in the browser.
+  // On-device translator: a small translation model (Helsinki-NLP opus-mt nl->en, via
+  // Transformers.js) that runs inside the page. Downloaded once on request, kept by the
+  // browser, and used whenever the online translators aren't reachable.
+  const OFF_KEY = 'dutch.offlineModel.v1';
+  const TF_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2/+esm';
+  const MODEL_ID = 'Xenova/opus-mt-nl-en';
+  const dlFiles = {}; let progressSink = null;
+  let translatorPromise = null;
+  function offlineReady(){ return lsGet(OFF_KEY, '') === '1'; }
+  function loadTranslator(){
+    if(!translatorPromise){
+      translatorPromise = (async () => {
+        const tf = await import(TF_URL);
+        tf.env.allowLocalModels = false;
+        return tf.pipeline('translation', MODEL_ID, {
+          dtype: 'q8',
+          progress_callback: m => {
+            if(m && m.status === 'progress' && m.file){ dlFiles[m.file] = { loaded: m.loaded || 0, total: m.total || 0 }; }
+            if(progressSink) progressSink(dlFiles);
+          }
+        });
+      })();
+      translatorPromise.catch(() => { translatorPromise = null; });
+    }
+    return translatorPromise;
+  }
+  async function translateOffline(texts){
+    const t = await loadTranslator();
+    const out = [];
+    for(const x of texts){
+      try{ const r = await t(x, { max_new_tokens: 256 }); out.push((r && r[0] && r[0].translation_text || '').trim()); }
+      catch(e){ console.warn('Offline translate failed', e); out.push(''); }
+    }
+    return out;
+  }
   // Returns one string per input ('' when it couldn't be translated right now).
   async function translateTexts(texts){
     if(!texts.length) return [];
@@ -465,8 +509,53 @@ function doPost(e) {
     if(online()){
       try{ out = await translateOnline(texts); }catch(e){ console.warn(e); }
     }
+    const missing = out.map((t, i) => t ? -1 : i).filter(i => i >= 0);
+    if(missing.length && offlineReady()){
+      try{ const r = await translateOffline(missing.map(i => texts[i])); missing.forEach((i, k) => { out[i] = r[k] || ''; }); }
+      catch(e){ console.warn(e); }
+    }
     return out;
   }
+  function updateOfflineUi(msg, kind){
+    const on = offlineReady();
+    $('offBtn').textContent = on ? 'Translator installed \u2713' : 'Download translator';
+    $('offBtn').disabled = on;
+    $('offRemove').style.display = on ? '' : 'none';
+    $('offHint').innerHTML = on
+      ? 'Offline translation is on: when there\'s no internet, new sentences are translated on this device.'
+      : 'Download the Dutch&rarr;English translator once (about 100 MB, best on wifi) and sentences get translated even with no internet.';
+    if(msg !== undefined){ $('offStatus').textContent = msg; $('offStatus').className = 'status' + (kind ? ' ' + kind : ''); $('offStatus').style.margin = '0'; }
+  }
+  $('offBtn').addEventListener('click', async () => {
+    if(offlineReady()) return;
+    if(!online()){ updateOfflineUi('Connect to the internet to download it.', 'err'); return; }
+    $('offBtn').disabled = true;
+    updateOfflineUi('Downloading… keep this page open.');
+    $('offBar').classList.add('on');
+    progressSink = f => {
+      let l = 0, t = 0; Object.keys(f).forEach(k => { l += f[k].loaded; t += f[k].total; });
+      if(t){ $('offFill').style.width = Math.round(l / t * 100) + '%'; $('offStatus').textContent = 'Downloading… ' + Math.round(l / 1048576) + ' of ' + Math.round(t / 1048576) + ' MB'; }
+    };
+    try{
+      try{ if(navigator.storage && navigator.storage.persist) await navigator.storage.persist(); }catch(e){}
+      await loadTranslator();
+      const test = await translateOffline(['Hallo, hoe gaat het?']);
+      if(!test[0]) throw new Error('The translator did not answer.');
+      lsSet(OFF_KEY, '1');
+      updateOfflineUi('Ready \u2014 works with no internet now.', 'ok');
+      translatePending();
+    }catch(err){
+      console.error(err);
+      updateOfflineUi('Could not download: ' + (err && err.message ? err.message : err), 'err');
+      $('offBtn').disabled = false;
+    }finally{
+      progressSink = null; $('offBar').classList.remove('on'); $('offFill').style.width = '0';
+    }
+  });
+  $('offRemove').addEventListener('click', async () => {
+    try{ lsSet(OFF_KEY, ''); translatorPromise = null; if(window.caches){ await caches.delete('transformers-cache'); } }catch(e){}
+    updateOfflineUi('Removed.');
+  });
 
   // ---------------- screenshot -> list ----------------
   async function processFile(file){
@@ -510,7 +599,7 @@ function doPost(e) {
 
       let msg = 'Added ' + added.length + ' sentence' + (added.length === 1 ? '' : 's') + (dupes ? ' (' + dupes + ' already in your list)' : '') + '.';
       const untranslated = added.filter(i => !i.english).length;
-      if(untranslated) msg += ' ' + untranslated + ' still need translating — it will happen automatically once you\'re online.';
+      if(untranslated) msg += ' ' + untranslated + ' still need translating — it will happen automatically once you\'re online' + (offlineReady() ? '.' : ' (or download the offline translator at the bottom).');
       if(state.sheetUrl && online()){
         try{ const r = await postJSON({ action: 'save', items: added }); if(!(r && r.ok)) msg += ' (Sheet said: ' + ((r && r.error) || 'error') + ')'; }
         catch(err){ msg += ' Could not reach the sheet — it will sync later.'; }
@@ -695,7 +784,7 @@ function doPost(e) {
 
   // ---------------- start ----------------
   state.sheetUrl = lsGet(URL_KEY, '') || CONFIG.SHEET_URL || '';
-  updateSheetUi(); updateNet(); renderList();
+  updateSheetUi(); updateNet(); renderList(); updateOfflineUi();
   if(state.sheetUrl) syncWithSheet().then(translatePending); else translatePending();
 })();
 </script>
