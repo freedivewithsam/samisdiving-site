@@ -326,6 +326,8 @@ function doPost(e) {
   function cleanLine(l){
     l = String(l||'').replace(/[|_~`^<>{}\[\]\\]/g,' ')
       .replace(/([A-Za-zÀ-ÿ]{3,})['’‘´]([A-Za-zÀ-ÿ]{2,})/g,'$1 $2') // a stray tick between two real words (m'n, zo'n are shorter, so they stay)
+      // a zero inside a word is really an "o" (…00k → …ook, g0ed → goed); lone numbers stay
+      .replace(/\S*[A-Za-zÀ-ÿ]\S*/g, t => (t.indexOf('0') > -1 && !/[1-9]/.test(t)) ? t.replace(/0/g, 'o') : t)
       .replace(/\s+/g,' ').trim();
     if(!/[A-Za-zÀ-ÿ]{2,}/.test(l)) return '';
     return l;
