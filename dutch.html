@@ -424,15 +424,29 @@ function doPost(e) {
     const res = await fetch(state.sheetUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(obj) });
     return res.json();
   }
+  // Google Translate straight from the page (the same free endpoint Chrome's own
+  // translate uses) - no sheet or account needed. Returns '' for anything it couldn't do.
+  async function translateGoogle(text){
+    const res = await fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=nl&tl=en&dt=t&q=' + encodeURIComponent(text));
+    if(!res.ok) throw new Error('Google ' + res.status);
+    const j = await res.json();
+    return ((j && j[0]) || []).map(p => (p && p[0]) || '').join('').trim();
+  }
   async function translateOnline(texts){
-    const out = texts.map(() => '');
+    let out = await Promise.all(texts.map(t => translateGoogle(t).catch(e => { console.warn('Google translate failed', e); return ''; })));
+    const missing = out.map((t, i) => t ? -1 : i).filter(i => i >= 0);
+    if(!missing.length) return out;
+
+    // Fallback 1: Google Translate through the connected sheet's Apps Script
     if(state.sheetUrl){
       try{
-        const r = await postJSON({ action: 'translate', texts });
-        if(r && r.ok && Array.isArray(r.translations)) return r.translations.map(t => t || '');
+        const r = await postJSON({ action: 'translate', texts: missing.map(i => texts[i]) });
+        if(r && r.ok && Array.isArray(r.translations)) missing.forEach((i, k) => { out[i] = r.translations[k] || ''; });
       }catch(e){ console.warn('Sheet translate failed', e); }
     }
-    for(let i = 0; i < texts.length; i++){
+    // Fallback 2: MyMemory
+    for(const i of missing){
+      if(out[i]) continue;
       try{
         const res = await fetch('https://api.mymemory.translated.net/get?langpair=nl%7Cen&q=' + encodeURIComponent(texts[i]));
         const j = await res.json();
