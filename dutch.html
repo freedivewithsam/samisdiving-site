@@ -387,9 +387,14 @@ function doPost(e) {
       const sure = info.filter(l => l.conf >= 50);
       const maxH = Math.max(0, ...(sure.length ? sure : info).map(l => l.h));
       const keep = info.filter(l => l.conf >= 35 && l.h >= maxH * 0.5);
-      if(keep.length) return keep.map(l => l.text).join('\n');
+      if(keep.length){
+        // score = how sure the reader was about the text it kept (weighted by length)
+        let n = 0, t = 0;
+        keep.forEach(l => { const c = cleanLine(l.text).length; n += c; t += c * l.conf; });
+        return { text: keep.map(l => l.text).join('\n'), score: n ? t / n : 0 };
+      }
     }
-    return d.text || '';
+    return { text: d.text || '', score: 0 };
   }
 
   // ---------------- translation ----------------
@@ -439,11 +444,16 @@ function doPost(e) {
       setStatus('Reading the Dutch…' + (online() ? ' (the first time it downloads the Dutch reader, so it can take a bit)' : ''));
       setProgress(0);
       progressHook = m => { if(m.status === 'recognizing text') setProgress(m.progress); };
-      // Strict cutoff first (only the brightest white counts as text, so bright scenery
-      // like lights stays out), then a looser one, then the plain image.
-      let sentences = toSentences(await ocr(prepCanvas(img, false, 215)));
-      if(!sentences.length) sentences = toSentences(await ocr(prepCanvas(img, false, 190)));
-      if(!sentences.length) sentences = toSentences(await ocr(prepCanvas(img, true)));
+      // Read it with a strict and a looser "what counts as white" cutoff (strict keeps
+      // bright scenery out, loose keeps text that sits over a light picture) and use
+      // whichever read came out more certain. Plain image as a last resort.
+      let sentences = [], best = -1;
+      for(const cut of [215, 180]){
+        const r = await ocr(prepCanvas(img, false, cut));
+        const s = toSentences(r.text);
+        if(s.length && r.score > best){ best = r.score; sentences = s; }
+      }
+      if(!sentences.length) sentences = toSentences((await ocr(prepCanvas(img, true))).text);
       progressHook = null;
       setProgress(null);
       if(!sentences.length){ setStatus('No Dutch text found in that screenshot.', 'err'); return; }
