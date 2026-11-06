@@ -171,7 +171,6 @@
     .tab-btn{padding:12px 6px;font-size:13px;text-align:center;border-radius:12px}
     .header-actions{width:100%;justify-content:flex-start}
     .field-row{flex-direction:column;gap:13px}
-    .stat .num{font-size:22px}
     .cat-name{flex-basis:80px}
   }
 
@@ -194,8 +193,8 @@
   .stats-3col{grid-template-columns:repeat(3,1fr)}
   @media (max-width:520px){ .stats-3col{grid-template-columns:1fr 1fr} }
   @media (max-width:340px){ .stats-3col{grid-template-columns:1fr} }
-  .stat{background:var(--card);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);min-width:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;min-height:74px}
-  .stat .num{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15;overflow-wrap:break-word;word-break:break-word}
+  .stat{background:var(--card);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);min-width:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;min-height:74px;container-type:inline-size}
+  .stat .num{font-size:18px;font-size:clamp(11px,9cqw,26px);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15;white-space:nowrap}
   .stat .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin-top:3px;overflow-wrap:break-word;word-break:break-word}
   .stats-mini-head{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);font-weight:700;margin:-10px 0 8px 2px}
   /* Wraps one labeled group of stats ("All time" / "This month") — the
@@ -204,7 +203,7 @@
   .stats-group-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);font-weight:700;margin:0 0 8px 2px}
   .stats-mini{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:22px}
   .stats-mini .stat{padding:10px 14px}
-  .stats-mini .stat .num{font-size:18px}
+  .stats-mini .stat .num{font-size:15px;font-size:clamp(11px,8cqw,18px)}
 
   h2.section{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:18px;margin:26px 0 12px;display:flex;align-items:baseline;gap:8px}
   h2.section .count{font-family:inherit;color:var(--ink-soft);font-size:14px;font-style:italic}
