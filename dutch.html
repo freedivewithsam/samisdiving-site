@@ -81,6 +81,13 @@
   .x{border:none;background:transparent;color:var(--ink-soft);font-size:18px;line-height:1;cursor:pointer;padding:4px 7px;border-radius:8px}
   .x:hover{color:var(--danger);background:var(--rose)}
   .x.edit:hover{color:var(--ink)}
+  .x.learn{color:var(--ink-soft);border:1.5px solid var(--rose-line);border-radius:999px;width:28px;height:28px;padding:0;font-size:15px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-right:4px}
+  .x.learn:hover{color:var(--ok);background:var(--ok-bg);border-color:var(--ok)}
+  .item.learned{background:var(--ok-bg)}
+  .item.learned .x.learn{background:var(--ok);color:#fff;border-color:var(--ok)}
+  .item.learned .x.learn:hover{background:var(--ok);color:#fff}
+  .item.learned .nl{color:var(--ok)}
+  .toolbar select{padding:8px 10px}
   .item.editing{grid-template-columns:1fr;gap:8px;border:1.5px solid var(--rose-line)}
   .item.editing .lbl{font-size:11px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
   .item.editing textarea{width:100%;resize:vertical;min-height:40px;line-height:1.35}
@@ -136,6 +143,7 @@
   <h2 class="section">my list <span class="count" id="listCount"></span></h2>
   <div class="toolbar">
     <input type="search" id="search" placeholder="Search Dutch or English">
+    <select id="filter" aria-label="Filter by learned"><option value="all">All</option><option value="new">Not learned</option><option value="done">Learned</option></select>
   </div>
   <div class="saved" id="saved"></div>
 
@@ -652,8 +660,10 @@ function doPost(e) {
   // ---------------- saved list ----------------
   function renderList(){
     const q = keyOf($('search').value);
-    const list = state.items.filter(i => !q || keyOf(i.dutch).includes(q) || keyOf(i.english).includes(q));
-    $('listCount').textContent = '(' + state.items.length + ')';
+    const f = $('filter').value;
+    const list = state.items.filter(i => (!q || keyOf(i.dutch).includes(q) || keyOf(i.english).includes(q)) && (f === 'all' || (f === 'done' ? !!i.learned : !i.learned)));
+    const nLearned = state.items.filter(i => i.learned).length;
+    $('listCount').textContent = '(' + nLearned + ' of ' + state.items.length + ' learned)';
     $('saved').innerHTML = list.length ? list.map(i => {
       if(i.id === state.editingId){
         return `<div class="item editing" data-id="${esc(i.id)}">
@@ -666,19 +676,25 @@ function doPost(e) {
             <span class="status" data-role="editMsg" style="margin:0"></span>
           </div></div>`;
       }
-      return `<div class="item" data-id="${esc(i.id)}">
+      return `<div class="item${i.learned ? ' learned' : ''}" data-id="${esc(i.id)}">
         <div class="nl">${esc(i.dutch)}</div>
-        <div class="btns"><button class="x edit" data-act="edit" title="Edit">&#9998;</button><button class="x" data-act="del" title="Delete">&times;</button></div>
+        <div class="btns"><button class="x learn" data-act="learn" title="${i.learned ? 'Learned (tap to undo)' : 'Mark as learned'}" aria-pressed="${i.learned ? 'true' : 'false'}">&#10003;</button><button class="x edit" data-act="edit" title="Edit">&#9998;</button><button class="x" data-act="del" title="Delete">&times;</button></div>
         <div class="en${i.english ? '' : ' pending'}">${i.english ? esc(i.english) : 'waiting to be translated…'}</div>
       </div>`;
     }).join('') : '<div class="empty">' + (state.items.length ? 'No matches.' : 'Nothing here yet — paste a screenshot above.') + '</div>';
   }
   $('search').addEventListener('input', renderList);
+  $('filter').addEventListener('change', renderList);
   $('saved').addEventListener('click', async e => {
     const b = e.target.closest('[data-act]'); if(!b) return;
     const el = b.closest('.item'); const id = el.dataset.id;
     const item = state.items.find(i => i.id === id); if(!item) return;
     const act = b.dataset.act;
+    if(act === 'learn'){
+      item.learned = !item.learned; saveLocal(); renderList();
+      if(state.sheetUrl && online()){ try{ await postJSON({ action: 'update', id, dutch: item.dutch, english: item.english, learned: !!item.learned }); }catch(err){} }
+      return;
+    }
     if(act === 'edit'){ state.editingId = id; renderList(); return; }
     if(act === 'cancel-edit'){ state.editingId = null; renderList(); return; }
     if(act === 'retr'){
