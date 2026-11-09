@@ -143,9 +143,10 @@
   <h2 class="section">my list <span class="count" id="listCount"></span></h2>
   <div class="toolbar">
     <input type="search" id="search" placeholder="Search Dutch or English">
-    <select id="filter" aria-label="Filter by learned"><option value="new" selected>Not learned</option><option value="done">Learned</option><option value="all">All</option></select>
   </div>
   <div class="saved" id="saved"></div>
+  <button type="button" class="btn btn-ghost btn-small" id="prevToggle" style="margin-top:14px;display:none"></button>
+  <div class="saved" id="savedPrev" style="margin-top:10px;display:none"></div>
 
   <div class="card" id="offlineCard" style="margin-top:18px">
     <b>Offline translation</b>
@@ -660,11 +661,12 @@ function doPost(e) {
   // ---------------- saved list ----------------
   function renderList(){
     const q = keyOf($('search').value);
-    const f = $('filter').value;
-    const list = state.items.filter(i => (!q || keyOf(i.dutch).includes(q) || keyOf(i.english).includes(q)) && (f === 'all' || (f === 'done' ? !!i.learned : !i.learned)));
+    const match = i => !q || keyOf(i.dutch).includes(q) || keyOf(i.english).includes(q);
+    const list = state.items.filter(i => match(i) && !i.learned);
+    const prev = state.items.filter(i => match(i) && i.learned);
     const nLearned = state.items.filter(i => i.learned).length;
     $('listCount').textContent = '(' + nLearned + ' of ' + state.items.length + ' learned)';
-    $('saved').innerHTML = list.length ? list.map(i => {
+    const itemHtml = i => {
       if(i.id === state.editingId){
         return `<div class="item editing" data-id="${esc(i.id)}">
           <div><div class="lbl">Dutch</div><textarea data-f="dutch" rows="2">${esc(i.dutch)}</textarea></div>
@@ -681,11 +683,19 @@ function doPost(e) {
         <div class="btns"><button class="x learn" data-act="learn" title="${i.learned ? 'Learned (tap to undo)' : 'Mark as learned'}" aria-pressed="${i.learned ? 'true' : 'false'}">&#10003;</button><button class="x edit" data-act="edit" title="Edit">&#9998;</button><button class="x" data-act="del" title="Delete">&times;</button></div>
         <div class="en${i.english ? '' : ' pending'}">${i.english ? esc(i.english) : 'waiting to be translated…'}</div>
       </div>`;
-    }).join('') : '<div class="empty">' + (state.items.length ? 'No matches.' : 'Nothing here yet — paste a screenshot above.') + '</div>';
+    };
+    $('saved').innerHTML = list.length ? list.map(itemHtml).join('') : '<div class="empty">' + (!state.items.length ? 'Nothing here yet — paste a screenshot above.' : (nLearned === state.items.length && !q ? 'All sentences learned.' : 'No matches.')) + '</div>';
+    const tg = $('prevToggle');
+    tg.style.display = prev.length ? '' : 'none';
+    tg.textContent = (state.showPrev ? 'Hide' : 'Show') + ' previous sentences (' + prev.length + ')';
+    $('savedPrev').style.display = prev.length && state.showPrev ? '' : 'none';
+    $('savedPrev').innerHTML = prev.length && state.showPrev ? prev.map(itemHtml).join('') : '';
   }
   $('search').addEventListener('input', renderList);
-  $('filter').addEventListener('change', renderList);
-  $('saved').addEventListener('click', async e => {
+  $('prevToggle').addEventListener('click', () => { state.showPrev = !state.showPrev; renderList(); });
+  $('saved').addEventListener('click', onListClick);
+  $('savedPrev').addEventListener('click', onListClick);
+  async function onListClick(e){
     const b = e.target.closest('[data-act]'); if(!b) return;
     const el = b.closest('.item'); const id = el.dataset.id;
     const item = state.items.find(i => i.id === id); if(!item) return;
@@ -719,7 +729,7 @@ function doPost(e) {
       state.pendingDel.push(id); saveLocal(); renderList();
       if(state.sheetUrl && online()) flushDeletes();
     }
-  });
+  }
   async function flushDeletes(){
     if(!state.pendingDel.length || !state.sheetUrl || !online()) return;
     const ids = state.pendingDel.slice();
