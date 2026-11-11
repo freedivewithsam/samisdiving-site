@@ -4,10 +4,10 @@
  * Used by the Shop tab on samisdiving.com (index.html): mask strap + fins strap.
  * Tab "Shop orders": one row per order, newest at the bottom (Status starts as "New").
  *
- *  - GET  ?action=search&q=<text>            -> { ok, results:[{id,label,province}] }   (RajaOngkir area search)
+ *  - GET  ?action=search&q=<text>            -> { ok, results:[{id,label,province,city,district,subdistrict,zip}] }   (RajaOngkir area search)
  *  - POST {action:"quote", destination, items:[{product,qty}]}
  *                                            -> { ok, subtotal, weight, options:[{code,name,service,description,cost,etd}] }
- *  - POST {action:"order", name, phone, service, items, destination, destinationLabel, address, courier, courierService, note}
+ *  - POST {action:"order", name, phone, items, destination, address, kecamatan, city, province, postcode, courier, courierService, note}
  *                                            -> { ok, order:{id,subtotal,shipping,total,courier} }
  *    Prices and shipping are always re-calculated here, never trusted from the website.
  *
@@ -40,8 +40,8 @@ const PRODUCTS = {
 const COURIERS = ['jnt']; // J&T only. More can be added, e.g. ['jnt', 'jne', 'sicepat']
 const MAX_OPTIONS = 8;
 
-const HEADERS = ['Order ID', 'Time', 'Status', 'Name', 'WhatsApp', 'Service', 'Items', 'Subtotal (Rp)',
-  'Courier', 'Shipping (Rp)', 'Total (Rp)', 'Area', 'Address', 'Note'];
+const HEADERS = ['Order ID', 'Time', 'Status', 'Name', 'WhatsApp', 'Items', 'Subtotal (Rp)', 'Courier', 'Shipping (Rp)', 'Total (Rp)',
+  'Full address', 'Kecamatan', 'Kota/Kabupaten', 'Province', 'Postcode', 'Note'];
 
 function prop_(k) { return PropertiesService.getScriptProperties().getProperty(k) || ''; }
 
@@ -84,7 +84,8 @@ function search_(text) {
   let j = {};
   try { j = JSON.parse(res.getContentText()); } catch (e) { j = {}; }
   return (Array.isArray(j.data) ? j.data : []).map(function (d) {
-    return { id: d.id, label: d.label || [d.subdistrict_name, d.district_name, d.city_name, d.zip_code].join(', '), province: d.province_name || '' };
+    return { id: d.id, label: d.label || [d.subdistrict_name, d.district_name, d.city_name, d.zip_code].join(', '), province: d.province_name || '',
+      city: d.city_name || '', district: d.district_name || '', subdistrict: d.subdistrict_name || '', zip: String(d.zip_code || '') };
   });
 }
 
@@ -163,22 +164,22 @@ function doPost(e) {
 
 function placeOrder_(b) {
   const name = clean_(b.name, 80), phone = String(b.phone || '').replace(/\D/g, '');
-  const service = b.service === 'Delivery' ? 'Delivery' : (b.service === 'Pickup' ? 'Pickup' : '');
   if (name.length < 2) throw new Error('Please enter your name');
   if (phone.length < 9 || phone.length > 15) throw new Error('Please enter a valid WhatsApp number');
-  if (!service) throw new Error('Please choose pickup or delivery');
+  const address = clean_(b.address, 300), kecamatan = clean_(b.kecamatan, 80), city = clean_(b.city, 80),
+    province = clean_(b.province, 80), postcode = String(b.postcode || '').replace(/\D/g, '');
+  if (address.length < 5) throw new Error('Please enter your full address');
+  if (kecamatan.length < 2) throw new Error('Please enter your kecamatan');
+  if (city.length < 2) throw new Error('Please enter your kota / kabupaten');
+  if (province.length < 2) throw new Error('Please enter your province');
+  if (postcode.length !== 5) throw new Error('Please enter your 5-digit postcode');
 
   const c = cart_(b.items);
-  let shipping = 0, courierText = '';
-  if (service === 'Delivery') {
-    const address = clean_(b.address, 300);
-    if (address.length < 5) throw new Error('Please enter your street address');
-    const options = quote_(b.destination, c.weight);
-    const pick = options.filter(function (o) { return o.code === String(b.courier) && o.service === String(b.courierService); })[0];
-    if (!pick) throw new Error('That courier option is no longer available, please choose again');
-    shipping = pick.cost;
-    courierText = pick.name + ' ' + pick.service;
-  }
+  const options = quote_(b.destination, c.weight);
+  const pick = options.filter(function (o) { return o.code === String(b.courier) && o.service === String(b.courierService); })[0];
+  if (!pick) throw new Error('That courier option is no longer available, please choose again');
+  const shipping = pick.cost;
+  const courierText = pick.name + ' ' + pick.service;
   const total = c.subtotal + shipping;
 
   const lock = LockService.getScriptLock();
@@ -197,12 +198,12 @@ function placeOrder_(b) {
     const row = sh.getLastRow() + 1;
     sh.getRange(row, 1, 1, HEADERS.length).setNumberFormat('@');
     sh.getRange(row, 1, 1, HEADERS.length).setValues([[
-      id, Utilities.formatDate(new Date(), TIMEZONE, 'yyyy-MM-dd HH:mm'), 'New', name, '+' + phone, service,
+      id, Utilities.formatDate(new Date(), TIMEZONE, 'yyyy-MM-dd HH:mm'), 'New', name, '+' + phone,
       c.lines.join('\n'), c.subtotal, courierText, shipping, total,
-      clean_(b.destinationLabel, 200), clean_(b.address, 300), clean_(b.note, 300)
+      address, kecamatan, city, province, postcode, clean_(b.note, 300)
     ]]);
-    sh.getRange(row, 8).setNumberFormat('#,##0');
-    sh.getRange(row, 10, 1, 2).setNumberFormat('#,##0');
+    sh.getRange(row, 7).setNumberFormat('#,##0');
+    sh.getRange(row, 9, 1, 2).setNumberFormat('#,##0');
     return { ok: true, order: { id: id, subtotal: c.subtotal, shipping: shipping, total: total, courier: courierText } };
   } finally {
     lock.releaseLock();

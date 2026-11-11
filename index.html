@@ -526,6 +526,8 @@
   .sp-done ol{text-align:left;margin:22px 0 0;padding-left:22px;color:var(--ink-soft);font-size:15px}
   .sp-done ol li{margin-bottom:8px}
   .sp-done .sp-warn{margin-top:16px;padding:12px 14px;border:1px dashed var(--ink);border-radius:var(--radius);font-size:14px;color:var(--ink);text-align:left}
+  .sp-sheet input[readonly]{background:rgba(22,48,46,.07);border-color:var(--mist);color:var(--ink-soft)}
+  .sp-hint{margin:7px 0 0;font-size:13px;color:var(--ink-soft)}
 </style>
 </head>
 <body>
@@ -1583,6 +1585,7 @@
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function hexOk(h){ return /^#[0-9a-f]{3,8}$/i.test(h) ? h : '#cccccc'; }
   function short(part){ return String(part).replace(/ color$/i, ''); }
+  function tc(s){ return String(s || '').toLowerCase().replace(/\b[a-z]/g, function(c){ return c.toUpperCase(); }).trim(); }
 
   // ---------- cart ----------
   var cart = [];
@@ -1627,8 +1630,8 @@
   }
 
   // ---------- checkout state ----------
-  var form = {name: '', cc: '+62', phone: '', address: '', note: ''};
-  var co = {service: '', dest: null, options: [], ship: null, quoting: false, quoteErr: '', token: 0};
+  var form = {name: '', cc: '+62', phone: '', address: '', kec: '', city: '', prov: '', zip: '', note: ''};
+  var co = {dest: null, options: [], ship: null, quoting: false, quoteErr: '', token: 0};
 
   // ---------- add to cart (from the colour pickers) ----------
   document.addEventListener('click', function(e){
@@ -1714,8 +1717,9 @@
     var items = cart.map(function(it){
       return '<div class="sp-line"><span>' + it.qty + '&times; ' + esc(PRODUCTS[it.product].name) + '<small>' + esc(colorText(it)) + '</small></span><b>' + rp(PRODUCTS[it.product].price * it.qty) + '</b></div>';
     }).join('');
+    var ro = SHOP_API ? ' readonly' : '';
     var areaField = SHOP_API
-      ? '<div class="sp-field"><label for="coArea">Area <em>*</em></label><input id="coArea" type="text" autocomplete="off" placeholder="Search kelurahan, kecamatan, city or postcode"><div id="coAreaList" class="sp-list" hidden></div></div>'
+      ? '<div class="sp-field"><label for="coArea">Find your area <em>*</em></label><input id="coArea" type="text" autocomplete="off" placeholder="Type your kecamatan, kelurahan, city or postcode"><div id="coAreaList" class="sp-list" hidden></div><p class="sp-hint">Pick your area from the list: it fills in the fields below and shows the shipping fee.</p></div>'
       : '<p class="sp-note">The shipping fee is confirmed with you on WhatsApp after you place the order.</p>';
     sheet.innerHTML = head('Checkout', true) + '<div class="sp-body">' +
       '<div class="sp-sec"><h4>Your details</h4>' +
@@ -1723,14 +1727,13 @@
         '<div class="sp-field"><label for="coPhone">WhatsApp number <em>*</em></label><div class="sp-phone"><input id="coCC" type="text" inputmode="tel" aria-label="Country code" value="' + esc(form.cc) + '"><input id="coPhone" type="tel" autocomplete="tel-national" placeholder="812 3456 7890" value="' + esc(form.phone) + '"></div></div>' +
       '</div>' +
       '<div class="sp-sec"><h4>Order</h4>' + items + '</div>' +
-      '<div class="sp-sec"><h4>Service <em>*</em></h4>' +
-        '<label class="sp-opt"><input type="radio" name="coSvc" value="Pickup"><span>Pickup</span></label>' +
-        '<label class="sp-opt"><input type="radio" name="coSvc" value="Delivery"><span>Delivery</span></label>' +
-        '<p id="coPickup" class="sp-note" hidden>Free. Sam sends the pickup details on WhatsApp.</p>' +
-        '<div id="coDelivery" hidden>' + areaField +
-          '<div class="sp-field"><label for="coAddr">Street address <em>*</em></label><textarea id="coAddr" placeholder="Street, number, RT/RW, landmarks">' + esc(form.address) + '</textarea></div>' +
-          '<div id="coShip"></div>' +
-        '</div>' +
+      '<div class="sp-sec"><h4>Delivery address</h4>' + areaField +
+        '<div class="sp-field"><label for="coAddr">Full address <em>*</em></label><textarea id="coAddr" placeholder="Street, number, RT/RW, kelurahan/desa, landmarks">' + esc(form.address) + '</textarea></div>' +
+        '<div class="sp-field"><label for="coKec">Kecamatan <em>*</em></label><input id="coKec" type="text" autocomplete="off"' + ro + ' value="' + esc(form.kec) + '"></div>' +
+        '<div class="sp-field"><label for="coCity">Kota / Kabupaten <em>*</em></label><input id="coCity" type="text" autocomplete="off"' + ro + ' value="' + esc(form.city) + '"></div>' +
+        '<div class="sp-field"><label for="coProv">Province <em>*</em></label><input id="coProv" type="text" autocomplete="off"' + ro + ' value="' + esc(form.prov) + '"></div>' +
+        '<div class="sp-field"><label for="coZip">Postcode <em>*</em></label><input id="coZip" type="text" inputmode="numeric" maxlength="5" autocomplete="postal-code" value="' + esc(form.zip) + '"></div>' +
+        '<div id="coShip"></div>' +
       '</div>' +
       '<div class="sp-sec"><h4>Note (optional)</h4><div class="sp-field"><textarea id="coNote" placeholder="Anything Sam should know?">' + esc(form.note) + '</textarea></div></div>' +
       '<div class="sp-sec sp-sum"><div class="sp-row"><span>Items</span><span id="sumItems"></span></div><div class="sp-row"><span>Shipping</span><span id="sumShip"></span></div><div class="sp-row sp-total"><span>Total</span><strong id="sumTotal"></strong></div></div>' +
@@ -1744,18 +1747,19 @@
     q('#coCC').addEventListener('input', function(){ form.cc = this.value; });
     q('#coPhone').addEventListener('input', function(){ form.phone = this.value; });
     q('#coAddr').addEventListener('input', function(){ form.address = this.value; });
+    q('#coKec').addEventListener('input', function(){ form.kec = this.value; });
+    q('#coCity').addEventListener('input', function(){ form.city = this.value; });
+    q('#coProv').addEventListener('input', function(){ form.prov = this.value; });
+    q('#coZip').addEventListener('input', function(){ this.value = this.value.replace(/\D/g, ''); form.zip = this.value; });
     q('#coNote').addEventListener('input', function(){ form.note = this.value; });
 
     function setError(t){ var el = q('#coErr'); if (!el) return; el.textContent = t || ''; el.hidden = !t; }
 
     function updateSummary(){
       if (!q('#sumItems')) return;
-      var shipVal = 0, shipTxt = '—';
-      if (co.service === 'Pickup') shipTxt = 'Free';
-      else if (co.service === 'Delivery') {
-        if (co.ship) { shipVal = co.ship.cost; shipTxt = rp(shipVal); }
-        else shipTxt = SHOP_API ? 'Choose area & courier' : 'Confirmed on WhatsApp';
-      }
+      var shipVal = 0, shipTxt;
+      if (co.ship) { shipVal = co.ship.cost; shipTxt = rp(shipVal); }
+      else shipTxt = SHOP_API ? 'Choose your area' : 'Confirmed on WhatsApp';
       q('#sumItems').textContent = rp(subtotal());
       q('#sumShip').textContent = shipTxt;
       q('#sumTotal').textContent = rp(subtotal() + shipVal);
@@ -1791,25 +1795,17 @@
       });
     }
 
-    function setService(v){
-      co.service = v;
-      setError('');
-      Array.prototype.forEach.call(sheet.querySelectorAll('input[name=coSvc]'), function(r){ r.checked = (r.value === v); });
-      q('#coPickup').hidden = (v !== 'Pickup');
-      q('#coDelivery').hidden = (v !== 'Delivery');
-      updateSummary();
-    }
-    Array.prototype.forEach.call(sheet.querySelectorAll('input[name=coSvc]'), function(r){
-      r.addEventListener('change', function(){
-        setService(this.value);
-        if (this.value === 'Delivery' && co.dest && !co.options.length && !co.quoting) quote();
-      });
-    });
-
     // courier choice
     q('#coShip').addEventListener('change', function(e){
       if (e.target.name === 'coShipOpt') { co.ship = co.options[parseInt(e.target.value, 10)]; setError(''); updateSummary(); }
     });
+
+    // the area picked from the search fills kecamatan, kota/kabupaten, province and postcode
+    function fillArea(d){
+      form.kec = d ? tc(d.district) : ''; form.city = d ? tc(d.city) : ''; form.prov = d ? tc(d.province) : '';
+      form.zip = d && d.zip && String(d.zip) !== '0' ? String(d.zip).replace(/\D/g, '').slice(0, 5) : '';
+      q('#coKec').value = form.kec; q('#coCity').value = form.city; q('#coProv').value = form.prov; q('#coZip').value = form.zip;
+    }
 
     // area search (RajaOngkir through the backend)
     var area = q('#coArea'), list = q('#coAreaList');
@@ -1818,6 +1814,7 @@
       var timer = null, sTok = 0;
       area.addEventListener('input', function(){
         co.dest = null; co.options = []; co.ship = null; co.quoteErr = ''; co.token++;
+        fillArea(null);
         renderShip(); updateSummary();
         clearTimeout(timer);
         var text = area.value.trim();
@@ -1840,41 +1837,42 @@
         var b = e.target.closest('.sp-pick'); if (!b || !list._res) return;
         co.dest = list._res[parseInt(b.getAttribute('data-i'), 10)];
         area.value = co.dest.label + (co.dest.province ? ', ' + co.dest.province : '');
+        fillArea(co.dest);
         list.hidden = true;
         setError('');
         quote();
       });
     }
 
-    setService(co.service);
-    if (co.service === 'Delivery' && co.dest) quote(); else { renderShip(); updateSummary(); }
+    if (co.dest) quote(); else { renderShip(); updateSummary(); }
 
     // place the order
     var go = q('#coGo'), waBtn = q('#coWa');
     function localId(){ return 'WEB-' + Date.now().toString(36).toUpperCase().slice(-6); }
     waBtn.addEventListener('click', function(){
-      finish({id: localId(), subtotal: subtotal(), shipping: co.service === 'Pickup' ? 0 : (co.ship ? co.ship.cost : null), total: subtotal() + (co.ship && co.service === 'Delivery' ? co.ship.cost : 0), courier: co.ship ? co.ship.name + ' ' + co.ship.service : ''}, false);
+      finish({id: localId(), subtotal: subtotal(), shipping: co.ship ? co.ship.cost : null, total: subtotal() + (co.ship ? co.ship.cost : 0), courier: co.ship ? co.ship.name + ' ' + co.ship.service : ''}, false);
     });
     go.addEventListener('click', function(){
       setError('');
       var name = form.name.trim(), digits = waNumber().replace(/\D/g, '');
       if (name.length < 2) { setError('Please enter your name.'); q('#coName').focus(); return; }
       if (digits.length < 9 || digits.length > 15) { setError('Please enter a valid WhatsApp number.'); q('#coPhone').focus(); return; }
-      if (!co.service) { setError('Please choose pickup or delivery.'); return; }
-      if (co.service === 'Delivery') {
-        if (SHOP_API && !co.dest) { setError('Please search and choose your area.'); if (area) area.focus(); return; }
-        if (form.address.trim().length < 5) { setError('Please enter your street address.'); q('#coAddr').focus(); return; }
-        if (SHOP_API && !co.ship) { setError(co.quoting ? 'Still checking shipping rates – one moment.' : 'Please choose a courier.'); return; }
-      }
+      if (SHOP_API && !co.dest) { setError('Please search and choose your area.'); if (area) area.focus(); return; }
+      if (form.address.trim().length < 5) { setError('Please enter your full address.'); q('#coAddr').focus(); return; }
+      if (form.kec.trim().length < 2) { setError('Please enter your kecamatan.'); q('#coKec').focus(); return; }
+      if (form.city.trim().length < 2) { setError('Please enter your kota / kabupaten.'); q('#coCity').focus(); return; }
+      if (form.prov.trim().length < 2) { setError('Please enter your province.'); q('#coProv').focus(); return; }
+      if (!/^\d{5}$/.test(form.zip)) { setError('Please enter your 5-digit postcode.'); q('#coZip').focus(); return; }
+      if (SHOP_API && !co.ship) { setError(co.quoting ? 'Still checking the shipping rate \u2013 one moment.' : 'No shipping rate yet. Please choose your area again.'); return; }
       if (!SHOP_API) {
-        finish({id: localId(), subtotal: subtotal(), shipping: co.service === 'Pickup' ? 0 : null, total: subtotal(), courier: ''}, false);
+        finish({id: localId(), subtotal: subtotal(), shipping: null, total: subtotal(), courier: ''}, false);
         return;
       }
       go.disabled = true; go.textContent = 'Placing order…';
       post({
-        action: 'order', name: name, phone: waNumber(), service: co.service, items: itemsPayload(),
-        destination: co.dest ? co.dest.id : '', destinationLabel: co.dest ? co.dest.label + (co.dest.province ? ', ' + co.dest.province : '') : '',
-        address: form.address.trim(), courier: co.ship ? co.ship.code : '', courierService: co.ship ? co.ship.service : '', note: form.note.trim()
+        action: 'order', name: name, phone: waNumber(), items: itemsPayload(), destination: co.dest ? co.dest.id : '',
+        address: form.address.trim(), kecamatan: form.kec.trim(), city: form.city.trim(), province: form.prov.trim(), postcode: form.zip,
+        courier: co.ship ? co.ship.code : '', courierService: co.ship ? co.ship.service : '', note: form.note.trim()
       }).then(function(j){
         if (!j || !j.ok) throw new Error((j && j.error) || 'Could not place the order');
         finish(j.order, true);
@@ -1894,15 +1892,11 @@
       lines.push('• ' + it.qty + '× ' + p.name, '  ' + colorText(it), '  ' + rp(p.price * it.qty));
     });
     lines.push('', 'Subtotal: ' + rp(o.subtotal));
-    if (co.service === 'Pickup') lines.push('Pickup: free');
-    else if (o.shipping != null) lines.push('Shipping' + (o.courier ? ' (' + o.courier + ')' : '') + ': ' + rp(o.shipping));
+    if (o.shipping != null) lines.push('Shipping' + (o.courier ? ' (' + o.courier + ')' : '') + ': ' + rp(o.shipping));
     else lines.push('Shipping: to be confirmed');
-    lines.push('Total: ' + rp(o.total) + (co.service === 'Delivery' && o.shipping == null ? ' + shipping' : ''));
+    lines.push('Total: ' + rp(o.total) + (o.shipping == null ? ' + shipping' : ''));
     lines.push('', 'Name: ' + form.name.trim(), 'WhatsApp: +' + waNumber());
-    if (co.service === 'Delivery') {
-      if (co.dest) lines.push('Area: ' + co.dest.label + (co.dest.province ? ', ' + co.dest.province : ''));
-      lines.push('Address: ' + form.address.trim());
-    }
+    lines.push('Address: ' + form.address.trim(), 'Kecamatan: ' + form.kec.trim(), 'Kota/Kabupaten: ' + form.city.trim(), 'Province: ' + form.prov.trim(), 'Postcode: ' + form.zip);
     if (form.note.trim()) lines.push('Note: ' + form.note.trim());
     lines.push('', 'Thank you!');
     var href = 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(lines.join('\n'));
@@ -1911,7 +1905,7 @@
     sheet.innerHTML = head(saved ? 'Order placed' : 'Almost done', false) +
       '<div class="sp-body"><div class="sp-done"><div class="sp-check">✓</div>' +
       '<h4>Thank you, ' + esc(first) + '!</h4>' +
-      '<p>Order <b>#' + esc(o.id) + '</b> · Total <b>' + rp(o.total) + '</b>' + (co.service === 'Delivery' && o.shipping == null ? ' + shipping' : '') + '</p>' +
+      '<p>Order <b>#' + esc(o.id) + '</b> · Total <b>' + rp(o.total) + '</b>' + (o.shipping == null ? ' + shipping' : '') + '</p>' +
       '<ol><li>Tap the button below to send your order to Sam on WhatsApp.</li><li>Sam replies with the payment details.</li></ol>' +
       (saved ? '' : '<div class="sp-warn">Your order is not saved online yet – please send the WhatsApp message so Sam receives it.</div>') +
       '</div></div>' +
@@ -1920,8 +1914,8 @@
 
     if (saved) cart = [];
     saveCart();
-    form.address = ''; form.note = '';
-    co = {service: '', dest: null, options: [], ship: null, quoting: false, quoteErr: '', token: co.token + 1};
+    form.address = ''; form.kec = ''; form.city = ''; form.prov = ''; form.zip = ''; form.note = '';
+    co = {dest: null, options: [], ship: null, quoting: false, quoteErr: '', token: co.token + 1};
     updateBar();
   }
 
