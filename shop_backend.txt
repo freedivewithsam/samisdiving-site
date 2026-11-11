@@ -13,12 +13,13 @@
  *
  * SET UP (once)
  *  1. Create a new Google Sheet > Extensions > Apps Script > paste this whole file.
- *  2. Project settings (gear icon) > Script properties > add two properties:
+ *  2. Project settings (gear icon) > Script properties > add one property:
  *       RAJAONGKIR_KEY = your RajaOngkir (Komerce) API key
- *       ORIGIN_ID      = the id of the area you ship from (step 3)
  *     Keep the key ONLY here - never in the website files (the GitHub repo is public).
- *  3. To find ORIGIN_ID: change FIND_ORIGIN_TEXT below to your kelurahan / kecamatan / postcode,
- *     pick "findOrigin" in the function menu, press Run, then read the Execution log and copy the id of your area.
+ *     (ORIGIN_ID is optional: by default the script finds Abang, Karangasem by itself and remembers it.)
+ *  3. Check it: pick "findOrigin" in the function menu, press Run, read the Execution log. It shows the
+ *     origin it picked for Abang, Karangasem. If that is the wrong kelurahan, copy the right id from the log
+ *     into a script property called ORIGIN_ID, and that one is used instead.
  *  4. Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone. Authorize when asked.
  *     Send the web app link (ends in /exec) to Claude to put into index.html (SHOP_API).
  * After editing this file: Deploy > Manage deployments > Edit > New version.
@@ -26,14 +27,17 @@
 const ORDERS_SHEET = 'Shop orders';
 const API_BASE = 'https://rajaongkir.komerce.id/api/v1';
 const TIMEZONE = 'Asia/Makassar';
-const FIND_ORIGIN_TEXT = 'Denpasar'; // <- change to your own area, then run findOrigin()
+// Where parcels are sent from: kecamatan Abang, kabupaten Karangasem (Bali).
+const ORIGIN_SEARCH = 'Abang';
+const ORIGIN_DISTRICT = 'ABANG';
+const ORIGIN_CITY = 'KARANGASEM';
 
 // Prices in Rp, weight in grams. Couriers bill at least 1 kg, so the weight only matters for bigger orders.
 const PRODUCTS = {
   'mask strap': { name: 'Mask strap', price: 100000, weight: 100 },
   'fins strap': { name: 'Fins strap', price: 200000, weight: 250 }
 };
-const COURIERS = ['jnt', 'jne', 'sicepat', 'anteraja', 'pos', 'tiki', 'ninja'];
+const COURIERS = ['jnt']; // J&T only. More can be added, e.g. ['jnt', 'jne', 'sicepat']
 const MAX_OPTIONS = 8;
 
 const HEADERS = ['Order ID', 'Time', 'Status', 'Name', 'WhatsApp', 'Service', 'Items', 'Subtotal (Rp)',
@@ -55,6 +59,24 @@ function clean_(v, max) {
 }
 
 function headers_() { return { key: prop_('RAJAONGKIR_KEY') }; }
+
+// The id RajaOngkir uses for the shipping origin. Uses the ORIGIN_ID script property when set;
+// otherwise looks up Abang, Karangasem once and remembers it.
+function originId_() {
+  const saved = prop_('ORIGIN_ID');
+  if (saved) return saved;
+  const url = API_BASE + '/destination/domestic-destination?limit=50&offset=0&search=' + encodeURIComponent(ORIGIN_SEARCH);
+  const res = UrlFetchApp.fetch(url, { method: 'get', headers: headers_(), muteHttpExceptions: true });
+  let j = {};
+  try { j = JSON.parse(res.getContentText()); } catch (e) { j = {}; }
+  const list = (Array.isArray(j.data) ? j.data : []).filter(function (d) {
+    return String(d.district_name || '').toUpperCase() === ORIGIN_DISTRICT && String(d.city_name || '').toUpperCase().indexOf(ORIGIN_CITY) !== -1;
+  });
+  const best = list.filter(function (d) { return String(d.subdistrict_name || '').toUpperCase() === ORIGIN_DISTRICT; })[0] || list[0];
+  if (!best) throw new Error('Could not find the shipping origin');
+  PropertiesService.getScriptProperties().setProperty('ORIGIN_ID', String(best.id));
+  return String(best.id);
+}
 
 function search_(text) {
   const url = API_BASE + '/destination/domestic-destination?limit=8&offset=0&search=' + encodeURIComponent(text);
@@ -82,8 +104,8 @@ function cart_(items) {
 }
 
 function quote_(destination, weight) {
-  const key = prop_('RAJAONGKIR_KEY'), origin = prop_('ORIGIN_ID');
-  if (!key || !origin) throw new Error('Shipping is not set up yet');
+  if (!prop_('RAJAONGKIR_KEY')) throw new Error('Shipping is not set up yet');
+  const origin = originId_();
   const dest = String(destination || '').replace(/\D/g, '');
   if (!dest) throw new Error('Please choose your area');
   const reqs = COURIERS.map(function (c) {
@@ -187,7 +209,12 @@ function placeOrder_(b) {
   }
 }
 
-// Run this once from the editor to find your ORIGIN_ID (see step 3 at the top).
+// Run this once from the editor to see which origin is used for Abang, Karangasem (see step 3 at the top).
 function findOrigin() {
-  search_(FIND_ORIGIN_TEXT).forEach(function (r) { Logger.log(r.id + '  =  ' + r.label + ', ' + r.province); });
+  Logger.log('Origin in use: ' + originId_());
+  const url = API_BASE + '/destination/domestic-destination?limit=50&offset=0&search=' + encodeURIComponent(ORIGIN_SEARCH);
+  const j = JSON.parse(UrlFetchApp.fetch(url, { method: 'get', headers: headers_(), muteHttpExceptions: true }).getContentText());
+  (Array.isArray(j.data) ? j.data : []).forEach(function (d) {
+    if (String(d.city_name || '').toUpperCase().indexOf(ORIGIN_CITY) !== -1) Logger.log(d.id + '  =  ' + d.label + ', ' + d.province_name);
+  });
 }
