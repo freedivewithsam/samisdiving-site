@@ -1785,15 +1785,15 @@
 
   // ---------- pop-up 3: order placed ----------
   function finish(o, saved){
-    var lines = ['Hi Sam! I’d like to place an order 🙂', 'Order #' + o.id, ''];
+    var lines = ['Hi Sam! I’d like to place an order 🙂', ''];
     cart.forEach(function(it){
       var p = PRODUCTS[it.product];
-      lines.push('• ' + it.qty + '× ' + p.name, '  ' + colorText(it), '  ' + rp(p.price * it.qty));
+      lines.push('• ' + it.qty + '× ' + p.name);
+      it.colors.forEach(function(c){ lines.push('  ' + short(c.part) + ': ' + c.names.join(' + ')); });
+      lines.push('  ' + rp(p.price * it.qty), '');
     });
-    lines.push('', 'Subtotal: ' + rp(o.subtotal));
-    lines.push('Shipping (J&T): to be confirmed', 'Total: ' + rp(o.total) + ' + shipping');
-    lines.push('', 'Name: ' + form.name.trim(), 'WhatsApp: +' + waNumber());
-    lines.push('Address: ' + form.address.trim(), 'Kecamatan: ' + form.kec.trim(), 'Kota/Kabupaten: ' + form.city.trim(), 'Province: ' + form.prov, 'Postcode: ' + form.zip);
+    lines.push('Subtotal: ' + rp(o.subtotal), 'Shipping (J&T): to be confirmed', 'Total: ' + rp(o.total) + ' + shipping', '');
+    lines.push('Name: ' + form.name.trim(), 'WhatsApp: +' + waNumber(), 'Address: ' + form.address.trim(), 'Kecamatan: ' + form.kec.trim(), 'Kota/Kabupaten: ' + form.city.trim(), 'Province: ' + form.prov, 'Postcode: ' + form.zip);
     if (form.note.trim()) lines.push('Note: ' + form.note.trim());
     lines.push('', 'Thank you!');
     var href = 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(lines.join('\n'));
