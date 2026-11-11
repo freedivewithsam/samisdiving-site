@@ -1694,7 +1694,6 @@
     else if (act === 'inc') { cart[i].qty = Math.min(cart[i].qty + 1, 20); saveCart(); viewCart(); updateBar(); }
     else if (act === 'dec') { cart[i].qty = Math.max(cart[i].qty - 1, 1); saveCart(); viewCart(); updateBar(); }
     else if (act === 'rm') { cart.splice(i, 1); saveCart(); viewCart(); updateBar(); }
-    else if (act === 'wa') { if (t.getAttribute('data-keep') === '1') { cart = []; saveCart(); updateBar(); } }
   });
 
   // ---------- server calls ----------
@@ -1736,8 +1735,7 @@
       '<div class="sp-sec sp-sum"><div class="sp-row"><span>Items</span><span id="sumItems"></span></div><div class="sp-row"><span>Shipping</span><span id="sumShip"></span></div><div class="sp-row sp-total"><span>Total</span><strong id="sumTotal"></strong></div></div>' +
       '</div>' +
       '<div class="sp-foot"><p id="coErr" class="sp-err" role="alert" hidden></p>' +
-      '<button type="button" class="btn btn-coral sp-btn" id="coGo" style="margin-top:0">Place order</button>' +
-      '<button type="button" class="sp-link" id="coWa" hidden>Send via WhatsApp instead</button></div>';
+      '<button type="button" class="btn btn-coral sp-btn" id="coGo" style="margin-top:0">Place order</button></div>';
 
     var q = function(s){ return sheet.querySelector(s); };
     q('#coName').addEventListener('input', function(){ form.name = this.value; });
@@ -1757,10 +1755,9 @@
     q('#sumTotal').textContent = rp(subtotal());
 
     // place the order
-    var go = q('#coGo'), waBtn = q('#coWa');
+    var go = q('#coGo');
     function localId(){ return 'WEB-' + Date.now().toString(36).toUpperCase().slice(-6); }
     function localOrder(){ return {id: localId(), subtotal: subtotal(), shipping: null, total: subtotal(), courier: 'J&T'}; }
-    waBtn.addEventListener('click', function(){ finish(localOrder(), false); });
     go.addEventListener('click', function(){
       setError('');
       var name = form.name.trim(), digits = waNumber().replace(/\D/g, '');
@@ -1777,12 +1774,11 @@
         action: 'order', name: name, phone: waNumber(), items: itemsPayload(), address: form.address.trim(),
         kecamatan: form.kec.trim(), city: form.city.trim(), province: form.prov, postcode: form.zip, note: form.note.trim()
       }).then(function(j){
-        if (!j || !j.ok) throw new Error((j && j.error) || 'Could not place the order');
-        finish(j.order, true);
-      }).catch(function(err){
+        if (j && j.ok) { finish(j.order, true); return; }
         go.disabled = false; go.textContent = 'Place order';
-        setError((err && err.message ? err.message : 'Could not place the order') + '. Try again, or send it to Sam on WhatsApp.');
-        waBtn.hidden = false;
+        setError((j && j.error) || 'Could not place the order. Please try again.');
+      }).catch(function(){
+        finish(localOrder(), false);   // the online save failed: the WhatsApp message still reaches Sam
       });
     });
   }
@@ -1804,18 +1800,19 @@
 
     var first = form.name.trim().split(/\s+/)[0];
     sheet.innerHTML = head(saved ? 'Order placed' : 'Almost done', false) +
-      '<div class="sp-body"><div class="sp-done"><div class="sp-check">✓</div>' +
+      '<div class="sp-body"><div class="sp-done"><div class="sp-check">\u2713</div>' +
       '<h4>Thank you, ' + esc(first) + '!</h4>' +
-      '<p>Order <b>#' + esc(o.id) + '</b> · Total <b>' + rp(o.total) + '</b> + shipping</p>' +
-      '<ol><li>Tap the button below to send your order to Sam on WhatsApp.</li><li>Sam replies with the shipping fee and the payment details.</li></ol>' +
-      (saved ? '' : '<div class="sp-warn">Your order is not saved online yet – please send the WhatsApp message so Sam receives it.</div>') +
+      '<p>Order <b>#' + esc(o.id) + '</b> \u00b7 Total <b>' + rp(o.total) + '</b> + shipping</p>' +
+      '<ol><li>WhatsApp opens with your order. Just press send.</li><li>Sam replies with the shipping fee and the payment details.</li></ol>' +
+      (saved ? '' : '<div class="sp-warn">Your order is not saved online \u2013 please make sure the WhatsApp message is sent so Sam receives it.</div>') +
       '</div></div>' +
-      '<div class="sp-foot"><a class="btn btn-coral sp-btn" style="margin-top:0" data-act="wa"' + (saved ? '' : ' data-keep="1"') + ' href="' + href + '" target="_blank" rel="noopener noreferrer">Send order on WhatsApp</a>' +
+      '<div class="sp-foot"><a class="btn btn-coral sp-btn" style="margin-top:0" data-act="wa" href="' + href + '" target="_blank" rel="noopener noreferrer">Open WhatsApp</a>' +
       '<button type="button" class="sp-link" data-act="close">Close</button></div>';
 
-    if (saved) cart = [];
+    cart = [];
     saveCart();
     form.address = ''; form.kec = ''; form.city = ''; form.prov = ''; form.zip = ''; form.note = '';
+    window.location.href = href;   // straight to Sam's WhatsApp with the complete order
     updateBar();
   }
 
