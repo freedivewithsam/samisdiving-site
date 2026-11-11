@@ -72,7 +72,7 @@
 
   /* ---------- nav ---------- */
   header.site{
-    position:fixed;top:0;left:0;right:0;z-index:50;
+    position:fixed;top:0;left:0;right:0;z-index:950;
     display:flex;align-items:center;justify-content:space-between;
     padding:20px 32px;font-family:"Nunito",sans-serif;font-weight:700;font-size:13px;
     transition:background .25s ease,padding .25s ease,box-shadow .25s ease;
@@ -350,6 +350,8 @@
     padding:10px 18px;border-radius:var(--radius);border:1px solid var(--ink);background:transparent;color:var(--ink);
     cursor:pointer;transition:background .15s ease,color .15s ease;
   }
+  .site-tabs{position:relative;z-index:2}
+  .site-tabs button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;position:relative}
   .site-tabs button:hover{background:rgba(22,48,46,.08)}
   .site-tabs button[aria-selected="true"]{background:var(--ink);color:var(--surface)}
   .site-tabs button:focus-visible{outline:2px solid var(--coral);outline-offset:2px}
@@ -1159,6 +1161,11 @@
     }
     onScroll();
   }
+  // delegated on the bar too, so a tap anywhere on a tab (even its edge) switches tabs
+  tabsBar.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('[data-tab]');
+    if (b && tabsBar.contains(b) && b.getAttribute('data-tab') !== currentTab) showTab(b.getAttribute('data-tab'));
+  });
   tabBtns.forEach(function(b, i){
     b.addEventListener('click', function(){ showTab(b.getAttribute('data-tab')); });
     b.addEventListener('keydown', function(e){
