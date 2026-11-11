@@ -447,6 +447,85 @@
   footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 
   ::selection{background:var(--coral);color:var(--ink)}
+
+  /* ---------- shop: add-to-cart, cart bar + order pop-ups ---------- */
+  .cp-order{display:flex;align-items:center;flex-wrap:wrap;gap:14px}
+  .cp-msg{margin:0;font-family:"Nunito",sans-serif;font-weight:700;font-size:13px;color:var(--ink-soft)}
+  .cp-msg.err{color:#a8141f}
+  .cp-msg.ok{color:var(--ink)}
+  body.has-cart-bar #panel-shop{padding-bottom:90px}
+  .cart-bar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:900;width:min(560px,calc(100% - 28px));display:flex;align-items:center;gap:14px;padding:15px 20px;border:0;border-radius:var(--radius);background:var(--ink);color:var(--surface);font-family:"Nunito",sans-serif;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 10px 30px rgba(22,48,46,.35)}
+  .cart-bar[hidden]{display:none}
+  .cart-bar .cb-count{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 7px;border-radius:13px;background:var(--coral);color:var(--ink);font-size:13px}
+  .cart-bar .cb-label{flex:1;text-align:left;text-transform:uppercase;letter-spacing:.1em;font-size:13px}
+  .sp-overlay{position:fixed;inset:0;z-index:1100;background:rgba(18,32,30,.6);display:flex;align-items:flex-end;justify-content:center}
+  .sp-overlay[hidden]{display:none}
+  .sp-sheet{background:var(--surface);color:var(--ink);width:100%;max-width:560px;max-height:92vh;max-height:92dvh;display:flex;flex-direction:column;border-radius:var(--radius);box-shadow:0 -10px 40px rgba(0,0,0,.25)}
+  @media (min-width:700px){ .sp-overlay{align-items:center} .sp-sheet{max-height:88vh} }
+  .sp-head{display:flex;align-items:center;gap:8px;padding:16px 18px 14px 22px;border-bottom:1px solid var(--mist)}
+  .sp-head h3{flex:1;font-size:22px}
+  .sp-x,.sp-back{appearance:none;border:0;background:none;cursor:pointer;color:var(--ink);font-size:30px;line-height:1;width:38px;height:38px;border-radius:50%}
+  .sp-x:hover,.sp-back:hover{background:rgba(22,48,46,.08)}
+  .sp-back{margin-left:-10px}
+  .sp-body{flex:1;overflow-y:auto;padding:6px 22px 22px;-webkit-overflow-scrolling:touch}
+  .sp-foot{padding:14px 22px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--mist);background:var(--surface)}
+  .sp-btn{width:100%;justify-content:center;margin-top:12px}
+  .sp-btn[disabled]{opacity:.5;cursor:not-allowed;transform:none}
+  .sp-link{appearance:none;border:0;background:none;cursor:pointer;display:block;margin:12px auto 0;padding:4px;font-family:"Nunito",sans-serif;font-weight:700;font-size:13px;letter-spacing:.04em;color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+  .sp-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-family:"Nunito",sans-serif;font-weight:700;font-size:15px;padding:3px 0}
+  .sp-row span:first-child{color:var(--ink-soft)}
+  .sp-total{font-size:18px;font-weight:800;border-top:1px solid var(--ink);margin-top:8px;padding-top:12px}
+  .sp-total span:first-child{color:var(--ink)}
+  .sp-empty{color:var(--ink-soft);padding:24px 0}
+  .sp-item{display:flex;gap:10px;padding:20px 0;border-bottom:1px solid var(--mist)}
+  .sp-item-main{flex:1;min-width:0}
+  .sp-item-title{font-family:"Nunito",sans-serif;font-weight:800;font-size:17px}
+  .sp-item-colors{list-style:none;margin:8px 0 6px;padding:0;font-size:13.5px;color:var(--ink-soft)}
+  .sp-item-colors li{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+  .sp-item-colors i{display:inline-block;flex:0 0 auto;width:14px;height:14px;border-radius:50%;border:1px solid rgba(22,48,46,.35)}
+  .sp-item-colors b{font-family:"Nunito",sans-serif;font-weight:700;color:var(--ink);margin:0 7px 0 2px}
+  .sp-item-price{font-family:"Nunito",sans-serif;font-weight:800;font-size:16px;margin-bottom:12px}
+  .sp-qty{display:inline-flex;align-items:center;border:1px solid var(--ink);border-radius:var(--radius)}
+  .sp-qty button{appearance:none;border:0;background:none;cursor:pointer;width:40px;height:38px;font-size:20px;color:var(--ink)}
+  .sp-qty button:hover{background:rgba(22,48,46,.08)}
+  .sp-qty span{min-width:34px;text-align:center;font-family:"Nunito",sans-serif;font-weight:800}
+  .sp-rm{appearance:none;border:0;background:none;cursor:pointer;align-self:flex-start;color:var(--ink-soft);font-size:26px;line-height:1;width:34px;height:34px;border-radius:50%}
+  .sp-rm:hover{background:rgba(22,48,46,.08);color:var(--ink)}
+  .sp-sec{padding:18px 0 4px}
+  .sp-sec h4{margin:0 0 12px;font-family:"Nunito",sans-serif;font-weight:800;font-size:13px;letter-spacing:.1em;text-transform:uppercase}
+  .sp-sec h4 em,.sp-field label em{color:#c0392b;font-style:normal}
+  .sp-field{margin-bottom:14px;position:relative}
+  .sp-field label{display:block;margin-bottom:7px;font-family:"Nunito",sans-serif;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+  .sp-sheet input[type=text],.sp-sheet input[type=tel],.sp-sheet textarea{width:100%;padding:13px 14px;border:1px solid var(--ink);border-radius:var(--radius);background:rgba(255,255,255,.6);color:var(--ink);font-family:"Lora",Georgia,serif;font-size:16px;line-height:1.4}
+  .sp-sheet textarea{resize:vertical;min-height:74px}
+  .sp-sheet input:focus,.sp-sheet textarea:focus{outline:2px solid var(--coral);outline-offset:1px}
+  .sp-phone{display:flex;gap:10px}
+  .sp-phone input:first-child{width:84px;flex:0 0 auto;text-align:center}
+  .sp-opt{display:flex;align-items:center;gap:12px;padding:13px 14px;margin-bottom:8px;border:1px solid var(--mist);border-radius:var(--radius);background:rgba(255,255,255,.45);cursor:pointer}
+  .sp-opt input{accent-color:var(--ink);width:18px;height:18px;margin:0;flex:0 0 auto}
+  .sp-opt > span{flex:1;font-family:"Nunito",sans-serif;font-weight:700;font-size:15px}
+  .sp-opt small{display:block;font-family:"Lora",serif;font-weight:400;font-size:13px;color:var(--ink-soft)}
+  .sp-opt em{font-style:normal;font-family:"Nunito",sans-serif;font-weight:800;font-size:15px}
+  .sp-opt:has(input:checked){border-color:var(--ink);background:rgba(255,255,255,.85)}
+  .sp-note{margin:4px 0 12px;font-size:14px;color:var(--ink-soft)}
+  .sp-err{margin:0 0 10px;font-family:"Nunito",sans-serif;font-weight:700;font-size:13.5px;color:#a8141f}
+  .sp-err[hidden],.sp-note[hidden],.sp-list[hidden]{display:none}
+  .sp-list{position:absolute;left:0;right:0;top:100%;z-index:5;max-height:240px;overflow-y:auto;margin-top:2px;border:1px solid var(--ink);border-radius:var(--radius);background:var(--surface);box-shadow:0 10px 24px rgba(0,0,0,.18)}
+  .sp-list .sp-note{padding:12px 14px;margin:0}
+  .sp-pick{display:block;width:100%;text-align:left;appearance:none;border:0;border-bottom:1px solid var(--mist);background:none;padding:12px 14px;cursor:pointer;font-family:"Lora",serif;font-size:14.5px;color:var(--ink)}
+  .sp-pick:hover,.sp-pick:focus-visible{background:rgba(255,255,255,.8)}
+  .sp-sub{margin:4px 0 10px;font-family:"Nunito",sans-serif;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+  .sp-line{display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px solid var(--mist);font-size:14.5px}
+  .sp-line small{display:block;color:var(--ink-soft);font-size:12.5px}
+  .sp-line b{font-family:"Nunito",sans-serif;font-weight:800;white-space:nowrap}
+  .sp-sum{padding-bottom:10px}
+  .sp-done{text-align:center;padding:22px 0 6px}
+  .sp-check{width:56px;height:56px;margin:0 auto 14px;border-radius:50%;background:var(--coral);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800}
+  .sp-done h4{margin:0 0 6px;font-family:"Nunito",sans-serif;font-weight:800;font-size:22px;text-transform:none;letter-spacing:-.01em}
+  .sp-done p{margin:0 0 6px;color:var(--ink-soft)}
+  .sp-done ol{text-align:left;margin:22px 0 0;padding-left:22px;color:var(--ink-soft);font-size:15px}
+  .sp-done ol li{margin-bottom:8px}
+  .sp-done .sp-warn{margin-top:16px;padding:12px 14px;border:1px dashed var(--ink);border-radius:var(--radius);font-size:14px;color:var(--ink);text-align:left}
 </style>
 </head>
 <body>
@@ -946,7 +1025,8 @@
       <div class="cp-group" data-part="Stopper color" data-max="1"></div>
       <div class="cp-group" data-part="End lock color" data-max="1"></div>
       <div class="cp-order">
-        <a href="https://wa.me/6287777836365" class="btn btn-coral">Order now</a>
+        <button type="button" class="btn btn-coral cp-add">Add to cart</button>
+        <p class="cp-msg" aria-live="polite"></p>
       </div>
     </div>
   </div>
@@ -978,7 +1058,8 @@
       <div class="cp-group" data-part="Stopper color" data-max="3"></div>
       <div class="cp-group" data-part="End lock color" data-max="1"></div>
       <div class="cp-order">
-        <a href="https://wa.me/6287777836365" class="btn btn-coral">Order now</a>
+        <button type="button" class="btn btn-coral cp-add">Add to cart</button>
+        <p class="cp-msg" aria-live="polite"></p>
       </div>
     </div>
   </div>
@@ -1369,14 +1450,15 @@
     var btn = picker.querySelector('.btn-coral');
     var chosen = {};   // part -> array of 'Name (code)' in the order picked
     var parts = [];
+    picker._chosen = chosen;
+    picker._parts = parts;
 
     function updateLink(){
-      if (!btn) return;
-      var bits = parts.filter(function(p){ return chosen[p] && chosen[p].length; })
-        .map(function(p){ return '\u2022 ' + p.replace(/ color$/i, '') + ': ' + chosen[p].join(' + '); });
-      if (!bits.length) { btn.href = WA; return; }
-      var msg = 'Hi Sam! I\u2019d like to order the ' + product + ' \uD83D\uDE42\n' + bits.join('\n') + '\n\nThank you!';
-      btn.href = WA + '?text=' + encodeURIComponent(msg);
+      // the "Add to cart" button (shop pop-ups script) reads the picks from the picker element
+      picker._chosen = chosen;
+      picker._parts = parts;
+      var m = picker.querySelector('.cp-msg');
+      if (m) { m.textContent = ''; m.className = 'cp-msg'; }
     }
 
     Array.prototype.forEach.call(picker.querySelectorAll('.cp-group'), function(group){
@@ -1416,6 +1498,7 @@
 
       list.forEach(function(c){
         var full = c[0] + (c[2] ? ' (' + c[2] + ')' : '');
+        (window.SDS_HEX = window.SDS_HEX || {})[part + '|' + full] = c[1];
         var b = document.createElement('button');
         b.type = 'button';
         b.className = 'cp-swatch';
@@ -1476,6 +1559,373 @@
   function step(){ return track.clientWidth*0.9; }
   c.querySelector('.gc-prev').addEventListener('click',function(){ track.scrollBy({left:-step(),behavior:'smooth'}); });
   c.querySelector('.gc-next').addEventListener('click',function(){ track.scrollBy({left:step(),behavior:'smooth'}); });
+})();
+</script>
+<script>
+(function(){
+  // ---- Shop: cart + checkout pop-ups (mask strap + fins strap) ---------------------
+  // SHOP_API = the Google Apps Script web app link from shop_backend.txt. While it is empty
+  // the shop still works: the order goes to Sam on WhatsApp and the shipping fee is
+  // confirmed there. With the link set, the order is saved in the sheet and shipping is
+  // calculated live through RajaOngkir.
+  var SHOP_API = '';
+  var WA_NUMBER = '6287777836365';
+  // Prices shown here are for display; the backend re-checks them when the order is placed.
+  var PRODUCTS = {
+    'mask strap': {name: 'Mask strap', price: 100000},
+    'fins strap': {name: 'Fins strap', price: 200000}
+  };
+  var STORE = 'sds_cart_v1';
+  var panel = document.getElementById('panel-shop');
+  if (!panel) return;
+
+  function rp(n){ return 'Rp' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function hexOk(h){ return /^#[0-9a-f]{3,8}$/i.test(h) ? h : '#cccccc'; }
+  function short(part){ return String(part).replace(/ color$/i, ''); }
+
+  // ---------- cart ----------
+  var cart = [];
+  try {
+    var saved = JSON.parse(localStorage.getItem(STORE) || '[]');
+    if (Array.isArray(saved)) cart = saved.filter(function(it){ return it && PRODUCTS[it.product] && it.qty > 0 && Array.isArray(it.colors); });
+  } catch (e) { cart = []; }
+  function saveCart(){ try { localStorage.setItem(STORE, JSON.stringify(cart)); } catch (e) {} }
+  function count(){ return cart.reduce(function(n, it){ return n + it.qty; }, 0); }
+  function subtotal(){ return cart.reduce(function(s, it){ return s + PRODUCTS[it.product].price * it.qty; }, 0); }
+  function colorText(it){ return it.colors.map(function(c){ return short(c.part) + ': ' + c.names.join(' + '); }).join('; '); }
+  function itemsPayload(){ return cart.map(function(it){ return {product: it.product, qty: it.qty, colors: colorText(it)}; }); }
+
+  // ---------- floating cart bar + pop-up shell ----------
+  var bar = document.createElement('button');
+  bar.type = 'button'; bar.className = 'cart-bar'; bar.hidden = true;
+  document.body.appendChild(bar);
+  var overlay = document.createElement('div');
+  overlay.className = 'sp-overlay'; overlay.hidden = true;
+  overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true'); overlay.setAttribute('aria-label', 'Your order');
+  var sheet = document.createElement('div');
+  sheet.className = 'sp-sheet';
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+
+  function updateBar(){
+    var n = count();
+    bar.hidden = !(n > 0 && !panel.hidden && overlay.hidden);
+    document.body.classList.toggle('has-cart-bar', n > 0 && !panel.hidden);
+    bar.innerHTML = '<span class="cb-count">' + n + '</span><span class="cb-label">Cart</span><span class="cb-total">' + rp(subtotal()) + '</span>';
+  }
+  function openSheet(){ overlay.hidden = false; document.body.style.overflow = 'hidden'; updateBar(); }
+  function closeSheet(){ co.token++; overlay.hidden = true; document.body.style.overflow = ''; updateBar(); }
+  bar.addEventListener('click', function(){ viewCart(); openSheet(); });
+  overlay.addEventListener('click', function(e){ if (e.target === overlay) closeSheet(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !overlay.hidden) closeSheet(); });
+  new MutationObserver(updateBar).observe(panel, {attributes: true, attributeFilter: ['hidden']});
+
+  function head(title, back){
+    return '<div class="sp-head">' + (back ? '<button type="button" class="sp-back" data-act="back" aria-label="Back">&#8249;</button>' : '') +
+      '<h3>' + title + '</h3><button type="button" class="sp-x" data-act="close" aria-label="Close">&times;</button></div>';
+  }
+
+  // ---------- checkout state ----------
+  var form = {name: '', cc: '+62', phone: '', address: '', note: ''};
+  var co = {service: '', dest: null, options: [], ship: null, quoting: false, quoteErr: '', token: 0};
+
+  // ---------- add to cart (from the colour pickers) ----------
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('.cp-add');
+    if (!b) return;
+    var picker = b.closest('.color-picker');
+    var msg = picker.querySelector('.cp-msg');
+    var product = picker.getAttribute('data-product');
+    var chosen = picker._chosen || {}, parts = picker._parts || [];
+    var hexes = window.SDS_HEX || {};
+    var colors = [], missing = [];
+    parts.forEach(function(p){
+      var names = chosen[p] || [];
+      if (!names.length) { missing.push(short(p).toLowerCase()); return; }
+      colors.push({part: p, names: names.slice(), hex: names.map(function(n){ return hexes[p + '|' + n] || '#cccccc'; })});
+    });
+    if (!PRODUCTS[product] || !parts.length) return;
+    if (missing.length) { msg.className = 'cp-msg err'; msg.textContent = 'Please choose a color for: ' + missing.join(', ') + '.'; return; }
+    var key = JSON.stringify(colors.map(function(c){ return c.names; }));
+    var hit = cart.filter(function(it){ return it.product === product && JSON.stringify(it.colors.map(function(c){ return c.names; })) === key; })[0];
+    if (hit) hit.qty = Math.min(hit.qty + 1, 20); else cart.push({product: product, qty: 1, colors: colors});
+    saveCart(); updateBar();
+    msg.className = 'cp-msg ok'; msg.textContent = 'Added to cart ✓';
+  });
+
+  // ---------- pop-up 1: cart ----------
+  function viewCart(){
+    co.token++;
+    var body;
+    if (!cart.length) body = '<p class="sp-empty">Your cart is empty.</p>';
+    else body = cart.map(function(it, i){
+      var p = PRODUCTS[it.product];
+      var cols = it.colors.map(function(c){
+        var dots = c.hex.map(function(x){ return '<i style="background:' + hexOk(x) + '"></i>'; }).join('');
+        return '<li>' + dots + '<span><b>' + esc(short(c.part)) + '</b>' + esc(c.names.join(' + ')) + '</span></li>';
+      }).join('');
+      return '<div class="sp-item"><div class="sp-item-main"><div class="sp-item-title">' + esc(p.name) + '</div>' +
+        '<ul class="sp-item-colors">' + cols + '</ul><div class="sp-item-price">' + rp(p.price) + '</div>' +
+        '<div class="sp-qty"><button type="button" data-act="dec" data-i="' + i + '" aria-label="One less">&minus;</button><span>' + it.qty +
+        '</span><button type="button" data-act="inc" data-i="' + i + '" aria-label="One more">+</button></div></div>' +
+        '<button type="button" class="sp-rm" data-act="rm" data-i="' + i + '" aria-label="Remove">&times;</button></div>';
+    }).join('');
+    sheet.innerHTML = head('Cart', false) + '<div class="sp-body">' + body + '</div>' +
+      '<div class="sp-foot"><div class="sp-row"><span>Subtotal</span><strong>' + rp(subtotal()) + '</strong></div>' +
+      '<button type="button" class="btn btn-coral sp-btn" data-act="next"' + (cart.length ? '' : ' disabled') + '>Next</button>' +
+      '<button type="button" class="sp-link" data-act="close">Add more items</button></div>';
+  }
+
+  sheet.addEventListener('click', function(e){
+    var t = e.target.closest('[data-act]');
+    if (!t) return;
+    var act = t.getAttribute('data-act'), i = parseInt(t.getAttribute('data-i'), 10);
+    if (act === 'close') closeSheet();
+    else if (act === 'back') viewCart();
+    else if (act === 'next') { if (cart.length) viewCheckout(); }
+    else if (act === 'inc') { cart[i].qty = Math.min(cart[i].qty + 1, 20); saveCart(); viewCart(); updateBar(); }
+    else if (act === 'dec') { cart[i].qty = Math.max(cart[i].qty - 1, 1); saveCart(); viewCart(); updateBar(); }
+    else if (act === 'rm') { cart.splice(i, 1); saveCart(); viewCart(); updateBar(); }
+    else if (act === 'wa') { if (t.getAttribute('data-keep') === '1') { cart = []; saveCart(); updateBar(); } }
+  });
+
+  // ---------- server calls ----------
+  function post(payload){
+    return fetch(SHOP_API, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify(payload)})
+      .then(function(r){ return r.json(); });
+  }
+
+  function waNumber(){
+    var cc = String(form.cc || '').replace(/\D/g, '') || '62';
+    var n = String(form.phone || '').replace(/\D/g, '').replace(/^0+/, '');
+    if (cc === '62' && n.indexOf('62') === 0 && n.length >= 11) n = n.slice(2);
+    return cc + n;
+  }
+  function etdText(etd){
+    etd = String(etd || '').trim();
+    if (!etd) return '';
+    return /^[\d\s\-–]+$/.test(etd) ? etd + ' days' : etd;
+  }
+
+  // ---------- pop-up 2: checkout ----------
+  function viewCheckout(){
+    co.token++; co.quoting = false; co.quoteErr = ''; co.options = []; co.ship = null;
+    var items = cart.map(function(it){
+      return '<div class="sp-line"><span>' + it.qty + '&times; ' + esc(PRODUCTS[it.product].name) + '<small>' + esc(colorText(it)) + '</small></span><b>' + rp(PRODUCTS[it.product].price * it.qty) + '</b></div>';
+    }).join('');
+    var areaField = SHOP_API
+      ? '<div class="sp-field"><label for="coArea">Area <em>*</em></label><input id="coArea" type="text" autocomplete="off" placeholder="Search kelurahan, kecamatan, city or postcode"><div id="coAreaList" class="sp-list" hidden></div></div>'
+      : '<p class="sp-note">The shipping fee is confirmed with you on WhatsApp after you place the order.</p>';
+    sheet.innerHTML = head('Checkout', true) + '<div class="sp-body">' +
+      '<div class="sp-sec"><h4>Your details</h4>' +
+        '<div class="sp-field"><label for="coName">Name <em>*</em></label><input id="coName" type="text" autocomplete="name" value="' + esc(form.name) + '"></div>' +
+        '<div class="sp-field"><label for="coPhone">WhatsApp number <em>*</em></label><div class="sp-phone"><input id="coCC" type="text" inputmode="tel" aria-label="Country code" value="' + esc(form.cc) + '"><input id="coPhone" type="tel" autocomplete="tel-national" placeholder="812 3456 7890" value="' + esc(form.phone) + '"></div></div>' +
+      '</div>' +
+      '<div class="sp-sec"><h4>Order</h4>' + items + '</div>' +
+      '<div class="sp-sec"><h4>Service <em>*</em></h4>' +
+        '<label class="sp-opt"><input type="radio" name="coSvc" value="Pickup"><span>Pickup</span></label>' +
+        '<label class="sp-opt"><input type="radio" name="coSvc" value="Delivery"><span>Delivery</span></label>' +
+        '<p id="coPickup" class="sp-note" hidden>Free. Sam sends the pickup details on WhatsApp.</p>' +
+        '<div id="coDelivery" hidden>' + areaField +
+          '<div class="sp-field"><label for="coAddr">Street address <em>*</em></label><textarea id="coAddr" placeholder="Street, number, RT/RW, landmarks">' + esc(form.address) + '</textarea></div>' +
+          '<div id="coShip"></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="sp-sec"><h4>Note (optional)</h4><div class="sp-field"><textarea id="coNote" placeholder="Anything Sam should know?">' + esc(form.note) + '</textarea></div></div>' +
+      '<div class="sp-sec sp-sum"><div class="sp-row"><span>Items</span><span id="sumItems"></span></div><div class="sp-row"><span>Shipping</span><span id="sumShip"></span></div><div class="sp-row sp-total"><span>Total</span><strong id="sumTotal"></strong></div></div>' +
+      '</div>' +
+      '<div class="sp-foot"><p id="coErr" class="sp-err" role="alert" hidden></p>' +
+      '<button type="button" class="btn btn-coral sp-btn" id="coGo" style="margin-top:0">Place order</button>' +
+      '<button type="button" class="sp-link" id="coWa" hidden>Send via WhatsApp instead</button></div>';
+
+    var q = function(s){ return sheet.querySelector(s); };
+    q('#coName').addEventListener('input', function(){ form.name = this.value; });
+    q('#coCC').addEventListener('input', function(){ form.cc = this.value; });
+    q('#coPhone').addEventListener('input', function(){ form.phone = this.value; });
+    q('#coAddr').addEventListener('input', function(){ form.address = this.value; });
+    q('#coNote').addEventListener('input', function(){ form.note = this.value; });
+
+    function setError(t){ var el = q('#coErr'); if (!el) return; el.textContent = t || ''; el.hidden = !t; }
+
+    function updateSummary(){
+      if (!q('#sumItems')) return;
+      var shipVal = 0, shipTxt = '—';
+      if (co.service === 'Pickup') shipTxt = 'Free';
+      else if (co.service === 'Delivery') {
+        if (co.ship) { shipVal = co.ship.cost; shipTxt = rp(shipVal); }
+        else shipTxt = SHOP_API ? 'Choose area & courier' : 'Confirmed on WhatsApp';
+      }
+      q('#sumItems').textContent = rp(subtotal());
+      q('#sumShip').textContent = shipTxt;
+      q('#sumTotal').textContent = rp(subtotal() + shipVal);
+    }
+
+    function renderShip(){
+      var box = q('#coShip'); if (!box) return;
+      if (!SHOP_API) { box.innerHTML = ''; return; }
+      if (co.quoting) { box.innerHTML = '<p class="sp-note">Checking shipping rates…</p>'; return; }
+      if (co.quoteErr) { box.innerHTML = '<p class="sp-err">' + esc(co.quoteErr) + '</p>'; return; }
+      if (!co.options.length) { box.innerHTML = co.dest ? '' : '<p class="sp-note">Choose your area to see the courier options.</p>'; return; }
+      box.innerHTML = '<div class="sp-sub">Courier</div>' + co.options.map(function(o, i){
+        var sub = [o.description, etdText(o.etd) ? 'Est. ' + etdText(o.etd) : ''].filter(Boolean).join(' · ');
+        return '<label class="sp-opt"><input type="radio" name="coShipOpt" value="' + i + '"' + (co.ship === o ? ' checked' : '') + '><span>' + esc(o.name + ' ' + o.service) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span><em>' + rp(o.cost) + '</em></label>';
+      }).join('');
+    }
+
+    function quote(){
+      co.ship = null; co.options = []; co.quoteErr = '';
+      if (!SHOP_API || !co.dest) { renderShip(); updateSummary(); return; }
+      var tok = ++co.token;
+      co.quoting = true; renderShip(); updateSummary();
+      post({action: 'quote', destination: co.dest.id, items: itemsPayload()}).then(function(j){
+        if (tok !== co.token) return;
+        co.quoting = false;
+        if (!j || !j.ok || !j.options || !j.options.length) co.quoteErr = (j && j.error) || 'No courier rates found for this area. Try another area, or ask Sam on WhatsApp.';
+        else { co.options = j.options; co.ship = j.options[0]; }
+        renderShip(); updateSummary();
+      }).catch(function(){
+        if (tok !== co.token) return;
+        co.quoting = false; co.quoteErr = 'Could not load the shipping rates. Check your connection and try again.';
+        renderShip(); updateSummary();
+      });
+    }
+
+    function setService(v){
+      co.service = v;
+      setError('');
+      Array.prototype.forEach.call(sheet.querySelectorAll('input[name=coSvc]'), function(r){ r.checked = (r.value === v); });
+      q('#coPickup').hidden = (v !== 'Pickup');
+      q('#coDelivery').hidden = (v !== 'Delivery');
+      updateSummary();
+    }
+    Array.prototype.forEach.call(sheet.querySelectorAll('input[name=coSvc]'), function(r){
+      r.addEventListener('change', function(){
+        setService(this.value);
+        if (this.value === 'Delivery' && co.dest && !co.options.length && !co.quoting) quote();
+      });
+    });
+
+    // courier choice
+    q('#coShip').addEventListener('change', function(e){
+      if (e.target.name === 'coShipOpt') { co.ship = co.options[parseInt(e.target.value, 10)]; setError(''); updateSummary(); }
+    });
+
+    // area search (RajaOngkir through the backend)
+    var area = q('#coArea'), list = q('#coAreaList');
+    if (area) {
+      if (co.dest) area.value = co.dest.label + (co.dest.province ? ', ' + co.dest.province : '');
+      var timer = null, sTok = 0;
+      area.addEventListener('input', function(){
+        co.dest = null; co.options = []; co.ship = null; co.quoteErr = ''; co.token++;
+        renderShip(); updateSummary();
+        clearTimeout(timer);
+        var text = area.value.trim();
+        if (text.length < 3) { list.hidden = true; return; }
+        timer = setTimeout(function(){
+          var tok = ++sTok;
+          list.hidden = false; list.innerHTML = '<div class="sp-note">Searching…</div>';
+          fetch(SHOP_API + '?action=search&q=' + encodeURIComponent(text)).then(function(r){ return r.json(); }).then(function(j){
+            if (tok !== sTok) return;
+            var res = (j && j.ok && j.results) || [];
+            if (!res.length) { list.innerHTML = '<div class="sp-note">No match. Try a kecamatan, city or postcode.</div>'; return; }
+            list._res = res;
+            list.innerHTML = res.map(function(r, i){ return '<button type="button" class="sp-pick" data-i="' + i + '">' + esc(r.label + (r.province ? ', ' + r.province : '')) + '</button>'; }).join('');
+          }).catch(function(){
+            if (tok === sTok) list.innerHTML = '<div class="sp-note">Could not search right now. Please try again.</div>';
+          });
+        }, 350);
+      });
+      list.addEventListener('click', function(e){
+        var b = e.target.closest('.sp-pick'); if (!b || !list._res) return;
+        co.dest = list._res[parseInt(b.getAttribute('data-i'), 10)];
+        area.value = co.dest.label + (co.dest.province ? ', ' + co.dest.province : '');
+        list.hidden = true;
+        setError('');
+        quote();
+      });
+    }
+
+    setService(co.service);
+    if (co.service === 'Delivery' && co.dest) quote(); else { renderShip(); updateSummary(); }
+
+    // place the order
+    var go = q('#coGo'), waBtn = q('#coWa');
+    function localId(){ return 'WEB-' + Date.now().toString(36).toUpperCase().slice(-6); }
+    waBtn.addEventListener('click', function(){
+      finish({id: localId(), subtotal: subtotal(), shipping: co.service === 'Pickup' ? 0 : (co.ship ? co.ship.cost : null), total: subtotal() + (co.ship && co.service === 'Delivery' ? co.ship.cost : 0), courier: co.ship ? co.ship.name + ' ' + co.ship.service : ''}, false);
+    });
+    go.addEventListener('click', function(){
+      setError('');
+      var name = form.name.trim(), digits = waNumber().replace(/\D/g, '');
+      if (name.length < 2) { setError('Please enter your name.'); q('#coName').focus(); return; }
+      if (digits.length < 9 || digits.length > 15) { setError('Please enter a valid WhatsApp number.'); q('#coPhone').focus(); return; }
+      if (!co.service) { setError('Please choose pickup or delivery.'); return; }
+      if (co.service === 'Delivery') {
+        if (SHOP_API && !co.dest) { setError('Please search and choose your area.'); if (area) area.focus(); return; }
+        if (form.address.trim().length < 5) { setError('Please enter your street address.'); q('#coAddr').focus(); return; }
+        if (SHOP_API && !co.ship) { setError(co.quoting ? 'Still checking shipping rates – one moment.' : 'Please choose a courier.'); return; }
+      }
+      if (!SHOP_API) {
+        finish({id: localId(), subtotal: subtotal(), shipping: co.service === 'Pickup' ? 0 : null, total: subtotal(), courier: ''}, false);
+        return;
+      }
+      go.disabled = true; go.textContent = 'Placing order…';
+      post({
+        action: 'order', name: name, phone: waNumber(), service: co.service, items: itemsPayload(),
+        destination: co.dest ? co.dest.id : '', destinationLabel: co.dest ? co.dest.label + (co.dest.province ? ', ' + co.dest.province : '') : '',
+        address: form.address.trim(), courier: co.ship ? co.ship.code : '', courierService: co.ship ? co.ship.service : '', note: form.note.trim()
+      }).then(function(j){
+        if (!j || !j.ok) throw new Error((j && j.error) || 'Could not place the order');
+        finish(j.order, true);
+      }).catch(function(err){
+        go.disabled = false; go.textContent = 'Place order';
+        setError((err && err.message ? err.message : 'Could not place the order') + '. Try again, or send it to Sam on WhatsApp.');
+        waBtn.hidden = false;
+      });
+    });
+  }
+
+  // ---------- pop-up 3: order placed ----------
+  function finish(o, saved){
+    var lines = ['Hi Sam! I’d like to place an order 🙂', 'Order #' + o.id, ''];
+    cart.forEach(function(it){
+      var p = PRODUCTS[it.product];
+      lines.push('• ' + it.qty + '× ' + p.name, '  ' + colorText(it), '  ' + rp(p.price * it.qty));
+    });
+    lines.push('', 'Subtotal: ' + rp(o.subtotal));
+    if (co.service === 'Pickup') lines.push('Pickup: free');
+    else if (o.shipping != null) lines.push('Shipping' + (o.courier ? ' (' + o.courier + ')' : '') + ': ' + rp(o.shipping));
+    else lines.push('Shipping: to be confirmed');
+    lines.push('Total: ' + rp(o.total) + (co.service === 'Delivery' && o.shipping == null ? ' + shipping' : ''));
+    lines.push('', 'Name: ' + form.name.trim(), 'WhatsApp: +' + waNumber());
+    if (co.service === 'Delivery') {
+      if (co.dest) lines.push('Area: ' + co.dest.label + (co.dest.province ? ', ' + co.dest.province : ''));
+      lines.push('Address: ' + form.address.trim());
+    }
+    if (form.note.trim()) lines.push('Note: ' + form.note.trim());
+    lines.push('', 'Thank you!');
+    var href = 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(lines.join('\n'));
+
+    var first = form.name.trim().split(/\s+/)[0];
+    sheet.innerHTML = head(saved ? 'Order placed' : 'Almost done', false) +
+      '<div class="sp-body"><div class="sp-done"><div class="sp-check">✓</div>' +
+      '<h4>Thank you, ' + esc(first) + '!</h4>' +
+      '<p>Order <b>#' + esc(o.id) + '</b> · Total <b>' + rp(o.total) + '</b>' + (co.service === 'Delivery' && o.shipping == null ? ' + shipping' : '') + '</p>' +
+      '<ol><li>Tap the button below to send your order to Sam on WhatsApp.</li><li>Sam replies with the payment details.</li></ol>' +
+      (saved ? '' : '<div class="sp-warn">Your order is not saved online yet – please send the WhatsApp message so Sam receives it.</div>') +
+      '</div></div>' +
+      '<div class="sp-foot"><a class="btn btn-coral sp-btn" style="margin-top:0" data-act="wa"' + (saved ? '' : ' data-keep="1"') + ' href="' + href + '" target="_blank" rel="noopener noreferrer">Send order on WhatsApp</a>' +
+      '<button type="button" class="sp-link" data-act="close">Close</button></div>';
+
+    if (saved) cart = [];
+    saveCart();
+    form.address = ''; form.note = '';
+    co = {service: '', dest: null, options: [], ship: null, quoting: false, quoteErr: '', token: co.token + 1};
+    updateBar();
+  }
+
+  updateBar();
 })();
 </script>
 <script>if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){if(/\/dutch$/.test(r.scope))r.unregister()})}).catch(function(){});window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').then(function(){return navigator.serviceWorker.ready}).then(function(r){if(r.active&&navigator.onLine)r.active.postMessage('warm')}).catch(function(){})});}</script>

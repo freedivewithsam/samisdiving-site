@@ -1,0 +1,193 @@
+/**
+ * Shop orders + RajaOngkir shipping - Google Sheets backend
+ * ---------------------------------------------------------
+ * Used by the Shop tab on samisdiving.com (index.html): mask strap + fins strap.
+ * Tab "Shop orders": one row per order, newest at the bottom (Status starts as "New").
+ *
+ *  - GET  ?action=search&q=<text>            -> { ok, results:[{id,label,province}] }   (RajaOngkir area search)
+ *  - POST {action:"quote", destination, items:[{product,qty}]}
+ *                                            -> { ok, subtotal, weight, options:[{code,name,service,description,cost,etd}] }
+ *  - POST {action:"order", name, phone, service, items, destination, destinationLabel, address, courier, courierService, note}
+ *                                            -> { ok, order:{id,subtotal,shipping,total,courier} }
+ *    Prices and shipping are always re-calculated here, never trusted from the website.
+ *
+ * SET UP (once)
+ *  1. Create a new Google Sheet > Extensions > Apps Script > paste this whole file.
+ *  2. Project settings (gear icon) > Script properties > add two properties:
+ *       RAJAONGKIR_KEY = your RajaOngkir (Komerce) API key
+ *       ORIGIN_ID      = the id of the area you ship from (step 3)
+ *     Keep the key ONLY here - never in the website files (the GitHub repo is public).
+ *  3. To find ORIGIN_ID: change FIND_ORIGIN_TEXT below to your kelurahan / kecamatan / postcode,
+ *     pick "findOrigin" in the function menu, press Run, then read the Execution log and copy the id of your area.
+ *  4. Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone. Authorize when asked.
+ *     Send the web app link (ends in /exec) to Claude to put into index.html (SHOP_API).
+ * After editing this file: Deploy > Manage deployments > Edit > New version.
+ */
+const ORDERS_SHEET = 'Shop orders';
+const API_BASE = 'https://rajaongkir.komerce.id/api/v1';
+const TIMEZONE = 'Asia/Makassar';
+const FIND_ORIGIN_TEXT = 'Denpasar'; // <- change to your own area, then run findOrigin()
+
+// Prices in Rp, weight in grams. Couriers bill at least 1 kg, so the weight only matters for bigger orders.
+const PRODUCTS = {
+  'mask strap': { name: 'Mask strap', price: 100000, weight: 100 },
+  'fins strap': { name: 'Fins strap', price: 200000, weight: 250 }
+};
+const COURIERS = ['jnt', 'jne', 'sicepat', 'anteraja', 'pos', 'tiki', 'ninja'];
+const MAX_OPTIONS = 8;
+
+const HEADERS = ['Order ID', 'Time', 'Status', 'Name', 'WhatsApp', 'Service', 'Items', 'Subtotal (Rp)',
+  'Courier', 'Shipping (Rp)', 'Total (Rp)', 'Area', 'Address', 'Note'];
+
+function prop_(k) { return PropertiesService.getScriptProperties().getProperty(k) || ''; }
+
+function jsonOut_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function errText_(err) { return String(err && err.message ? err.message : err); }
+
+// Stops text from being read as a formula when it lands in the sheet.
+function clean_(v, max) {
+  let s = String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, max || 300);
+  if (/^[=+\-@]/.test(s)) s = "'" + s;
+  return s;
+}
+
+function headers_() { return { key: prop_('RAJAONGKIR_KEY') }; }
+
+function search_(text) {
+  const url = API_BASE + '/destination/domestic-destination?limit=8&offset=0&search=' + encodeURIComponent(text);
+  const res = UrlFetchApp.fetch(url, { method: 'get', headers: headers_(), muteHttpExceptions: true });
+  let j = {};
+  try { j = JSON.parse(res.getContentText()); } catch (e) { j = {}; }
+  return (Array.isArray(j.data) ? j.data : []).map(function (d) {
+    return { id: d.id, label: d.label || [d.subdistrict_name, d.district_name, d.city_name, d.zip_code].join(', '), province: d.province_name || '' };
+  });
+}
+
+// Checks the cart lines against the price list and works out subtotal + weight.
+function cart_(items) {
+  if (!Array.isArray(items) || !items.length || items.length > 20) throw new Error('Your cart is empty');
+  let subtotal = 0, weight = 0;
+  const lines = items.map(function (it) {
+    const p = PRODUCTS[String(it.product)];
+    const qty = Math.floor(Number(it.qty));
+    if (!p || !(qty >= 1 && qty <= 20)) throw new Error('Unknown product in the cart');
+    subtotal += p.price * qty;
+    weight += p.weight * qty;
+    return qty + 'x ' + p.name + (it.colors ? ' - ' + clean_(it.colors, 200) : '');
+  });
+  return { subtotal: subtotal, weight: Math.max(weight, 1000), lines: lines };
+}
+
+function quote_(destination, weight) {
+  const key = prop_('RAJAONGKIR_KEY'), origin = prop_('ORIGIN_ID');
+  if (!key || !origin) throw new Error('Shipping is not set up yet');
+  const dest = String(destination || '').replace(/\D/g, '');
+  if (!dest) throw new Error('Please choose your area');
+  const reqs = COURIERS.map(function (c) {
+    return {
+      url: API_BASE + '/calculate/domestic-cost', method: 'post', headers: headers_(),
+      payload: { origin: String(origin), destination: dest, weight: String(weight), courier: c },
+      muteHttpExceptions: true
+    };
+  });
+  const out = [];
+  UrlFetchApp.fetchAll(reqs).forEach(function (r) {
+    let j = {};
+    try { j = JSON.parse(r.getContentText()); } catch (e) { return; }
+    (Array.isArray(j.data) ? j.data : []).forEach(function (d) {
+      const cost = Number(d.cost);
+      if (cost > 0 && d.code) {
+        out.push({ code: String(d.code), name: String(d.name || d.code), service: String(d.service || ''),
+          description: String(d.description || ''), cost: cost, etd: String(d.etd || '') });
+      }
+    });
+  });
+  out.sort(function (a, b) { return a.cost - b.cost; });
+  return out.slice(0, MAX_OPTIONS);
+}
+
+function doGet(e) {
+  try {
+    const p = (e && e.parameter) || {};
+    if (p.action === 'search') {
+      const q = clean_(p.q, 60);
+      if (q.length < 3) return jsonOut_({ ok: true, results: [] });
+      return jsonOut_({ ok: true, results: search_(q) });
+    }
+    return jsonOut_({ ok: true, message: 'Shop backend is running' });
+  } catch (err) {
+    return jsonOut_({ ok: false, error: errText_(err) });
+  }
+}
+
+function doPost(e) {
+  try {
+    const body = JSON.parse(e.postData.contents);
+    if (body.action === 'quote') {
+      const c = cart_(body.items);
+      const options = quote_(body.destination, c.weight);
+      if (!options.length) return jsonOut_({ ok: false, error: 'No courier rates found for this area.' });
+      return jsonOut_({ ok: true, subtotal: c.subtotal, weight: c.weight, options: options });
+    }
+    if (body.action === 'order') return jsonOut_(placeOrder_(body));
+    return jsonOut_({ ok: false, error: 'Unknown action' });
+  } catch (err) {
+    return jsonOut_({ ok: false, error: errText_(err) });
+  }
+}
+
+function placeOrder_(b) {
+  const name = clean_(b.name, 80), phone = String(b.phone || '').replace(/\D/g, '');
+  const service = b.service === 'Delivery' ? 'Delivery' : (b.service === 'Pickup' ? 'Pickup' : '');
+  if (name.length < 2) throw new Error('Please enter your name');
+  if (phone.length < 9 || phone.length > 15) throw new Error('Please enter a valid WhatsApp number');
+  if (!service) throw new Error('Please choose pickup or delivery');
+
+  const c = cart_(b.items);
+  let shipping = 0, courierText = '';
+  if (service === 'Delivery') {
+    const address = clean_(b.address, 300);
+    if (address.length < 5) throw new Error('Please enter your street address');
+    const options = quote_(b.destination, c.weight);
+    const pick = options.filter(function (o) { return o.code === String(b.courier) && o.service === String(b.courierService); })[0];
+    if (!pick) throw new Error('That courier option is no longer available, please choose again');
+    shipping = pick.cost;
+    courierText = pick.name + ' ' + pick.service;
+  }
+  const total = c.subtotal + shipping;
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sh = ss.getSheetByName(ORDERS_SHEET) || ss.insertSheet(ORDERS_SHEET);
+    if (sh.getLastRow() === 0) {
+      sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
+      sh.setFrozenRows(1);
+    }
+    const day = Utilities.formatDate(new Date(), TIMEZONE, 'yyMMdd');
+    const ids = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues() : [];
+    const n = ids.filter(function (r) { return String(r[0]).indexOf('S' + day + '-') === 0; }).length + 1;
+    const id = 'S' + day + '-' + (n < 10 ? '00' : n < 100 ? '0' : '') + n;
+    const row = sh.getLastRow() + 1;
+    sh.getRange(row, 1, 1, HEADERS.length).setNumberFormat('@');
+    sh.getRange(row, 1, 1, HEADERS.length).setValues([[
+      id, Utilities.formatDate(new Date(), TIMEZONE, 'yyyy-MM-dd HH:mm'), 'New', name, '+' + phone, service,
+      c.lines.join('\n'), c.subtotal, courierText, shipping, total,
+      clean_(b.destinationLabel, 200), clean_(b.address, 300), clean_(b.note, 300)
+    ]]);
+    sh.getRange(row, 8).setNumberFormat('#,##0');
+    sh.getRange(row, 10, 1, 2).setNumberFormat('#,##0');
+    return { ok: true, order: { id: id, subtotal: c.subtotal, shipping: shipping, total: total, courier: courierText } };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Run this once from the editor to find your ORIGIN_ID (see step 3 at the top).
+function findOrigin() {
+  search_(FIND_ORIGIN_TEXT).forEach(function (r) { Logger.log(r.id + '  =  ' + r.label + ', ' + r.province); });
+}
