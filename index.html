@@ -1569,13 +1569,13 @@
   // SHOP_API = the Google Apps Script web app link from shop_backend.txt. While it is empty
   // the shop still works: the order goes to Sam on WhatsApp and the shipping fee is
   // confirmed there. With the link set, the order is also saved in the sheet.
-  // The J&T fee per province is the FEES list further down.
+  // Shipping is always J&T and the fee is always confirmed with the customer on WhatsApp.
   var SHOP_API = '';
   var WA_NUMBER = '6287777836365';
   // Prices shown here are for display; the backend re-checks them when the order is placed.
   var PRODUCTS = {
-    'mask strap': {name: 'Mask strap', price: 100000, weight: 100},
-    'fins strap': {name: 'Fins strap', price: 200000, weight: 250}
+    'mask strap': {name: 'Mask strap', price: 100000},
+    'fins strap': {name: 'Fins strap', price: 200000}
   };
   var PROVINCES = ['Aceh', 'Sumatera Utara', 'Sumatera Barat', 'Riau', 'Kepulauan Riau', 'Jambi', 'Sumatera Selatan', 'Bangka Belitung', 'Bengkulu', 'Lampung',
     'DKI Jakarta', 'Banten', 'Jawa Barat', 'Jawa Tengah', 'DI Yogyakarta', 'Jawa Timur', 'Bali', 'Nusa Tenggara Barat', 'Nusa Tenggara Timur',
@@ -1710,19 +1710,6 @@
     return cc + n;
   }
 
-  // ---------- J&T shipping fee per province ----------
-  // J&T fee for a 1 kg parcel from Abang, per province, in Rp. A province that is not listed here is
-  // confirmed with the customer on WhatsApp. Heavier orders are charged per started kg.
-  // (The same list is in shop_backend.txt, which re-checks the fee when the order is saved.)
-  var FEES = {
-    // 'Bali': 12000,
-  };
-  function weightG(){ return cart.reduce(function(w, it){ return w + PRODUCTS[it.product].weight * it.qty; }, 0); }
-  function shipCost(prov){
-    var f = prov ? Number(FEES[prov]) : 0;
-    return f > 0 ? f * Math.max(1, Math.ceil(weightG() / 1000)) : null;
-  }
-
   // ---------- pop-up 2: checkout ----------
   function viewCheckout(){
     var items = cart.map(function(it){
@@ -1738,13 +1725,12 @@
       '</div>' +
       '<div class="sp-sec"><h4>Order</h4>' + items + '</div>' +
       '<div class="sp-sec"><h4>Delivery address</h4>' +
-        '<p class="sp-note">Delivery within Indonesia with J&amp;T Express.</p>' +
+        '<p class="sp-note">Delivery within Indonesia with J&amp;T Express. The shipping fee is confirmed with you on WhatsApp after you place the order.</p>' +
         '<div class="sp-field"><label for="coAddr">Full address <em>*</em></label><textarea id="coAddr" placeholder="Street, number, RT/RW, kelurahan/desa, landmarks">' + esc(form.address) + '</textarea></div>' +
         '<div class="sp-field"><label for="coKec">Kecamatan <em>*</em></label><input id="coKec" type="text" autocomplete="off" value="' + esc(form.kec) + '"></div>' +
         '<div class="sp-field"><label for="coCity">Kota / Kabupaten <em>*</em></label><input id="coCity" type="text" autocomplete="off" value="' + esc(form.city) + '"></div>' +
         '<div class="sp-field"><label for="coProv">Province <em>*</em></label><select id="coProv">' + provOpts + '</select></div>' +
         '<div class="sp-field"><label for="coZip">Postcode <em>*</em></label><input id="coZip" type="text" inputmode="numeric" maxlength="5" autocomplete="postal-code" value="' + esc(form.zip) + '"></div>' +
-        '<p id="coShip" class="sp-note"></p>' +
       '</div>' +
       '<div class="sp-sec"><h4>Note (optional)</h4><div class="sp-field"><textarea id="coNote" placeholder="Anything Sam should know?">' + esc(form.note) + '</textarea></div></div>' +
       '<div class="sp-sec sp-sum"><div class="sp-row"><span>Items</span><span id="sumItems"></span></div><div class="sp-row"><span>Shipping</span><span id="sumShip"></span></div><div class="sp-row sp-total"><span>Total</span><strong id="sumTotal"></strong></div></div>' +
@@ -1762,26 +1748,18 @@
     q('#coCity').addEventListener('input', function(){ form.city = this.value; });
     q('#coZip').addEventListener('input', function(){ this.value = this.value.replace(/\D/g, ''); form.zip = this.value; });
     q('#coNote').addEventListener('input', function(){ form.note = this.value; });
-    q('#coProv').addEventListener('change', function(){ form.prov = this.value; setError(''); updateShip(); });
+    q('#coProv').addEventListener('change', function(){ form.prov = this.value; setError(''); });
 
     function setError(t){ var el = q('#coErr'); if (!el) return; el.textContent = t || ''; el.hidden = !t; }
 
-    function updateShip(){
-      var note = q('#coShip'); if (!note) return;
-      var c = shipCost(form.prov), shipTxt;
-      if (!form.prov) { note.textContent = 'Choose your province to see the J&T shipping fee.'; shipTxt = 'Choose your province'; }
-      else if (c != null) { note.textContent = 'J&T shipping to ' + form.prov + ': ' + rp(c); shipTxt = rp(c); }
-      else { note.textContent = 'The J&T shipping fee to ' + form.prov + ' is confirmed with you on WhatsApp.'; shipTxt = 'Confirmed on WhatsApp'; }
-      q('#sumItems').textContent = rp(subtotal());
-      q('#sumShip').textContent = shipTxt;
-      q('#sumTotal').textContent = rp(subtotal() + (c || 0));
-    }
-    updateShip();
+    q('#sumItems').textContent = rp(subtotal());
+    q('#sumShip').textContent = 'Confirmed on WhatsApp';
+    q('#sumTotal').textContent = rp(subtotal());
 
     // place the order
     var go = q('#coGo'), waBtn = q('#coWa');
     function localId(){ return 'WEB-' + Date.now().toString(36).toUpperCase().slice(-6); }
-    function localOrder(){ var c = shipCost(form.prov); return {id: localId(), subtotal: subtotal(), shipping: c, total: subtotal() + (c || 0), courier: 'J&T'}; }
+    function localOrder(){ return {id: localId(), subtotal: subtotal(), shipping: null, total: subtotal(), courier: 'J&T'}; }
     waBtn.addEventListener('click', function(){ finish(localOrder(), false); });
     go.addEventListener('click', function(){
       setError('');
@@ -1817,9 +1795,7 @@
       lines.push('• ' + it.qty + '× ' + p.name, '  ' + colorText(it), '  ' + rp(p.price * it.qty));
     });
     lines.push('', 'Subtotal: ' + rp(o.subtotal));
-    if (o.shipping != null) lines.push('Shipping (J&T): ' + rp(o.shipping));
-    else lines.push('Shipping (J&T): to be confirmed');
-    lines.push('Total: ' + rp(o.total) + (o.shipping == null ? ' + shipping' : ''));
+    lines.push('Shipping (J&T): to be confirmed', 'Total: ' + rp(o.total) + ' + shipping');
     lines.push('', 'Name: ' + form.name.trim(), 'WhatsApp: +' + waNumber());
     lines.push('Address: ' + form.address.trim(), 'Kecamatan: ' + form.kec.trim(), 'Kota/Kabupaten: ' + form.city.trim(), 'Province: ' + form.prov, 'Postcode: ' + form.zip);
     if (form.note.trim()) lines.push('Note: ' + form.note.trim());
@@ -1830,8 +1806,8 @@
     sheet.innerHTML = head(saved ? 'Order placed' : 'Almost done', false) +
       '<div class="sp-body"><div class="sp-done"><div class="sp-check">✓</div>' +
       '<h4>Thank you, ' + esc(first) + '!</h4>' +
-      '<p>Order <b>#' + esc(o.id) + '</b> · Total <b>' + rp(o.total) + '</b>' + (o.shipping == null ? ' + shipping' : '') + '</p>' +
-      '<ol><li>Tap the button below to send your order to Sam on WhatsApp.</li><li>Sam replies with the payment details.</li></ol>' +
+      '<p>Order <b>#' + esc(o.id) + '</b> · Total <b>' + rp(o.total) + '</b> + shipping</p>' +
+      '<ol><li>Tap the button below to send your order to Sam on WhatsApp.</li><li>Sam replies with the shipping fee and the payment details.</li></ol>' +
       (saved ? '' : '<div class="sp-warn">Your order is not saved online yet – please send the WhatsApp message so Sam receives it.</div>') +
       '</div></div>' +
       '<div class="sp-foot"><a class="btn btn-coral sp-btn" style="margin-top:0" data-act="wa"' + (saved ? '' : ' data-keep="1"') + ' href="' + href + '" target="_blank" rel="noopener noreferrer">Send order on WhatsApp</a>' +

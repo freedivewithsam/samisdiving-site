@@ -7,29 +7,22 @@
  *  - GET                                      -> { ok:true }  (health check)
  *  - POST {action:"order", name, phone, items:[{product,qty,colors}], address, kecamatan, city, province, postcode, note}
  *                                             -> { ok, order:{id,subtotal,shipping,total,courier} }
- *    Prices and the J&T shipping fee are always re-calculated here, never trusted from the website.
+ *    Prices are always re-calculated here, never trusted from the website. Shipping is J&T and its fee is confirmed
+ *    with the customer on WhatsApp: the "Shipping (Rp)" cell stays empty, and Sam can type the fee in later.
  *
  * SET UP (once)
  *  1. Create a new Google Sheet > Extensions > Apps Script > paste this whole file.
  *  2. Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone. Authorize when asked.
  *  3. Send the web app link (ends in /exec) to Claude to put into index.html (SHOP_API).
  * After editing this file: Deploy > Manage deployments > Edit > New version.
- *
- * The J&T fees (FEES below) must match the FEES list in index.html. Tell Claude when they change and both are updated.
  */
 const ORDERS_SHEET = 'Shop orders';
 const TIMEZONE = 'Asia/Makassar';
 
-// Prices in Rp, weight in grams.
+// Prices in Rp.
 const PRODUCTS = {
-  'mask strap': { name: 'Mask strap', price: 100000, weight: 100 },
-  'fins strap': { name: 'Fins strap', price: 200000, weight: 250 }
-};
-
-// J&T fee for a 1 kg parcel from Abang, per province, in Rp. A province that is not listed has no fixed fee:
-// the order is saved without shipping and Sam confirms the fee on WhatsApp. Heavier orders are charged per started kg.
-const FEES = {
-  // 'Bali': 12000,
+  'mask strap': { name: 'Mask strap', price: 100000 },
+  'fins strap': { name: 'Fins strap', price: 200000 }
 };
 
 const PROVINCES = ['Aceh', 'Sumatera Utara', 'Sumatera Barat', 'Riau', 'Kepulauan Riau', 'Jambi', 'Sumatera Selatan', 'Bangka Belitung', 'Bengkulu', 'Lampung',
@@ -54,30 +47,23 @@ function clean_(v, max) {
   return s;
 }
 
-// Checks the cart lines against the price list and works out subtotal + weight.
+// Checks the cart lines against the price list and works out the subtotal.
 function cart_(items) {
   if (!Array.isArray(items) || !items.length || items.length > 20) throw new Error('Your cart is empty');
-  let subtotal = 0, weight = 0;
+  let subtotal = 0;
   const lines = items.map(function (it) {
     const p = PRODUCTS[String(it.product)];
     const qty = Math.floor(Number(it.qty));
     if (!p || !(qty >= 1 && qty <= 20)) throw new Error('Unknown product in the cart');
     subtotal += p.price * qty;
-    weight += p.weight * qty;
     return qty + 'x ' + p.name + (it.colors ? ' - ' + clean_(it.colors, 200) : '');
   });
-  return { subtotal: subtotal, weight: weight, lines: lines };
+  return { subtotal: subtotal, lines: lines };
 }
 
 function province_(name) {
   const want = String(name || '').trim().toLowerCase();
   return PROVINCES.filter(function (p) { return p.toLowerCase() === want; })[0] || '';
-}
-
-// null = no fixed fee for this province (Sam confirms it on WhatsApp)
-function shipping_(province, weight) {
-  const fee = Number(FEES[province]);
-  return fee > 0 ? fee * Math.max(1, Math.ceil(weight / 1000)) : null;
 }
 
 function doGet() {
@@ -107,8 +93,7 @@ function placeOrder_(b) {
   if (postcode.length !== 5) throw new Error('Please enter your 5-digit postcode');
 
   const c = cart_(b.items);
-  const shipping = shipping_(province, c.weight);
-  const total = c.subtotal + (shipping || 0);
+  const total = c.subtotal; // shipping is confirmed on WhatsApp
 
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -127,11 +112,11 @@ function placeOrder_(b) {
     sh.getRange(row, 1, 1, HEADERS.length).setNumberFormat('@');
     sh.getRange(row, 1, 1, HEADERS.length).setValues([[
       id, Utilities.formatDate(new Date(), TIMEZONE, 'yyyy-MM-dd HH:mm'), 'New', name, '+' + phone,
-      c.lines.join('\n'), c.subtotal, shipping == null ? 'to confirm' : shipping, total,
+      c.lines.join('\n'), c.subtotal, '', total,
       address, kecamatan, city, province, postcode, clean_(b.note, 300)
     ]]);
     sh.getRange(row, 7, 1, 3).setNumberFormat('#,##0');
-    return { ok: true, order: { id: id, subtotal: c.subtotal, shipping: shipping, total: total, courier: 'J&T' } };
+    return { ok: true, order: { id: id, subtotal: c.subtotal, shipping: null, total: total, courier: 'J&T' } };
   } finally {
     lock.releaseLock();
   }
