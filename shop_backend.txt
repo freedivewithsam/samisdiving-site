@@ -1,49 +1,45 @@
 /**
- * Shop orders + RajaOngkir shipping - Google Sheets backend
- * ---------------------------------------------------------
+ * Shop orders - Google Sheets backend
+ * -----------------------------------
  * Used by the Shop tab on samisdiving.com (index.html): mask strap + fins strap.
  * Tab "Shop orders": one row per order, newest at the bottom (Status starts as "New").
  *
- *  - GET  ?action=search&q=<text>            -> { ok, results:[{id,label,province,city,district,subdistrict,zip}] }   (RajaOngkir area search)
- *  - POST {action:"quote", destination, items:[{product,qty}]}
- *                                            -> { ok, subtotal, weight, options:[{code,name,service,description,cost,etd}] }
- *  - POST {action:"order", name, phone, items, destination, address, kecamatan, city, province, postcode, courier, courierService, note}
- *                                            -> { ok, order:{id,subtotal,shipping,total,courier} }
- *    Prices and shipping are always re-calculated here, never trusted from the website.
+ *  - GET                                      -> { ok:true }  (health check)
+ *  - POST {action:"order", name, phone, items:[{product,qty,colors}], address, kecamatan, city, province, postcode, note}
+ *                                             -> { ok, order:{id,subtotal,shipping,total,courier} }
+ *    Prices and the J&T shipping fee are always re-calculated here, never trusted from the website.
  *
  * SET UP (once)
  *  1. Create a new Google Sheet > Extensions > Apps Script > paste this whole file.
- *  2. Project settings (gear icon) > Script properties > add one property:
- *       RAJAONGKIR_KEY = your RajaOngkir (Komerce) API key
- *     Keep the key ONLY here - never in the website files (the GitHub repo is public).
- *     (ORIGIN_ID is optional: by default the script finds Abang, Karangasem by itself and remembers it.)
- *  3. Check it: pick "findOrigin" in the function menu, press Run, read the Execution log. It shows the
- *     origin it picked for Abang, Karangasem. If that is the wrong kelurahan, copy the right id from the log
- *     into a script property called ORIGIN_ID, and that one is used instead.
- *  4. Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone. Authorize when asked.
- *     Send the web app link (ends in /exec) to Claude to put into index.html (SHOP_API).
+ *  2. Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone. Authorize when asked.
+ *  3. Send the web app link (ends in /exec) to Claude to put into index.html (SHOP_API).
  * After editing this file: Deploy > Manage deployments > Edit > New version.
+ *
+ * The J&T fees (FEES below) must match the FEES list in index.html. Tell Claude when they change and both are updated.
  */
 const ORDERS_SHEET = 'Shop orders';
-const API_BASE = 'https://rajaongkir.komerce.id/api/v1';
 const TIMEZONE = 'Asia/Makassar';
-// Where parcels are sent from: kecamatan Abang, kabupaten Karangasem (Bali).
-const ORIGIN_SEARCH = 'Abang';
-const ORIGIN_DISTRICT = 'ABANG';
-const ORIGIN_CITY = 'KARANGASEM';
 
-// Prices in Rp, weight in grams. Couriers bill at least 1 kg, so the weight only matters for bigger orders.
+// Prices in Rp, weight in grams.
 const PRODUCTS = {
   'mask strap': { name: 'Mask strap', price: 100000, weight: 100 },
   'fins strap': { name: 'Fins strap', price: 200000, weight: 250 }
 };
-const COURIERS = ['jnt']; // J&T only. More can be added, e.g. ['jnt', 'jne', 'sicepat']
-const MAX_OPTIONS = 8;
 
-const HEADERS = ['Order ID', 'Time', 'Status', 'Name', 'WhatsApp', 'Items', 'Subtotal (Rp)', 'Courier', 'Shipping (Rp)', 'Total (Rp)',
+// J&T fee for a 1 kg parcel from Abang, per province, in Rp. A province that is not listed has no fixed fee:
+// the order is saved without shipping and Sam confirms the fee on WhatsApp. Heavier orders are charged per started kg.
+const FEES = {
+  // 'Bali': 12000,
+};
+
+const PROVINCES = ['Aceh', 'Sumatera Utara', 'Sumatera Barat', 'Riau', 'Kepulauan Riau', 'Jambi', 'Sumatera Selatan', 'Bangka Belitung', 'Bengkulu', 'Lampung',
+  'DKI Jakarta', 'Banten', 'Jawa Barat', 'Jawa Tengah', 'DI Yogyakarta', 'Jawa Timur', 'Bali', 'Nusa Tenggara Barat', 'Nusa Tenggara Timur',
+  'Kalimantan Barat', 'Kalimantan Tengah', 'Kalimantan Selatan', 'Kalimantan Timur', 'Kalimantan Utara',
+  'Sulawesi Utara', 'Gorontalo', 'Sulawesi Tengah', 'Sulawesi Barat', 'Sulawesi Selatan', 'Sulawesi Tenggara',
+  'Maluku', 'Maluku Utara', 'Papua', 'Papua Barat', 'Papua Barat Daya', 'Papua Selatan', 'Papua Tengah', 'Papua Pegunungan'];
+
+const HEADERS = ['Order ID', 'Time', 'Status', 'Name', 'WhatsApp', 'Items', 'Subtotal (Rp)', 'Shipping (Rp)', 'Total (Rp)',
   'Full address', 'Kecamatan', 'Kota/Kabupaten', 'Province', 'Postcode', 'Note'];
-
-function prop_(k) { return PropertiesService.getScriptProperties().getProperty(k) || ''; }
 
 function jsonOut_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
@@ -58,37 +54,6 @@ function clean_(v, max) {
   return s;
 }
 
-function headers_() { return { key: prop_('RAJAONGKIR_KEY') }; }
-
-// The id RajaOngkir uses for the shipping origin. Uses the ORIGIN_ID script property when set;
-// otherwise looks up Abang, Karangasem once and remembers it.
-function originId_() {
-  const saved = prop_('ORIGIN_ID');
-  if (saved) return saved;
-  const url = API_BASE + '/destination/domestic-destination?limit=50&offset=0&search=' + encodeURIComponent(ORIGIN_SEARCH);
-  const res = UrlFetchApp.fetch(url, { method: 'get', headers: headers_(), muteHttpExceptions: true });
-  let j = {};
-  try { j = JSON.parse(res.getContentText()); } catch (e) { j = {}; }
-  const list = (Array.isArray(j.data) ? j.data : []).filter(function (d) {
-    return String(d.district_name || '').toUpperCase() === ORIGIN_DISTRICT && String(d.city_name || '').toUpperCase().indexOf(ORIGIN_CITY) !== -1;
-  });
-  const best = list.filter(function (d) { return String(d.subdistrict_name || '').toUpperCase() === ORIGIN_DISTRICT; })[0] || list[0];
-  if (!best) throw new Error('Could not find the shipping origin');
-  PropertiesService.getScriptProperties().setProperty('ORIGIN_ID', String(best.id));
-  return String(best.id);
-}
-
-function search_(text) {
-  const url = API_BASE + '/destination/domestic-destination?limit=8&offset=0&search=' + encodeURIComponent(text);
-  const res = UrlFetchApp.fetch(url, { method: 'get', headers: headers_(), muteHttpExceptions: true });
-  let j = {};
-  try { j = JSON.parse(res.getContentText()); } catch (e) { j = {}; }
-  return (Array.isArray(j.data) ? j.data : []).map(function (d) {
-    return { id: d.id, label: d.label || [d.subdistrict_name, d.district_name, d.city_name, d.zip_code].join(', '), province: d.province_name || '',
-      city: d.city_name || '', district: d.district_name || '', subdistrict: d.subdistrict_name || '', zip: String(d.zip_code || '') };
-  });
-}
-
 // Checks the cart lines against the price list and works out subtotal + weight.
 function cart_(items) {
   if (!Array.isArray(items) || !items.length || items.length > 20) throw new Error('Your cart is empty');
@@ -101,60 +66,27 @@ function cart_(items) {
     weight += p.weight * qty;
     return qty + 'x ' + p.name + (it.colors ? ' - ' + clean_(it.colors, 200) : '');
   });
-  return { subtotal: subtotal, weight: Math.max(weight, 1000), lines: lines };
+  return { subtotal: subtotal, weight: weight, lines: lines };
 }
 
-function quote_(destination, weight) {
-  if (!prop_('RAJAONGKIR_KEY')) throw new Error('Shipping is not set up yet');
-  const origin = originId_();
-  const dest = String(destination || '').replace(/\D/g, '');
-  if (!dest) throw new Error('Please choose your area');
-  const reqs = COURIERS.map(function (c) {
-    return {
-      url: API_BASE + '/calculate/domestic-cost', method: 'post', headers: headers_(),
-      payload: { origin: String(origin), destination: dest, weight: String(weight), courier: c },
-      muteHttpExceptions: true
-    };
-  });
-  const out = [];
-  UrlFetchApp.fetchAll(reqs).forEach(function (r) {
-    let j = {};
-    try { j = JSON.parse(r.getContentText()); } catch (e) { return; }
-    (Array.isArray(j.data) ? j.data : []).forEach(function (d) {
-      const cost = Number(d.cost);
-      if (cost > 0 && d.code) {
-        out.push({ code: String(d.code), name: String(d.name || d.code), service: String(d.service || ''),
-          description: String(d.description || ''), cost: cost, etd: String(d.etd || '') });
-      }
-    });
-  });
-  out.sort(function (a, b) { return a.cost - b.cost; });
-  return out.slice(0, MAX_OPTIONS);
+function province_(name) {
+  const want = String(name || '').trim().toLowerCase();
+  return PROVINCES.filter(function (p) { return p.toLowerCase() === want; })[0] || '';
 }
 
-function doGet(e) {
-  try {
-    const p = (e && e.parameter) || {};
-    if (p.action === 'search') {
-      const q = clean_(p.q, 60);
-      if (q.length < 3) return jsonOut_({ ok: true, results: [] });
-      return jsonOut_({ ok: true, results: search_(q) });
-    }
-    return jsonOut_({ ok: true, message: 'Shop backend is running' });
-  } catch (err) {
-    return jsonOut_({ ok: false, error: errText_(err) });
-  }
+// null = no fixed fee for this province (Sam confirms it on WhatsApp)
+function shipping_(province, weight) {
+  const fee = Number(FEES[province]);
+  return fee > 0 ? fee * Math.max(1, Math.ceil(weight / 1000)) : null;
+}
+
+function doGet() {
+  return jsonOut_({ ok: true, message: 'Shop backend is running' });
 }
 
 function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
-    if (body.action === 'quote') {
-      const c = cart_(body.items);
-      const options = quote_(body.destination, c.weight);
-      if (!options.length) return jsonOut_({ ok: false, error: 'No courier rates found for this area.' });
-      return jsonOut_({ ok: true, subtotal: c.subtotal, weight: c.weight, options: options });
-    }
     if (body.action === 'order') return jsonOut_(placeOrder_(body));
     return jsonOut_({ ok: false, error: 'Unknown action' });
   } catch (err) {
@@ -167,20 +99,16 @@ function placeOrder_(b) {
   if (name.length < 2) throw new Error('Please enter your name');
   if (phone.length < 9 || phone.length > 15) throw new Error('Please enter a valid WhatsApp number');
   const address = clean_(b.address, 300), kecamatan = clean_(b.kecamatan, 80), city = clean_(b.city, 80),
-    province = clean_(b.province, 80), postcode = String(b.postcode || '').replace(/\D/g, '');
+    province = province_(b.province), postcode = String(b.postcode || '').replace(/\D/g, '');
   if (address.length < 5) throw new Error('Please enter your full address');
   if (kecamatan.length < 2) throw new Error('Please enter your kecamatan');
   if (city.length < 2) throw new Error('Please enter your kota / kabupaten');
-  if (province.length < 2) throw new Error('Please enter your province');
+  if (!province) throw new Error('Please choose your province');
   if (postcode.length !== 5) throw new Error('Please enter your 5-digit postcode');
 
   const c = cart_(b.items);
-  const options = quote_(b.destination, c.weight);
-  const pick = options.filter(function (o) { return o.code === String(b.courier) && o.service === String(b.courierService); })[0];
-  if (!pick) throw new Error('That courier option is no longer available, please choose again');
-  const shipping = pick.cost;
-  const courierText = pick.name + ' ' + pick.service;
-  const total = c.subtotal + shipping;
+  const shipping = shipping_(province, c.weight);
+  const total = c.subtotal + (shipping || 0);
 
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -199,23 +127,12 @@ function placeOrder_(b) {
     sh.getRange(row, 1, 1, HEADERS.length).setNumberFormat('@');
     sh.getRange(row, 1, 1, HEADERS.length).setValues([[
       id, Utilities.formatDate(new Date(), TIMEZONE, 'yyyy-MM-dd HH:mm'), 'New', name, '+' + phone,
-      c.lines.join('\n'), c.subtotal, courierText, shipping, total,
+      c.lines.join('\n'), c.subtotal, shipping == null ? 'to confirm' : shipping, total,
       address, kecamatan, city, province, postcode, clean_(b.note, 300)
     ]]);
-    sh.getRange(row, 7).setNumberFormat('#,##0');
-    sh.getRange(row, 9, 1, 2).setNumberFormat('#,##0');
-    return { ok: true, order: { id: id, subtotal: c.subtotal, shipping: shipping, total: total, courier: courierText } };
+    sh.getRange(row, 7, 1, 3).setNumberFormat('#,##0');
+    return { ok: true, order: { id: id, subtotal: c.subtotal, shipping: shipping, total: total, courier: 'J&T' } };
   } finally {
     lock.releaseLock();
   }
-}
-
-// Run this once from the editor to see which origin is used for Abang, Karangasem (see step 3 at the top).
-function findOrigin() {
-  Logger.log('Origin in use: ' + originId_());
-  const url = API_BASE + '/destination/domestic-destination?limit=50&offset=0&search=' + encodeURIComponent(ORIGIN_SEARCH);
-  const j = JSON.parse(UrlFetchApp.fetch(url, { method: 'get', headers: headers_(), muteHttpExceptions: true }).getContentText());
-  (Array.isArray(j.data) ? j.data : []).forEach(function (d) {
-    if (String(d.city_name || '').toUpperCase().indexOf(ORIGIN_CITY) !== -1) Logger.log(d.id + '  =  ' + d.label + ', ' + d.province_name);
-  });
 }
