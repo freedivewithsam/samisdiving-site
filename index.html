@@ -1731,7 +1731,6 @@
         '<div class="sp-field"><label for="coProv">Province <em>*</em></label><select id="coProv">' + provOpts + '</select></div>' +
         '<div class="sp-field"><label for="coZip">Postcode <em>*</em></label><input id="coZip" type="text" inputmode="numeric" maxlength="5" autocomplete="postal-code" value="' + esc(form.zip) + '"></div>' +
       '</div>' +
-      '<div class="sp-sec"><h4>Note (optional)</h4><div class="sp-field"><textarea id="coNote" placeholder="Anything Sam should know?">' + esc(form.note) + '</textarea></div></div>' +
       '<div class="sp-sec sp-sum"><div class="sp-row"><span>Items</span><span id="sumItems"></span></div><div class="sp-row"><span>Shipping</span><span id="sumShip"></span></div><div class="sp-row sp-total"><span>Total</span><strong id="sumTotal"></strong></div></div>' +
       '</div>' +
       '<div class="sp-foot"><p id="coErr" class="sp-err" role="alert" hidden></p>' +
@@ -1745,7 +1744,6 @@
     q('#coKec').addEventListener('input', function(){ form.kec = this.value; });
     q('#coCity').addEventListener('input', function(){ form.city = this.value; });
     q('#coZip').addEventListener('input', function(){ this.value = this.value.replace(/\D/g, ''); form.zip = this.value; });
-    q('#coNote').addEventListener('input', function(){ form.note = this.value; });
     q('#coProv').addEventListener('change', function(){ form.prov = this.value; setError(''); });
 
     function setError(t){ var el = q('#coErr'); if (!el) return; el.textContent = t || ''; el.hidden = !t; }
@@ -1772,7 +1770,7 @@
       go.disabled = true; go.textContent = 'Placing order…';
       post({
         action: 'order', name: name, phone: waNumber(), items: itemsPayload(), address: form.address.trim(),
-        kecamatan: form.kec.trim(), city: form.city.trim(), province: form.prov, postcode: form.zip, note: form.note.trim()
+        kecamatan: form.kec.trim(), city: form.city.trim(), province: form.prov, postcode: form.zip, note: ''
       }).then(function(j){
         if (j && j.ok) { finish(j.order, true); return; }
         go.disabled = false; go.textContent = 'Place order';
@@ -1794,7 +1792,6 @@
     });
     lines.push('Subtotal: ' + rp(o.subtotal), 'Shipping: to be confirmed', 'Total: ' + rp(o.total) + ' + shipping', '');
     lines.push('Name: ' + form.name.trim(), 'WhatsApp: +' + waNumber(), 'Address: ' + form.address.trim(), 'Kecamatan: ' + form.kec.trim(), 'Kota/Kabupaten: ' + form.city.trim(), 'Province: ' + form.prov, 'Postcode: ' + form.zip);
-    if (form.note.trim()) lines.push('Note: ' + form.note.trim());
     lines.push('', 'Thank you!');
     var href = 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(lines.join('\n'));
 
