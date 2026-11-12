@@ -321,22 +321,15 @@
     <div class="modal-box" style="max-width:560px;">
       <button class="modal-close" id="sheet-modal-close-btn" title="Close">×</button>
       <h3>Connect Google Sheet</h3>
-      <label for="sheet-url-input">Apps Script web app URL</label>
-      <input type="text" id="sheet-url-input" placeholder="https://script.google.com/macros/s/.../exec">
-      <div class="modal-actions">
-        <button id="sheet-connect-btn">Save &amp; connect</button>
-      </div>
-      <span class="status" id="sheet-connect-status" style="display:block; margin-top:10px;"></span>
-
-      <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--line);">
-        <label>Setting this up for the first time?</label>
-        <div class="hint" style="margin-top:0;">
-          Make a copy of a Google Sheet, open <strong>Extensions → Apps Script</strong>, paste the script below in as <code>Code.gs</code>, then <strong>Deploy → New deployment → Web app</strong> (execute as yourself, access "Anyone"). Paste the resulting URL above.
-        </div>
-        <div class="modal-actions" style="margin-top:10px; margin-bottom:8px;">
-          <button class="ghost" type="button" id="copy-gscript-btn">Copy Code.gs</button>
-        </div>
+      <div hidden>
+        <input type="text" id="sheet-url-input" placeholder="https://script.google.com/macros/s/.../exec">
+        <button id="sheet-connect-btn" type="button">Save &amp; connect</button>
+        <span class="status" id="sheet-connect-status"></span>
         <pre id="gscript-code" style="max-height:260px; overflow:auto; background:rgba(0,0,0,0.25); border:1px solid var(--line); border-radius:8px; padding:12px; font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums; font-size:11.5px; line-height:1.5; white-space:pre; margin:0;"></pre>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="copy-gscript-btn">Copy backend code</button>
+        <span class="status" id="copy-gscript-status" style="margin:0"></span>
       </div>
     </div>
   </div>
@@ -1009,17 +1002,18 @@ function jsonResponse_(obj){
 }
 `;
   document.getElementById('gscript-code').textContent = GSCRIPT_CODE;
-  document.getElementById('copy-gscript-btn').addEventListener('click', async (e)=>{
-    const btn = e.currentTarget;
-    try{
-      await navigator.clipboard.writeText(GSCRIPT_CODE);
-      const original = btn.textContent;
-      btn.textContent = 'Copied!';
-      setTimeout(()=>{ btn.textContent = original; }, 1800);
-    }catch(err){
-      console.error(err);
-      btn.textContent = 'Copy failed — select the text manually';
+  document.getElementById('copy-gscript-btn').addEventListener('click', async ()=>{
+    const msg = document.getElementById('copy-gscript-status');
+    let ok = false;
+    try{ await navigator.clipboard.writeText(GSCRIPT_CODE); ok = true; }
+    catch(err){
+      const ta = document.createElement('textarea'); ta.value = GSCRIPT_CODE; ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta); ta.select();
+      try{ ok = document.execCommand('copy'); }catch(e2){}
+      ta.remove();
     }
+    msg.textContent = ok ? 'Copied!' : 'Could not copy — try again.';
+    setTimeout(()=>{ msg.textContent = ''; }, 2000);
   });
 
   const periodModalOverlay = document.getElementById('period-modal-overlay');
