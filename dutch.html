@@ -701,8 +701,13 @@ function doPost(e) {
     const item = state.items.find(i => i.id === id); if(!item) return;
     const act = b.dataset.act;
     if(act === 'learn'){
-      item.learned = !item.learned; saveLocal(); renderList();
-      if(state.sheetUrl && online()){ try{ await postJSON({ action: 'update', id, dutch: item.dutch, english: item.english, learned: !!item.learned }); }catch(err){} }
+      item.learned = !item.learned; item.learnedDirty = true; saveLocal(); renderList();
+      if(state.sheetUrl && online()){
+        try{
+          const r = await postJSON({ action: 'update', id, dutch: item.dutch, english: item.english, learned: !!item.learned });
+          if(r && r.ok){ item.learnedDirty = false; saveLocal(); }
+        }catch(err){}
+      }
       return;
     }
     if(act === 'edit'){ state.editingId = id; renderList(); return; }
@@ -756,13 +761,25 @@ function doPost(e) {
       const r = await res.json();
       if(!r || !r.ok) throw new Error((r && r.error) || 'Sheet error');
       const gone = new Set(state.pendingDel);
-      const remote = (r.items || []).filter(i => !gone.has(i.id)).map(i => ({ id: i.id, dutch: i.dutch, english: i.english, added_at: i.added_at, learned: i.learned }));
+      const remote = (r.items || []).filter(i => !gone.has(i.id)).map(i => ({ id: i.id, dutch: i.dutch, english: i.english, added_at: i.added_at, learned: i.learned, learnedSynced: i.learned !== undefined }));
       const remoteById = new Map(remote.map(i => [i.id, i]));
       const remoteKeys = new Set(remote.map(i => keyOf(i.dutch)));
       const toSave = [], toUpdate = [], keep = [];
       state.items.forEach(i => {
         const rm = remoteById.get(i.id);
-        if(rm){ keep.push(i); if(rm.dutch !== i.dutch || rm.english !== i.english || (rm.learned !== undefined && !!rm.learned !== !!i.learned)) toUpdate.push(i); }
+        if(rm){
+          keep.push(i);
+          if(rm.learned !== undefined){
+            // A check made on this device and not yet in the sheet wins. Otherwise the sheet wins,
+            // so a check made on another device shows up here instead of being undone by this one.
+            // (First sync of an older local copy: keep checks from both sides.)
+            if(i.learnedDirty){ /* push ours below */ }
+            else if(!i.learnedSynced){ if(i.learned && !rm.learned) i.learnedDirty = true; else i.learned = !!rm.learned; }
+            else i.learned = !!rm.learned;
+            i.learnedSynced = true;
+          }
+          if(rm.dutch !== i.dutch || rm.english !== i.english || (rm.learned !== undefined && !!rm.learned !== !!i.learned)) toUpdate.push(i);
+        }
         else if(!remoteKeys.has(keyOf(i.dutch))){ keep.push(i); toSave.push(i); }
         // else: same sentence already in the sheet under another id — use the sheet's copy
       });
@@ -771,8 +788,13 @@ function doPost(e) {
       state.items = keep.sort((a, b) => String(b.added_at).localeCompare(String(a.added_at)));
       saveLocal(); renderList();
       if(toSave.length) await postJSON({ action: 'save', items: toSave });
-      for(const it of toUpdate){ await postJSON({ action: 'update', id: it.id, dutch: it.dutch, english: it.english, learned: !!it.learned }); }
-      $('syncBtn').textContent = 'Synced ' + new Date().toTimeString().slice(0,5);
+      for(const it of toUpdate){
+        const u = await postJSON({ action: 'update', id: it.id, dutch: it.dutch, english: it.english, learned: !!it.learned });
+        if(u && u.ok){ it.learnedDirty = false; }
+      }
+      saveLocal();
+      const sheetKnowsChecks = !(r.items || []).length || (r.items || []).some(i => i.learned !== undefined);
+      $('syncBtn').textContent = 'Synced ' + new Date().toTimeString().slice(0,5) + (sheetKnowsChecks ? '' : ' · sheet script needs updating for checks');
     }catch(err){
       console.error(err); $('syncBtn').textContent = 'Sync failed';
       setTimeout(() => { $('syncBtn').textContent = 'Sync'; }, 2500);
