@@ -165,25 +165,7 @@
   <div class="modal-box">
     <button class="modal-close" id="sheetClose" title="Close">&times;</button>
     <h3>Connect Google Sheet</h3>
-    <label for="sheetUrl">Apps Script web app URL</label>
-    <input type="text" id="sheetUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
-    <div class="actions">
-      <button class="btn btn-primary" id="sheetSave">Save &amp; connect</button>
-      <button class="btn btn-ghost" id="sheetDisconnect">Disconnect</button>
-      <span class="status" id="sheetStatus" style="margin:0"></span>
-    </div>
-    <div class="hint">
-      First time? Set up the sheet backend (about 3 minutes):
-      <ol>
-        <li>Create a new blank Google Sheet. Open <b>Extensions &rarr; Apps Script</b>.</li>
-        <li>Delete what's in the editor, tap <b>Copy backend code</b> below, and paste it in.</li>
-        <li><b>Deploy &rarr; New deployment &rarr; Web app</b>. Execute as <b>Me</b>, access <b>Anyone</b>. Deploy and allow access.</li>
-        <li>Copy the Web app URL into the box above and tap <b>Save &amp; connect</b>.</li>
-      </ol>
-      After you edit the code later, use <b>Deploy &rarr; Manage deployments &rarr; Edit &rarr; New version</b> so the live URL updates.
-    </div>
-    <div class="actions"><button class="btn btn-ghost" id="copyCode">Copy backend code</button><span class="status" id="copyStatus" style="margin:0"></span></div>
-    <details><summary>Show backend code</summary><textarea id="codeBox" readonly style="width:100%;height:220px;margin-top:8px;font-family:ui-monospace,Menlo,monospace;font-size:12px"></textarea></details>
+    <div class="actions"><button class="btn btn-primary" id="copyCode">Copy backend code</button><span class="status" id="copyStatus" style="margin:0"></span></div>
   </div>
 </div>
 
@@ -801,28 +783,19 @@ function doPost(e) {
     }finally{ syncing = false; }
   }
   $('syncBtn').addEventListener('click', syncWithSheet);
-  $('sheetBtn').addEventListener('click', () => { $('sheetUrl').value = state.sheetUrl; $('sheetStatus').textContent = ''; $('sheetModal').classList.add('open'); });
+  $('sheetBtn').addEventListener('click', () => { $('copyStatus').textContent = ''; $('sheetModal').classList.add('open'); });
   $('sheetClose').addEventListener('click', () => $('sheetModal').classList.remove('open'));
   $('sheetModal').addEventListener('click', e => { if(e.target === $('sheetModal')) $('sheetModal').classList.remove('open'); });
-  $('sheetSave').addEventListener('click', async () => {
-    const url = $('sheetUrl').value.trim();
-    if(!/^https:\/\/script\.google\.com\//.test(url)){ $('sheetStatus').textContent = 'Paste the Web app URL (starts with https://script.google.com/…).'; return; }
-    $('sheetStatus').textContent = 'Connecting…';
-    try{
-      const r = await (await fetch(url)).json();
-      if(!r || !r.ok) throw new Error('bad');
-      state.sheetUrl = url; lsSet(URL_KEY, url);
-      updateSheetUi(); $('sheetModal').classList.remove('open'); await syncWithSheet();
-    }catch(err){ $('sheetStatus').textContent = 'Could not reach that URL — check the deployment (Execute as Me, access Anyone).'; }
-  });
-  $('sheetDisconnect').addEventListener('click', () => {
-    state.sheetUrl = ''; try{ if(LS) LS.removeItem(URL_KEY); }catch(e){}
-    updateSheetUi(); $('sheetStatus').textContent = 'Disconnected. Your list stays on this device.';
-  });
-  $('codeBox').value = BACKEND_CODE;
   $('copyCode').addEventListener('click', async () => {
-    try{ await navigator.clipboard.writeText(BACKEND_CODE); $('copyStatus').textContent = 'Copied!'; }
-    catch(e){ $('codeBox').closest('details').open = true; $('codeBox').select(); $('copyStatus').textContent = 'Select all and copy.'; }
+    let ok = false;
+    try{ await navigator.clipboard.writeText(BACKEND_CODE); ok = true; }
+    catch(e){
+      const ta = document.createElement('textarea'); ta.value = BACKEND_CODE; ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta); ta.select();
+      try{ ok = document.execCommand('copy'); }catch(e2){}
+      ta.remove();
+    }
+    $('copyStatus').textContent = ok ? 'Copied!' : 'Could not copy — try again.';
     setTimeout(() => { $('copyStatus').textContent = ''; }, 2000);
   });
 
