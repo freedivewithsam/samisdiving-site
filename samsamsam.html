@@ -3128,13 +3128,9 @@ function renderFinance(){
     .filter(p=>financeMonth==='all' || (p.date||'').slice(0,7)===financeMonth)
     .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
-  // Stats at the top always show two blocks: All time, and whichever
-  // month the dropdown below is currently set to — so choosing a month
-  // there now actually changes the second summary instead of it always
-  // being pinned to today's real calendar month regardless of selection.
-  // With the dropdown on "All", there's no specific month to summarize,
-  // so it falls back to showing the actual current month as the most
-  // useful default for that block.
+  // Stats at the top show the All time block. The second block only
+  // appears when a specific month is picked from the month tabs — with
+  // "All" selected, just the overall is shown.
   const thisMonthKey = localDateKey(new Date()).slice(0,7);
   const secondBlockKey = financeMonth === 'all' ? thisMonthKey : financeMonth;
   const secondBlockLabel = financeMonth === 'all' ? 'This month' : new Date(secondBlockKey + '-01T00:00:00').toLocaleDateString('en-GB', { month:'long', year:'numeric' });
@@ -3178,7 +3174,7 @@ function renderFinance(){
     String(p.name||'').toLowerCase().includes(searchQuery) || String(p.pkg||'').toLowerCase().includes(searchQuery) || matchesAmount(p.amount, searchQuery)
   ) : payments;
 
-  let html = financeStatsHtml('All time', allTimeStats, true) + financeStatsHtml(secondBlockLabel, secondBlockStats, false) + `
+  let html = financeStatsHtml('All time', allTimeStats, true) + (financeMonth === 'all' ? '' : financeStatsHtml(secondBlockLabel, secondBlockStats, false)) + `
 
   <div class="finance-cols">
     <div class="fin-col fin-col-expense">
