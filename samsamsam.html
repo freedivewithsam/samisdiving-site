@@ -3144,12 +3144,12 @@ function renderFinance(){
     return { income:inc, expense:exp, balance:bal, salary:sal, profit:prof, profitMargin:profMargin };
   }
   const allTimeStats = financeStatsFor(allExpenses, allPayments);
-  // Average income/month: total all-time income divided by how many
+  // Average profit/month: all-time income minus all-time expenses, divided by how many
   // distinct months actually have at least one payment in them — not by
   // every month since the first record, which would understate the
   // average across any gap with no activity at all.
   const activeIncomeMonths = new Set(allPayments.map(p=>(p.date||'').slice(0,7)).filter(Boolean));
-  const avgIncomePerMonth = activeIncomeMonths.size ? allTimeStats.income / activeIncomeMonths.size : 0;
+  const avgIncomePerMonth = activeIncomeMonths.size ? (allTimeStats.income - allTimeStats.expense) / activeIncomeMonths.size : 0;
   const secondBlockStats = financeStatsFor(
     allExpenses.filter(t=>(t.date||'').slice(0,7)===secondBlockKey),
     allPayments.filter(p=>(p.date||'').slice(0,7)===secondBlockKey)
@@ -3164,7 +3164,7 @@ function renderFinance(){
         <div class="stat"><div class="num" style="${s.balance<0?'color:var(--expense)':''}">${moneyStat(s.balance)}</div><div class="lbl">Balance</div></div>
         <div class="stat"><div class="num">${moneyStat(s.salary)}</div><div class="lbl">Salary (${SALARY_MARGIN_PCT}%)</div></div>
         <div class="stat"><div class="num" style="${s.profitMargin<0?'color:var(--expense)':'color:var(--income)'}">${pctStat(s.profitMargin)}</div><div class="lbl">Profit margin</div></div>
-        ${showAvg ? `<div class="stat"><div class="num" style="color:var(--income)">${moneyStat(avgIncomePerMonth)}</div><div class="lbl">Avg income/month</div></div>` : ''}
+        ${showAvg ? `<div class="stat"><div class="num" style="${avgIncomePerMonth<0?'color:var(--expense)':'color:var(--income)'}">${moneyStat(avgIncomePerMonth)}</div><div class="lbl">Avg profit/month</div></div>` : ''}
       </div>
     </div>`;
   }
