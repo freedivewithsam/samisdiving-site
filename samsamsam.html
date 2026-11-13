@@ -889,10 +889,6 @@ let categoryFilter = null; // when set, the Personal Finance expense list only s
 let financeMonth = 'all';
 let confirmCb = null;
 const TX_PAGE_SIZE = 10;
-// What percentage of income you pay yourself as salary — used only in
-// the Freediving Finance summary to also show Profit margin as
-// Income − Expenses − Salary, rather than just Income − Expenses.
-const SALARY_MARGIN_PCT = 35;
 let listLimits = { financeExp: TX_PAGE_SIZE, financeInc: TX_PAGE_SIZE, personalExp: TX_PAGE_SIZE, personalInc: TX_PAGE_SIZE };
 
 /* ---------- cloud sync (optional Google Apps Script Web App as shared storage) ---------- */
@@ -3138,10 +3134,9 @@ function renderFinance(){
     const inc = payList.reduce((a,p)=>a+p.amount,0);
     const exp = expList.reduce((a,t)=>a+t.price,0);
     const bal = inc - exp;
-    const sal = inc * (SALARY_MARGIN_PCT / 100);
-    const prof = inc - exp - sal;
+    const prof = inc - exp;
     const profMargin = inc > 0 ? (prof / inc * 100) : 0;
-    return { income:inc, expense:exp, balance:bal, salary:sal, profit:prof, profitMargin:profMargin };
+    return { income:inc, expense:exp, balance:bal, profit:prof, profitMargin:profMargin };
   }
   const allTimeStats = financeStatsFor(allExpenses, allPayments);
   // Average profit/month: all-time income minus all-time expenses, divided by how many
@@ -3162,7 +3157,6 @@ function renderFinance(){
         <div class="stat"><div class="num" style="color:var(--income)">${moneyStat(s.income)}</div><div class="lbl">Total income</div></div>
         <div class="stat"><div class="num" style="color:var(--expense)">${moneyStat(s.expense)}</div><div class="lbl">Total expenses</div></div>
         <div class="stat"><div class="num" style="${s.balance<0?'color:var(--expense)':''}">${moneyStat(s.balance)}</div><div class="lbl">Balance</div></div>
-        <div class="stat"><div class="num">${moneyStat(s.salary)}</div><div class="lbl">Salary (${SALARY_MARGIN_PCT}%)</div></div>
         <div class="stat"><div class="num" style="${s.profitMargin<0?'color:var(--expense)':'color:var(--income)'}">${pctStat(s.profitMargin)}</div><div class="lbl">Profit margin</div></div>
         ${showAvg ? `<div class="stat"><div class="num" style="${avgIncomePerMonth<0?'color:var(--expense)':'color:var(--income)'}">${moneyStat(avgIncomePerMonth)}</div><div class="lbl">Avg profit/month</div></div>` : ''}
       </div>
