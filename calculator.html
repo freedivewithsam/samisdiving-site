@@ -895,6 +895,8 @@
     gap: 8px;
   }
   .foot-right { display: inline-flex; align-items: center; gap: 6px; }
+  .sheet-link { color: var(--ink-faint); font-size: 0.8rem; text-decoration: underline; }
+  .sheet-link:hover { color: var(--ink); }
   .cloud-settings-btn {
     background: transparent;
     border: none;
@@ -967,6 +969,7 @@
   <footer class="foot">
     <span id="footNote">Figures are computed live in your browser — nothing is sent anywhere.</span>
     <span class="foot-right">
+      <a class="sheet-link" href="https://docs.google.com/spreadsheets/d/1raqA7YSkoAvyNoquH5h6_4TW2GfhC5Lom08nLcWHphc/edit" target="_blank" rel="noopener">Open Google Sheet</a>
       <span id="savedNote">Saved on this device</span>
       <button class="cloud-settings-btn" id="exportDataBtn" type="button" title="Export data as a file (e.g. to move it into a downloaded copy of this page)">&#11015;</button>
       <input type="file" id="importDataInput" accept="application/json" style="display:none;">
