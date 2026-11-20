@@ -526,7 +526,7 @@
   <form class="modal-in" id="studentForm" method="dialog">
     <h3 id="studentModalTitle">New student</h3>
     <div class="field"><label for="fName">Name</label><input id="fName" required></div>
-    <div class="field"><label for="fPhone">WhatsApp number</label><input id="fPhone" type="tel" inputmode="tel" placeholder="e.g. 62812345678 or +62 812-345-678" autocomplete="off"></div>
+    <div class="field"><label for="fPhone">WhatsApp number</label><input id="fPhone" type="tel" inputmode="tel" placeholder="e.g. 812345678 (+62 added automatically)" autocomplete="off"></div>
     <div class="field"><label for="fNotes">Notes</label><textarea id="fNotes"></textarea></div>
     <div class="modal-btns">
       <button type="button" class="btn btn-ghost" data-action="close-student-modal">Cancel</button>
@@ -2057,14 +2057,26 @@ function fmtDate(iso){
 
 /* ---------- session type helpers (type is now free-text via editable dropdown) ---------- */
 function typeIcon(t){ if(t==='pool') return '🏊'; if(t==='online') return '💻'; return '🤿'; }
-/* Turns whatever a student's phone number was typed as ("+62 812-345-678",
-   "0812 345 678", etc.) into a working wa.me link — WhatsApp's deep link
-   just needs the digits, no +/spaces/dashes. Doesn't try to guess-fix a
-   local leading 0 into a country code, since that assumption wouldn't
-   hold for every country; the field's placeholder asks for the number
-   with country code included. */
+/* Normalises a student's WhatsApp number to international format, defaulting
+   to Indonesia (+62): "0812 345 678" -> "+62812345678", "812345678" ->
+   "+62812345678", "62812345678" -> "+62812345678". A number typed with its own
+   "+" (another country) is kept as-is, just cleaned of spaces/dashes. */
+function normPhone(phone){
+  const raw = (phone||'').trim();
+  if(!raw) return '';
+  const hasPlus = raw.startsWith('+');
+  let d = raw.replace(/\D/g,'');
+  if(!d) return '';
+  if(hasPlus) return '+' + d;
+  if(d.startsWith('00')) return '+' + d.slice(2);
+  if(d.startsWith('62')) return '+' + d;
+  if(d.startsWith('0')) d = d.slice(1);
+  return '+62' + d;
+}
+/* wa.me link just needs the digits (no +/spaces/dashes). Uses normPhone so
+   older saved numbers without a country code also open correctly. */
 function waLink(phone){
-  const digits = (phone||'').replace(/\D/g,'');
+  const digits = normPhone(phone).replace(/\D/g,'');
   return digits ? 'https://wa.me/' + digits : '';
 }
 function typeLabel(t){
@@ -3952,7 +3964,7 @@ document.addEventListener('keydown', e => {
 $('studentForm').addEventListener('submit', ()=>{
   const data = {
     name: $('fName').value.trim(),
-    phone: $('fPhone').value.trim(),
+    phone: normPhone($('fPhone').value),
     notes: $('fNotes').value.trim(),
   };
   if(editingStudent){
