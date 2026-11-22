@@ -258,6 +258,9 @@
   body{font-variant-numeric:tabular-nums}
   h1,h2,h3,h4,button,select,summary,th,.btn,.tab,.tab-btn,.chip,.eyebrow,.brand h1,.stat .num,.stat .lbl,.nav-btn{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
   .money,.mono{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+/* pinned top bar */
+.stickytop{position:sticky;top:0;z-index:30;background:var(--bg);padding:8px 0 6px;margin:-8px 0 0;display:flex;flex-direction:column;gap:6px;box-shadow:0 8px 8px -8px rgba(22,48,46,.28)}
+.stickytop .topbar,.stickytop .tabs,.stickytop .tab-row{margin-bottom:0}
 </style>
 
 <div id="app"></div>
@@ -467,14 +470,14 @@
 
     var h = "";
     // back to the samisdiving nav page
-    h += '<div class="topbar"><a class="nav-btn" href="https://samisdiving.com/nav" aria-label="Back to the nav page">← Nav</a></div>';
+    h += '<div class="stickytop"><div class="topbar"><a class="nav-btn" href="https://samisdiving.com/nav" aria-label="Back to the nav page">← Nav</a></div>';
     // trip tabs
     h += '<nav class="tabs" aria-label="Trips"><div class="tab-row">';
     all.trips.slice().reverse().forEach(function (t) {
       var on = t.id === state.id;
       h += '<button type="button" class="tab' + (on ? " on" : "") + '" data-act="tab" data-id="' + esc(t.id) + '"' + (on ? ' aria-current="page"' : "") + ">" + esc(t.trip) + "</button>";
     });
-    h += '<button type="button" class="tab add edit-only" data-act="newtrip"' + (newTripOpen ? ' aria-expanded="true"' : "") + ">+ New trip</button></div></nav>";
+    h += '<button type="button" class="tab add edit-only" data-act="newtrip"' + (newTripOpen ? ' aria-expanded="true"' : "") + ">+ New trip</button></div></nav></div>";
     if (newTripOpen) {
       h += '<form class="panel new-trip edit-only" id="trip-form"><h2>New trip</h2>';
       h += '<div><label class="label" for="nt-name">Trip name</label><input id="nt-name" type="text" placeholder="e.g. Gili weekend" required></div>';

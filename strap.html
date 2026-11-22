@@ -125,13 +125,19 @@
   .sr{position:absolute;left:-9999px}
   .calc-hint{font-family:"Poppins",sans-serif;font-weight:700;font-size:12px;letter-spacing:0;text-transform:none;color:var(--good);position:absolute;right:0;top:0;line-height:1.2}
   .calc-hint.pending{color:var(--ink-soft)}
+/* pinned top bar */
+.stickybar{position:sticky;top:0;z-index:30;background:var(--sea);padding:10px 0;margin-bottom:14px;box-shadow:0 8px 8px -8px rgba(22,48,46,.28)}
+.stickybar .nav-btn{margin-bottom:0}
 </style>
 </head>
 <body>
 
+<div class="stickybar"><div class="wrap">
+    <a class="nav-btn" href="/nav" aria-label="Back to the nav page">&larr; Nav</a> <span id="syncState" class="sync"></span> <a class="sync" href="https://docs.google.com/spreadsheets/d/1_ksk953uDQYtaDmzLr4VJc9ShtpQaC9TkmtO0MvPLZs/edit" target="_blank" rel="noopener">Open sheet &#8599;</a>
+</div></div>
+
 <header class="top">
   <div class="wrap">
-    <a class="nav-btn" href="/nav" aria-label="Back to the nav page">&larr; Nav</a> <span id="syncState" class="sync"></span> <a class="sync" href="https://docs.google.com/spreadsheets/d/1_ksk953uDQYtaDmzLr4VJc9ShtpQaC9TkmtO0MvPLZs/edit" target="_blank" rel="noopener">Open sheet &#8599;</a>
     <p class="eyebrow">Handmade stuff &middot; behind the scenes</p>
     <h1>Strap costing &amp; <em>pricing</em></h1>
   </div>

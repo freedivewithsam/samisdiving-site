@@ -272,22 +272,27 @@
   body{font-variant-numeric:tabular-nums}
   h1,h2,h3,h4,button,select,summary,th,.btn,.tab,.tab-btn,.chip,.eyebrow,.brand h1,.stat .num,.stat .lbl,.nav-btn{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
   .money,.mono{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+/* pinned top bar */
+.stickybar{position:sticky;top:0;z-index:30;background:var(--bg);padding:10px 0;margin-bottom:14px;box-shadow:0 8px 8px -8px rgba(22,48,46,.28)}
+.stickybar .header-actions{justify-content:flex-start}
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <div class="app-header">
-    <div>
-      <div class="hero-eyebrow">DNF · Pool Training</div>
-      <h1>Read the log,<br>not the screenshot.</h1>
-    </div>
+  <div class="stickybar">
     <div class="header-actions">
       <button id="add-open-modal-btn">Add session(s)</button>
       <button id="manual-open-modal-btn">+ Manual entry</button>
       <button class="ghost" id="period-open-modal-btn">+ Log period</button>
       <button class="ghost" id="sheet-sync-now-btn">Sync now</button>
       <a class="ghost" id="nav-back-btn" href="https://samisdiving.com/nav" style="display:inline-flex; align-items:center; text-decoration:none;">Nav</a>
+    </div></div>
+
+  <div class="app-header">
+    <div>
+      <div class="hero-eyebrow">DNF · Pool Training</div>
+      <h1>Read the log,<br>not the screenshot.</h1>
     </div>
   </div>
 

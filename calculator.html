@@ -920,19 +920,23 @@
   body{font-variant-numeric:tabular-nums}
   h1,h2,h3,h4,button,select,summary,th,.btn,.tab,.tab-btn,.chip,.eyebrow,.brand h1,.stat .num,.stat .lbl,.nav-btn{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
   .money,.mono{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+/* pinned top bar */
+.stickybar{position:sticky;top:0;z-index:30;background:var(--bg);padding:10px 0;margin-bottom:14px;box-shadow:0 8px 8px -8px rgba(22,48,46,.28)}
+.stickybar.top-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:0}
+.stickybar .add-btn{flex:none;margin-top:0}
 </style>
 </head>
 <body>
 
 <div class="wrap">
+  <div class="top-actions stickybar">
+      <a class="add-btn nav-btn" href="https://samisdiving.com/nav">Nav</a>
+      <button class="add-btn" id="addMine">+ Add your course</button>
+    </div>
   <header class="top">
     <div>
       <p class="brand-eyebrow">Course pricing &amp; margin</p>
       <h1>Session Calculator</h1>
-    </div>
-    <div class="top-actions">
-      <a class="add-btn nav-btn" href="https://samisdiving.com/nav">Nav</a>
-      <button class="add-btn" id="addMine">+ Add your course</button>
     </div>
   </header>
 

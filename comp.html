@@ -234,6 +234,9 @@
   body{font-variant-numeric:tabular-nums}
   h1,h2,h3,h4,button,select,summary,th,.btn,.tab,.tab-btn,.chip,.eyebrow,.brand h1,.stat .num,.stat .lbl,.nav-btn{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
   .money,.mono{font-family:'Poppins',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+/* pinned top bar */
+.stickytop{position:sticky;top:0;z-index:30;background:var(--bg);padding:8px 0 6px;margin:-8px 0 0;display:flex;flex-direction:column;gap:6px;box-shadow:0 8px 8px -8px rgba(22,48,46,.28)}
+.stickytop .topbar,.stickytop .tabs,.stickytop .tab-row{margin-bottom:0}
 </style>
 </head>
 <body>
@@ -567,14 +570,14 @@
     var keep = {};
     ["new-comp", "rename-in", "ath-F", "ath-M", "sheet-url"].forEach(function (id) { var el = document.getElementById(id); if (el) keep[id] = el.value; });
     var h = "";
-    h += '<div class="topbar"><a class="nav-btn" href="https://samisdiving.com/nav" aria-label="Back to the nav page">← Nav</a></div>';
+    h += '<div class="stickytop"><div class="topbar"><a class="nav-btn" href="https://samisdiving.com/nav" aria-label="Back to the nav page">← Nav</a></div>';
 
     // competition tabs
     h += '<nav aria-label="Competitions"><div class="tab-row">';
     all.comps.slice().reverse().forEach(function (c) {
       h += '<button type="button" class="tab' + (c.id === cur.id ? " on" : "") + '" data-act="tab" data-id="' + c.id + '"' + (c.id === cur.id ? ' aria-current="page"' : "") + ">" + esc(c.name) + "</button>";
     });
-    h += '<button type="button" class="tab add" data-act="new">+ New competition</button></div></nav>';
+    h += '<button type="button" class="tab add" data-act="new">+ New competition</button></div></nav></div>';
     if (ui.newOpen) {
       h += '<form class="panel" id="new-form"><h2>New competition</h2><div><label class="label" for="new-comp">Name</label><input id="new-comp" type="text" placeholder="e.g. Bali Pool Cup 2026" required></div>';
       if (cur.athletes.length) h += '<label class="hint" style="display:flex;gap:8px;align-items:center"><input id="copy-ath" type="checkbox" checked> Same athletes as ' + esc(cur.name) + " (" + cur.athletes.length + ")</label>";
